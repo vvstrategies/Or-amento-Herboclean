@@ -1,0 +1,5 @@
+import {modelo} from '../utils/proposta.js';
+export const company={...modelo.company(),name:'Aurora Consultoria',location:'Curitiba',phone:'(41) 99999-0000',email:'contato@example.invalid',primaryColor:'#6d28d9',accentColor:'#c2410c',intro:'Consultoria especializada para sua empresa.',benefits:'Atendimento personalizado\\nPlanejamento sob medida',proposalPrefix:'AUR'};
+export const settings={company,terms:modelo.terms(),services:[{name:'Consultoria',unit:'un.',description:'Análise e planejamento'},{name:'Treinamento',unit:'un.',description:'Capacitação da equipe'}]};
+export const fees={...modelo.terms(),installments:3,fixedFee:.49,rate1:2.99,rate6:3.49,rate12:3.99,rate21:4.29,anticipate:'yes',anticipationRate:1.7,anticipationRate1:1.7};
+export const image="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAoCAYAAABpYH0BAAAAZUlEQVR4Ae3BQQGAMADEsHJqMIdg1DAP9Nvkeu73I7+NKCPKiDKijCgjyogyoowoI8qIMqKMKCPKiDKijCgjyogyoowoI8qIMqKMKCPKiDKijCgjyogyoowoI8qIMqKMKCPKiHIAs7sCvUSFCNIAAAAASUVORK5CYII=";

@@ -1,0 +1,8 @@
+import {marketingSummary,providers} from './integration-domain.js';
+import {aggregate} from './dre-domain.js';
+export function integrationDemo(){
+ const rows=[{provider:'google-ads',campaignId:'101',campaignName:'Campanha A',spendCents:10000},{provider:'google-ads',campaignId:'102',campaignName:'Campanha B',spendCents:5000},{provider:'meta-ads',campaignId:'201',campaignName:'Campanha Meta',spendCents:7500}].flatMap(r=>[1,2,3].map(day=>({...r,externalAccountId:r.provider==='google-ads'?'1000000001':'2000000001',accountName:'Conta fictícia',currency:'BRL',date:'2026-09-0'+day,impressions:1000,clicks:40,platformConversions:null,platformConversionValueCents:null,syncedAt:'2026-09-04T10:00:00Z'})));
+ const expense=providers.map(id=>({nature:'operating',costType:'variable',source:id,amountCents:rows.filter(r=>r.provider===id).reduce((s,r)=>s+r.spendCents,0)}));
+ const dre=aggregate([{revenue:200000,cost:50000,costSource:'estimated'}],expense,{rateBps:0});
+ return {private:true,demo:true,from:'2026-09',to:'2026-09',...marketingSummary(rows),byProvider:providers.map(provider=>({provider,...marketingSummary(rows.filter(r=>r.provider===provider))})),campaigns:[...new Set(rows.map(r=>r.campaignId))].map(id=>{const list=rows.filter(r=>r.campaignId===id);return {...list[0],spendCents:list.reduce((s,r)=>s+r.spendCents,0),impressions:3000,clicks:120};}),daily:rows,connections:providers.map(provider=>({provider,status:'connected',accountName:'Conta fictícia',metadata:{currency:'BRL',timezone:'America/Sao_Paulo'},lastSuccessfulSyncAt:'2026-09-04T10:00:00Z'})),warnings:[],dre,route:{distanceMeters:18000,durationSeconds:2400},states:['not_configured','connecting','connected','attention','error']};
+}

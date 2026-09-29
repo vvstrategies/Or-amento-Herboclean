@@ -1,0 +1,27 @@
+const assert=require('node:assert/strict');
+module.exports=async({evaluate,click,set,until,screenshot,send})=>{
+ await send('Emulation.setDeviceMetricsOverride',{width:1512,height:1100,deviceScaleFactor:1,mobile:false});
+ await click('[data-nav="settings"]');await until("document.querySelectorAll('[data-integration]').length===3");
+ assert.equal(await evaluate("document.querySelector('[data-integration=google-ads] [data-action=connect]').disabled"),true);
+ assert.equal(await evaluate("document.querySelector('[data-integration=meta-ads] [data-action=connect]').disabled"),true);
+ await evaluate("document.querySelector('#integrations-center').scrollIntoView({block:'start'})");await screenshot('integrations-desktop');
+ await click('#integration-demo');await until("document.querySelector('#integration-dialog')?.open");
+ assert.equal(await evaluate("document.querySelectorAll('.integration-demo-states span').length"),5);
+ assert.ok(await evaluate("document.querySelector('#integration-dialog').textContent.includes('675,00')"));
+ await screenshot('integrations-demo');await click('#integration-dialog [data-close]');
+ await click('[data-nav="finance"]');await until("!!document.querySelector('[data-dre-tab=marketing]')");await click('[data-dre-tab=marketing]');
+ await until("!!document.querySelector('.marketing-kpis')");assert.ok(await evaluate("document.querySelector('#dre-content').textContent.includes('Conecte suas contas')"));
+ await click('#dre-demo');await until("document.querySelectorAll('[data-campaign]').length===3");
+ assert.ok(await evaluate("document.querySelector('.marketing-kpis').textContent.includes('675,00')"));await screenshot('marketing-desktop');
+ await click('[data-campaign]');await until("document.querySelector('#integration-dialog').open");
+ assert.equal(await evaluate("document.querySelectorAll('#integration-dialog tbody tr').length"),3);await click('#integration-dialog [data-close]');
+ await set('#marketing-provider','google-ads');await evaluate("document.querySelector('#marketing-provider').dispatchEvent(new Event('change'))");
+ assert.equal(await evaluate("document.querySelectorAll('[data-campaign]').length"),2);
+ await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+ await evaluate("document.querySelector('.marketing-heading').scrollIntoView({block:'start'})");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('marketing-mobile');
+ await click('[data-campaign]');await until("document.querySelector('#integration-dialog').open");assert.equal(await evaluate("document.querySelector('#integration-dialog').scrollWidth<=366"),true);await screenshot('marketing-daily-mobile');await click('#integration-dialog [data-close]');
+ await click('#dre-demo');await until("document.querySelector('#dre-content').textContent.includes('Conecte suas contas')");
+ await click('#marketing-connections');await until("!document.querySelector('#settings-view').hidden");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('integrations-mobile');
+ await send('Emulation.setDeviceMetricsOverride',{width:1512,height:1100,deviceScaleFactor:1,mobile:false});
+ console.log('PASS: integrações e Marketing desktop/mobile — estados, demo isolada, campanhas, filtro, detalhamento e DRE fictícia.');
+};

@@ -1,0 +1,9 @@
+﻿Herboclean — orçamentos e agendamentos
+
+1. Execute start.bat (Node.js 24 ou superior).
+2. Abra http://localhost:3000 e defina sua senha no primeiro acesso.
+3. Em Configurações, importe os dados antigos com confirmação ou importe o backup exportado pelo index.html.
+4. Crie propostas; use Aprovar e agendar para confirmar o atendimento.
+5. Para ativar o Google real, siga docs/CONEXAO-GOOGLE.md e conecte a conta em Configurações.
+
+O guia completo está em README.md. Não envie senhas ou credenciais pelo chat.

@@ -1,0 +1,41 @@
+module.exports=async function({evaluate,click,set,until,screenshot,send,downloadFile}){
+ const assert=require('node:assert/strict'),fs=require('node:fs');
+ await send('Emulation.setDeviceMetricsOverride',{width:1512,height:1100,deviceScaleFactor:1,mobile:false});
+ await evaluate("UniversalProfit.initSettings()");await until("!!document.querySelector('#profit-settings-form')");
+ await set('#profit-settings-form [name=minimum]','60');await evaluate("document.querySelector('#profit-settings-form').requestSubmit()");await until("EcoAuth.api('/api/profitability/settings').then(s=>s.minimumBps===6000)");
+ await click('[data-nav="quotes"]');await click('[data-pipeline="generated"]');await until("!!document.querySelector('.proposal-card')");await click('.proposal-card');
+ await until("!!document.querySelector('[data-pricing]')");await click('[data-pricing]');await until("!!document.querySelector('#profit-apply-price')");
+ await set('#profit-price-form [name=price]','180');await evaluate("document.querySelector('#profit-price-form').requestSubmit()");await until("document.querySelector('#profit-price-result').textContent.includes('180,00')");
+ assert.ok(await evaluate("document.querySelector('#profit-price-result').textContent.includes('abaixo do mínimo')"));
+ assert.equal(await evaluate("EcoAuth.api('/api/proposals').then(q=>q[0].items[0].price)"),200);
+ await screenshot('profit-pricing-desktop');
+ await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate("document.querySelector('#profit-dialog').scrollWidth<=390"),true);await screenshot('profit-pricing-mobile');
+ await click('#profit-apply-price');await until("!document.querySelector('#profit-dialog').open");
+ assert.equal(await evaluate("EcoAuth.api('/api/proposals').then(q=>q[0].items[0].price)"),180);
+ assert.equal(await evaluate("EcoStore.all('pdfs').then(p=>p.length)"),2);
+ // Scheduling uses the same application API. Only advancing a fixture appointment to the past is test-only.
+ await evaluate("(async()=>{const q=(await EcoAuth.api('/api/proposals'))[0],v=await EcoAuth.api('/api/proposals/'+q.id+'/finance');await EcoAuth.api('/api/proposals/'+q.id+'/finance',{method:'PUT',body:JSON.stringify({proposalRevision:q.revision,expectedVersion:v.latest.version,inputs:{considerTravel:false,materialOverrideCents:5000,distanceMode:'manual',manualDistanceMeters:null,routeId:null,tollCents:0,parkingCents:0,otherTravelCents:0,otherDirectCosts:[]}})});await EcoAuth.api('/api/proposals/'+q.id+'/schedule',{method:'POST',body:JSON.stringify({key:crypto.randomUUID(),revision:q.revision,date:EcoOperations.localDate(new Date(Date.now()+86400000)),time:'09:00',duration:120})});const r=await fetch('/__fixture__/elapsed',{method:'POST',headers:{'Content-Type':'application/json','X-Fixture':'profit-browser'},body:JSON.stringify({id:q.id})});if(!r.ok)throw Error('Fixture failed');await EcoWorkspace.refresh();})()");
+ await click('[data-nav="quotes"]');await click('[data-pipeline="scheduled"]');await until("!!document.querySelector('.proposal-card')");await click('.proposal-card');await until("!!document.querySelector('[data-status=completed]')");
+ await click('[data-status="completed"]');await until("document.querySelector('#dre-dialog').open");assert.equal(await evaluate("document.querySelector('#dre-dialog [name=actual]').checked"),false);
+ await screenshot('profit-complete-mobile');await click('#dre-dialog [name=actual]');await evaluate("document.querySelector('#dre-dialog form').requestSubmit()");
+ await until("document.querySelector('#profit-actual-form') && document.querySelector('#profit-dialog').open");assert.equal(await evaluate("document.querySelector('#profit-actual-form [name=material]').value"),'50,00');
+ assert.equal(await evaluate("document.querySelector('#profit-dialog').scrollWidth<=390"),true);await screenshot('profit-actual-mobile');
+ await send('Emulation.setDeviceMetricsOverride',{width:1512,height:1100,deviceScaleFactor:1,mobile:false});await screenshot('profit-actual-desktop');
+ await set('#profit-actual-form [name=revenue]','170');await set('#profit-actual-form [name=material]','55');await set('#profit-actual-form [name=travel]','10');await set('#profit-actual-form [name=minutes]','90');
+ await evaluate("document.querySelector('#profit-actual-form').requestSubmit()");await until("!document.querySelector('#profit-dialog').open");
+ assert.equal(await evaluate("EcoAuth.api('/api/finance/report?from='+EcoOperations.localDate().slice(0,7)+'&to='+EcoOperations.localDate().slice(0,7)).then(r=>r.total.cost)"),6500);
+ await until("!!document.querySelector('[data-context]')");await click('[data-context]');await until("document.querySelector('#profit-dialog').textContent.includes('Cidade')");
+ await set('#profit-dialog [name=city]','Santo André');await set('#profit-dialog [name=state]','SP');await set('#profit-dialog [name=reason]','Cidade confirmada');await evaluate("document.querySelector('#profit-dialog form').requestSubmit()");await until("!document.querySelector('#profit-dialog').open");
+ await click('[data-close="detail-dialog"]');await click('[data-nav="finance"]');await until("!!document.querySelector('[data-dre-tab=intelligence]')");await click('[data-dre-tab="intelligence"]');await until("!!document.querySelector('.profit-metrics')");
+ assert.ok(await evaluate("document.querySelector('#profit-analysis')?.textContent.includes('105,00')"));
+ await click('[data-goal]');await until("document.querySelector('#profit-dialog').open");await set('#profit-dialog [name=revenue]','1000');await set('#profit-dialog [name=marginBps]','60');await evaluate("document.querySelector('#profit-dialog form').requestSubmit()");await until("!document.querySelector('#profit-dialog').open");await until("document.querySelector('.profit-goal').textContent.includes('1.000,00')");
+ await screenshot('profit-overview-desktop');await click('.profit-metric');await until("document.querySelector('#profit-dialog').open");await screenshot('profit-drill-desktop');await click('#profit-dialog [data-close]');
+ for(const name of ['byService','byCity','byClient','accuracy','pricing']){await click('[data-profit-view="'+name+'"]');await until("!document.querySelector('#dre-content').classList.contains('dre-updating') && document.querySelector('[data-profit-view="+name+"]')?.getAttribute('aria-pressed')==='true'");await screenshot('profit-'+name+'-desktop');}
+ await click('[data-profit-view="overview"]');await until("!!document.querySelector('.profit-metrics')");
+ await click('#profit-export');const file=await downloadFile('rentabilidade-interna-'+await evaluate("document.querySelector('#dre-from').value")+'.csv');assert.ok(fs.readFileSync(file,'utf8').includes('Santo André'));
+ await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await evaluate("document.querySelector('#profit-analysis').scrollIntoView({block:'start'})");await screenshot('profit-overview-mobile');
+ await click('[data-profit-view="byService"]');await until("!!document.querySelector('#profit-analysis .dre-table')");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('profit-services-mobile');
+ await click('#dre-demo');await until("document.querySelector('#dre-content').textContent.includes('Seis atendimentos fictícios')");await click('[data-profit-view="accuracy"]');await until("document.querySelector('#profit-analysis')?.textContent.includes('Precisão das estimativas')");await screenshot('profit-demo-mobile');
+ await click('#dre-demo');await until("!document.querySelector('#dre-new-expense').disabled");await click('[data-nav="settings"]');
+ console.log('PASS: Fase 3 desktop/mobile — simulador/alerta/aplicação, conclusão opcional, custos reais, cidade, metas, analytics, drill-down, CSV e demonstração.');
+};

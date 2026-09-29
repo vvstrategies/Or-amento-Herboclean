@@ -1,0 +1,5 @@
+export interface Vehicle {id:string; name:string; fuelType:'gasoline'|'ethanol'|'diesel'|'flex'; consumptionCentiKmL:number|null; fuelPriceCents:number|null; additionalCostPerKmCents:number;}
+export interface FinancialSettings {version:number; defaultMaterialBps:number|null; serviceMaterialBps:Record<string,number>; originMode:'company'|'custom'; originAddress:string; roundTrip:boolean; vehicle:Vehicle;}
+export interface EstimateInput {considerTravel:boolean; materialOverrideCents:number|null; distanceMode:'manual'|'automatic'; manualDistanceMeters:number|null; routeId:string|null; tollCents:number; parkingCents:number; otherTravelCents:number; otherDirectCosts:Array<{description:string;amountCents:number}>;}
+export interface RouteSnapshot {id:string;provider:string;origin:string;destination:string;distanceMeters:number;durationSeconds:number|null;calculatedAt:string;}
+export interface RouteProvider {id:string;configured:boolean;route(origin:string,destination:string):Promise<{distanceMeters:number;durationSeconds:number|null}>;}
