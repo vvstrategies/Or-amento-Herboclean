@@ -1,4 +1,4 @@
-﻿import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -81,6 +81,10 @@ export class Repository{
     if(operation.status!=='cancelled')throw fail(409,'A exclusão definitiva está disponível apenas para orçamentos cancelados.');
     if(operation.schedule||this.job(id))throw fail(409,'Cancele o agendamento pendente antes de excluir definitivamente.');
     const exists=name=>!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
+    if(exists('asaas_payments')){
+      const active=this.db.prepare("SELECT status FROM asaas_payments WHERE proposal_id=? AND status NOT IN ('DELETED','REFUNDED','CHARGEBACK_REVERSED')").all(id);
+      if(active.length)throw fail(409,'Exclua ou trate as cobranças Asaas pendentes antes de excluir este orçamento. Cobranças recebidas permanecem no histórico financeiro.');
+    }
     const pdfs=this.db.prepare('SELECT id,storage_key FROM pdfs WHERE proposal_id=?').all(id);
     const routeIds=exists('finance_routes')?this.db.prepare('SELECT id,data FROM finance_routes').all().filter(row=>{try{return JSON.parse(row.data).destination===quote.address}catch{return false}}).map(row=>row.id):[];
     const geocodeKeys=exists('finance_geocodes')?this.db.prepare("SELECT geocode_key FROM finance_geocodes WHERE subject_type='proposal' AND subject_id=?").all(id).map(row=>row.geocode_key):[];
@@ -101,6 +105,7 @@ export class Repository{
       }
       if(exists('finance_routes'))for(const routeId of routeIds)this.db.prepare('DELETE FROM finance_routes WHERE id=?').run(routeId);
       if(exists('finance_audit'))this.db.prepare('DELETE FROM finance_audit WHERE entity_id=?').run(id);
+      if(exists('asaas_payments'))this.db.prepare('DELETE FROM asaas_payments WHERE proposal_id=?').run(id);
       this.db.prepare('DELETE FROM sync_jobs WHERE proposal_id=?').run(id);
       this.db.prepare('DELETE FROM leases WHERE key=?').run('proposal:'+id);
       this.db.prepare('DELETE FROM idempotency WHERE response LIKE ?').run('%'+id+'%');
@@ -115,4 +120,5 @@ export class Repository{
   claim(key,owner){const now=Date.now();return this.transaction(()=>{const r=this.db.prepare('SELECT * FROM leases WHERE key=?').get(key);if(r&&r.expires>now)throw fail(409,'Há uma operação em andamento. Aguarde e tente novamente.');this.db.prepare('INSERT OR REPLACE INTO leases VALUES (?,?,?)').run(key,owner,now+300000)})}
   release(key,owner){this.db.prepare('DELETE FROM leases WHERE key=? AND owner=?').run(key,owner)}
 }
+
 
