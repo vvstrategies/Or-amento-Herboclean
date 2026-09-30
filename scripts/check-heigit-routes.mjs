@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {Repository} from '../backend/database.js';
+import {Repository,hash} from '../backend/database.js';
 import {migrateFinance} from '../backend/finance-migration.js';
 import {RouteCache} from '../backend/route-cache.js';
 import {HeiGITPeliasGeocoder,HeiGITOpenRouteServiceProvider} from '../backend/routes-provider.js';
-import {calculateEstimate,defaultEstimateInput,defaultFinancialSettings,snapshotAssumptions} from '../backend/finance-domain.js';
+import {addressKey,calculateEstimate,defaultEstimateInput,defaultFinancialSettings,snapshotAssumptions} from '../backend/finance-domain.js';
 import {modelo} from '../utils/proposta.js';
 import {settings as company,fees} from './test-company.mjs';
 
@@ -44,5 +44,16 @@ try{
  await assert.rejects(new HeiGITPeliasGeocoder({apiKey:'x',fetcher:async()=>{const error=Error('timeout');error.name='TimeoutError';throw error;}}).geocode(origin),e=>e.status===503);
  await assert.rejects(new HeiGITOpenRouteServiceProvider().route({longitude:0,latitude:0},{longitude:1,latitude:1}),e=>e.status===503);
  const manual=calculateEstimate(q,assumptions,{...defaultEstimateInput(),distanceMode:'manual',manualDistanceMeters:18000});assert.equal(manual.totalDistanceMeters,36000);
+ const retryOrigin='Empresa Retry, Rua Um, 10, São Paulo - SP, Brasil',retryDestination='Cliente Retry, Rua Quatro, 40, Osasco - SP, Brasil';
+ let retryGeocodes=0,retryDirections=0;
+ const retryGeocoder={id:'retry-geocoder',configured:true,geocode:async address=>{retryGeocodes++;return {coordinates:address.includes('Empresa')?{longitude:-46.7,latitude:-23.5}:{longitude:-46.8,latitude:-23.6}};}};
+ const retryProvider={id:'retry-routes',configured:true,route:async()=>{retryDirections++;return {distanceMeters:retryDirections===1?0:9600,durationSeconds:retryDirections===1?0:1200,provider:'retry-routes'};}};
+ const retryCache=new RouteCache(repo,retryProvider,{geocoder:retryGeocoder,directionsDailyLimit:10,geocodingDailyLimit:10});
+ const retried=await retryCache.get(retryOrigin,retryDestination,{originRef:{type:'company',id:'retry-company'},destinationRef:{type:'proposal',id:'retry-proposal'}});
+ assert.equal(retried.distanceMeters,9600);assert.equal(retryDirections,2);assert.equal(retryGeocodes,4);
+ const cachedDestination='Cliente Cache, Rua Cinco, 50, Osasco - SP, Brasil',cachedKey=hash(JSON.stringify([retryProvider.id,addressKey(retryOrigin),addressKey(cachedDestination),{profile:'driving-car'}]));
+ repo.db.prepare('INSERT INTO finance_routes VALUES (?,?,?,?)').run('legacy-zero-route',cachedKey,JSON.stringify({id:'legacy-zero-route',distanceMeters:0,durationSeconds:0}),new Date().toISOString());
+ const rebuilt=await retryCache.get(retryOrigin,cachedDestination,{originRef:{type:'company',id:'retry-company'},destinationRef:{type:'proposal',id:'retry-cache'}});
+ assert.equal(rebuilt.distanceMeters,9600);assert.equal(retryDirections,3);assert.equal(repo.db.prepare('SELECT id FROM finance_routes WHERE id=?').get('legacy-zero-route'),undefined);
  console.log('PASS: HeiGIT Pelias/openrouteservice, ordem longitude-latitude, cache, recálculo, quotas, erros e ida/volta.');
 }finally{repo.close();fs.rmSync(dir,{recursive:true,force:true});}

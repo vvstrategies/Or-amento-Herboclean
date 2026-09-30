@@ -22,10 +22,14 @@ try{
  const quote=modelo.quote({...companySettings,terms:fees});quote.client='Cliente automático';quote.address='Rua de teste, 100, São Paulo - SP';quote.items=[{...modelo.item('Sofá'),quantity:1,price:200}];
  let saved=await data('/api/proposals/'+quote.id,quote,'PUT'),view=await data('/api/proposals/'+quote.id+'/finance');
  assert.equal(view.stale,false);assert.equal(view.latest.version,1);assert.equal(view.latest.proposalRevision,saved.revision);assert.equal(view.latest.inputs.distanceMode,'automatic');assert.equal(view.latest.result.revenue,20000);assert.equal(view.latest.result.materialCost,4000);assert.equal(view.latest.result.distanceMeters,12000);assert.equal(view.latest.result.complete,true);assert.equal(routeCalls,1);
+ const invalidRoute={...structuredClone(view.latest),routeSnapshot:{...view.latest.routeSnapshot,distanceMeters:0,durationSeconds:0},result:{...view.latest.result,distanceMeters:0,totalDistanceMeters:0,fuelCost:0,vehicleOperatingCost:0,travelCost:0,complete:true}};
+ system.repo.setVersionFinance(quote.id,saved.versionId,invalidRoute);
+ view=await data('/api/proposals/'+quote.id+'/finance/refresh',{});
+ assert.equal(view.routeNeedsRefresh,false);assert.equal(view.latest.version,2);assert.equal(view.latest.result.distanceMeters,12000);assert.ok(view.latest.result.fuelCost>0);assert.equal(routeCalls,1);
  const firstPdf=await data('/api/proposals/'+quote.id+'/pdf',{revision:saved.revision});assert.equal(firstPdf.version,1);
  saved=system.repo.saveProposal({...saved,terms:{...saved.terms,notes:'Revisão anterior sem PDF atualizado'}});const repaired=await data('/api/proposals/'+quote.id+'/document/refresh',{});assert.equal(repaired.version,2);
  saved=await data('/api/proposals/'+quote.id,{...saved,items:[{...saved.items[0],quantity:2,price:300}]},'PUT');view=await data('/api/proposals/'+quote.id+'/finance');
  const documents=await data('/api/documents?proposalId='+quote.id);assert.equal(documents.length,3);assert.equal(documents[0].version,3);assert.equal(documents[0].fingerprint,system.repo.listPDFs(quote.id)[0].fingerprint);
- assert.equal(view.stale,false);assert.equal(view.latest.version,2);assert.equal(view.latest.proposalRevision,saved.revision);assert.equal(view.latest.result.revenue,60000);assert.equal(view.latest.result.materialCost,12000);assert.equal(view.latest.result.distanceSource,'automatic');assert.equal(routeCalls,1);assert.equal(view.previous.result.revenue,20000);
+ assert.equal(view.stale,false);assert.equal(view.latest.version,3);assert.equal(view.latest.proposalRevision,saved.revision);assert.equal(view.latest.result.revenue,60000);assert.equal(view.latest.result.materialCost,12000);assert.equal(view.latest.result.distanceSource,'automatic');assert.equal(routeCalls,1);assert.equal(view.previous.result.revenue,20000);
  console.log('PASS: orçamento salvo e revisado atualiza PDF, rota, custos e rentabilidade automaticamente, preservando versões anteriores.');
 }finally{await new Promise(resolve=>server.close(resolve));system.repo.close();fs.rmSync(dir,{recursive:true,force:true});}

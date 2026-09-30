@@ -13,6 +13,8 @@ const validRoute=result=>{
  if(!Number.isSafeInteger(result?.distanceMeters)||result.distanceMeters<0||result.distanceMeters>20000000||!Number.isSafeInteger(result?.durationSeconds)||result.durationSeconds<0)throw integrationError('INVALID_DATA');
  return result;
 };
+/** A zero-length route is valid only when the two normalized addresses are the same. */
+export const isUnexpectedZeroRoute=(origin,destination,route)=>!!route&&route.distanceMeters===0&&route.durationSeconds===0&&addressKey(origin)!==addressKey(destination);
 
 /** Persistent cache for routes. Finance receives only the normalized distance and duration. */
 export class RouteCache {
@@ -35,7 +37,12 @@ export class RouteCache {
   if(travelMode!=='DRIVE')throw fail(400,'Somente rotas de carro estão disponíveis.');
   const parameters={profile:'driving-car'},key=hash(JSON.stringify([this.provider.id,addressKey(originSnapshot),addressKey(destinationSnapshot),parameters]));
   const cache=this.repo.db.prepare('SELECT data FROM finance_routes WHERE route_key=? AND created_at>? ORDER BY created_at DESC LIMIT 1').get(key,new Date(Date.now()-this.ttlHours*3600000).toISOString());
-  if(cache&&!force){this.metric('route_cache_hit');return {...JSON.parse(cache.data),cached:true};}
+  const cached=cache?JSON.parse(cache.data):null;
+  if(cached&&!force){
+   if(!isUnexpectedZeroRoute(originSnapshot,destinationSnapshot,cached)){this.metric('route_cache_hit');return {...cached,cached:true};}
+   // A historic zero route for distinct addresses must never suppress a new lookup.
+   this.repo.db.prepare('DELETE FROM finance_routes WHERE id=?').run(cached.id);
+  }
   if(!this.provider?.configured)throw Object.assign(integrationError('NOT_CONFIGURED',503),{message:'Cálculo automático de distância não configurado. Informe a distância manualmente.'});
   if(this.geocodes&&!this.geocodes.provider?.configured)throw Object.assign(integrationError('NOT_CONFIGURED',503),{message:'Cálculo automático de distância não configurado. Informe a distância manualmente.'});
   if(this.pending.has(key))return this.pending.get(key);
@@ -43,16 +50,24 @@ export class RouteCache {
    const started=Date.now();
    try{
     if(force)this.metric('route_manual_recalculate');
-    let originGeocode=null,destinationGeocode=null,result;
-    if(this.geocodes){
-     originGeocode=await this.geocodes.get(originSnapshot,{subjectType:originRef?.type||'company',subjectId:originRef?.id||addressKey(originSnapshot)});
-     destinationGeocode=await this.geocodes.get(destinationSnapshot,{subjectType:destinationRef?.type||'proposal',subjectId:destinationRef?.id||addressKey(destinationSnapshot)});
-     this.incrementDirections();
-     result=await this.provider.route(originGeocode.coordinates,destinationGeocode.coordinates,parameters);
-    }else{
-     this.incrementDirections();result=await this.provider.route(originSnapshot,destinationSnapshot,parameters);
-    }
-    const route=validRoute(result),at=new Date().toISOString(),value={id:crypto.randomUUID(),provider:route.provider||this.provider.id,routeProvider:route.provider||this.provider.id,origin:originSnapshot,destination:destinationSnapshot,originAddressSnapshot:originSnapshot,destinationAddressSnapshot:destinationSnapshot,originCoordinatesSnapshot:originGeocode?.coordinates||null,destinationCoordinatesSnapshot:destinationGeocode?.coordinates||null,oneWayDistanceMeters:route.distanceMeters,distanceMeters:route.distanceMeters,routeDurationSeconds:route.durationSeconds,durationSeconds:route.durationSeconds,parameters,calculatedAt:route.calculatedAt||at,routeCalculatedAt:route.calculatedAt||at};
+    const calculate=async(refreshGeocodes=false)=>{
+     let originGeocode=null,destinationGeocode=null,result;
+     if(this.geocodes){
+      originGeocode=await this.geocodes.get(originSnapshot,{subjectType:originRef?.type||'company',subjectId:originRef?.id||addressKey(originSnapshot),force:refreshGeocodes});
+      destinationGeocode=await this.geocodes.get(destinationSnapshot,{subjectType:destinationRef?.type||'proposal',subjectId:destinationRef?.id||addressKey(destinationSnapshot),force:refreshGeocodes});
+      this.incrementDirections();
+      result=await this.provider.route(originGeocode.coordinates,destinationGeocode.coordinates,parameters);
+     }else{
+      this.incrementDirections();result=await this.provider.route(originSnapshot,destinationSnapshot,parameters);
+     }
+     return {originGeocode,destinationGeocode,route:validRoute(result)};
+    };
+    let calculated=await calculate();
+    // A stale geocoding record may put both points in the same place. Refresh both
+    // coordinates once before returning a zero result for two distinct addresses.
+    if(this.geocodes&&isUnexpectedZeroRoute(originSnapshot,destinationSnapshot,calculated.route))calculated=await calculate(true);
+    if(isUnexpectedZeroRoute(originSnapshot,destinationSnapshot,calculated.route))throw Object.assign(integrationError('INVALID_DATA'),{message:'Não foi possível calcular uma rota válida para estes endereços. Confira a origem e o endereço do cliente.'});
+    const {originGeocode,destinationGeocode,route}=calculated,at=new Date().toISOString(),value={id:crypto.randomUUID(),provider:route.provider||this.provider.id,routeProvider:route.provider||this.provider.id,origin:originSnapshot,destination:destinationSnapshot,originAddressSnapshot:originSnapshot,destinationAddressSnapshot:destinationSnapshot,originCoordinatesSnapshot:originGeocode?.coordinates||null,destinationCoordinatesSnapshot:destinationGeocode?.coordinates||null,oneWayDistanceMeters:route.distanceMeters,distanceMeters:route.distanceMeters,routeDurationSeconds:route.durationSeconds,durationSeconds:route.durationSeconds,parameters,calculatedAt:route.calculatedAt||at,routeCalculatedAt:route.calculatedAt||at};
     this.quota(route.quota);this.repo.db.prepare('INSERT INTO finance_routes VALUES (?,?,?,?)').run(value.id,key,JSON.stringify(value),at);this.onResult?.({ok:true,durationMs:Date.now()-started});return {...value,cached:false};
    }catch(error){this.metric('directions_error');this.onResult?.({ok:false,error,durationMs:Date.now()-started});throw error;}
   })();

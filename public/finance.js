@@ -73,7 +73,7 @@ async function mount(slot,q,{demo=false}={}){
  if(demo){slot.innerHTML='<h3>Rentabilidade estimada</h3><p class="hint">Este card é fictício. Em Configurações, use “Ver exemplo BlueCare” para explorar o cálculo completo.</p>';return;}
  try{
   let view=await EcoAuth.api('/api/proposals/'+encodeURIComponent(q.id)+'/finance');
-  if(view.editable&&(!view.latest||view.stale)){slot.innerHTML='<h3>Rentabilidade estimada <span class="finance-private">Uso interno</span></h3><p class="hint">Calculando automaticamente com as premissas, rota e valores atuais...</p>';view=await EcoAuth.api('/api/proposals/'+encodeURIComponent(q.id)+'/finance/refresh',{method:'POST'});}
+  if(view.editable&&(!view.latest||view.stale||view.routeNeedsRefresh)){slot.innerHTML='<h3>Rentabilidade estimada <span class="finance-private">Uso interno</span></h3><p class="hint">Calculando automaticamente com as premissas, rota e valores atuais...</p>';view=await EcoAuth.api('/api/proposals/'+encodeURIComponent(q.id)+'/finance/refresh',{method:'POST'});}
   if(slot.isConnected)render(slot,q,view);
  }catch(error){if(slot.isConnected)slot.innerHTML='<h3>Rentabilidade estimada</h3><p class="hint">'+esc(error.message)+'</p>';}
 }
@@ -81,6 +81,7 @@ function render(slot,q,view){
  const e=view.latest,r=e?.result;
  slot.innerHTML=`<div class="finance-heading"><h3>Rentabilidade estimada</h3><span class="finance-private">Uso interno</span></div><p class="hint">Custos diretos e margem deste atendimento. Estas informações não entram no PDF.</p>
  ${view.stale?`<p class="finance-alert">${view.addressChanged?'O endereço do atendimento mudou.':'Os itens ou valores do orçamento mudaram.'} ${view.editable?'A atualização automática será tentada ao abrir este detalhe; se a rota estiver indisponível, use os ajustes abaixo.':'A estimativa histórica abaixo foi preservada.'}</p>`:''}
+ ${view.routeNeedsRefresh?`<p class="finance-alert">A rota automática retornou 0 km para endereços diferentes. Confira a origem e o endereço do cliente; o sistema tentará atualizar o deslocamento automaticamente.</p>`:''}
  ${metrics(view)}
  ${e?`<p class="finance-caption">Estimativa v${e.version} · ${when(e.calculatedAt)}${view.editable?'':' · Histórico preservado'}</p>
  ${!view.stale||!view.editable?distance(e):''}

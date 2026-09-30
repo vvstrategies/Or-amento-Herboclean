@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {RouteCache} from './route-cache.js';
+import {RouteCache,isUnexpectedZeroRoute} from './route-cache.js';
 import {fail,hash} from './database.js';
 import {migrateFinance} from './finance-migration.js';
 import {defaultFinancialSettings,validateFinancialSettings,defaultEstimateInput,validateEstimateInput,calculateEstimate,snapshotAssumptions,financialQuoteKey,addressKey,quotedRevenue,resolveOrigin} from './finance-domain.js';
@@ -27,7 +27,8 @@ export class FinanceService{
   const q=this.repo.requireProposal(id),[latest,previous]=this.versions(id),editable=this.editable(id);
   const addressChanged=!!latest&&addressKey(latest.destinationAddressSnapshot)!==addressKey(q.address);
   const stale=!!latest&&latest.quoteKey!==financialQuoteKey(q),routes=this.routeCache.status();
-  return {latest:latest||null,previous:previous||null,editable,stale,addressChanged,status:this.repo.operation(id).status,
+  const routeNeedsRefresh=!!latest&&latest.inputs?.considerTravel&&latest.inputs?.distanceMode==='automatic'&&isUnexpectedZeroRoute(latest.assumptions?.originAddressSnapshot,latest.destinationAddressSnapshot,latest.routeSnapshot);
+  return {latest:latest||null,previous:previous||null,editable,stale,addressChanged,routeNeedsRefresh,status:this.repo.operation(id).status,
    currentRevenue:quotedRevenue(q),defaults:this.settings(),currentOrigin:resolveOrigin(this.settings(),this.company()),
    routes};
  }
@@ -56,7 +57,8 @@ export class FinanceService{
  async refreshAutomatically(id,{alreadyLocked=false}={}){
   const run=async()=>{
    this.checkEditable(id);const q=this.repo.requireProposal(id),previous=this.latest(id),quoteKey=financialQuoteKey(q);
-   if(previous?.quoteKey===quoteKey&&previous.result?.complete)return this.view(id);
+   const routeNeedsRefresh=!!previous&&previous.inputs?.considerTravel&&previous.inputs?.distanceMode==='automatic'&&isUnexpectedZeroRoute(previous.assumptions?.originAddressSnapshot,previous.destinationAddressSnapshot,previous.routeSnapshot);
+   if(previous?.quoteKey===quoteKey&&previous.result?.complete&&!routeNeedsRefresh)return this.view(id);
    if(!this.automaticReady(q))return this.view(id);
    const assumptions=snapshotAssumptions(this.settings(),this.company());
    const inputs=previous?structuredClone(previous.inputs):defaultEstimateInput();
