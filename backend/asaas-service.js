@@ -16,9 +16,9 @@ const dateOnly=value=>/^\d{4}-\d{2}-\d{2}$/.test(String(value||''))?String(value
 function errorMessage(response,body){
   const message=body?.errors?.[0]?.description||body?.message||body?.error;
   if(response.status===401||response.status===403)return 'A Asaas recusou a credencial do servidor. Confira a chave e o ambiente configurados.';
-  if(response.status===429)return 'A Asaas limitou temporariamente as solicitaÃ§Ãµes. Aguarde alguns minutos e tente novamente.';
-  if(response.status>=500)return 'A Asaas estÃ¡ indisponÃ­vel no momento. Tente novamente em instantes.';
-  return typeof message==='string'&&message.length<240?message:'A Asaas nÃ£o aceitou os dados da cobranÃ§a. Revise o cliente e tente novamente.';
+  if(response.status===429)return 'A Asaas limitou temporariamente as solicitações. Aguarde alguns minutos e tente novamente.';
+  if(response.status>=500)return 'A Asaas está indisponível no momento. Tente novamente em instantes.';
+  return typeof message==='string'&&message.length<240?message:'A Asaas não aceitou os dados da cobrança. Revise o cliente e tente novamente.';
 }
 function asaasStatus(event,payment){
   const supplied=visibleStatus(payment?.status);
@@ -40,9 +40,9 @@ function dueDate(days){const value=new Date();value.setHours(12,0,0,0);value.set
 function payerInput(raw,quote){
   const cpfCnpj=digits(raw?.cpfCnpj),name=String(raw?.name||quote.client||'').trim().slice(0,255),email=String(raw?.email||'').trim().slice(0,255),mobilePhone=digits(raw?.mobilePhone);
   if(!name)throw fail(400,'Informe o nome do pagador.');
-  if(![11,14].includes(cpfCnpj.length)||/^(\d)\1+$/.test(cpfCnpj))throw fail(400,'Informe um CPF ou CNPJ vÃ¡lido para emitir a cobranÃ§a.');
-  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw fail(400,'Informe um e-mail vÃ¡lido ou deixe o campo em branco.');
-  if(mobilePhone&&(mobilePhone.length<10||mobilePhone.length>13))throw fail(400,'Informe um celular vÃ¡lido ou deixe o campo em branco.');
+  if(![11,14].includes(cpfCnpj.length)||/^(\d)\1+$/.test(cpfCnpj))throw fail(400,'Informe um CPF ou CNPJ válido para emitir a cobrança.');
+  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw fail(400,'Informe um e-mail válido ou deixe o campo em branco.');
+  if(mobilePhone&&(mobilePhone.length<10||mobilePhone.length>13))throw fail(400,'Informe um celular válido ou deixe o campo em branco.');
   return {name,cpfCnpj,email,mobilePhone};
 }
 function publicPayment(row){return {id:row.id,proposalId:row.proposal_id,revision:row.proposal_revision,kind:row.kind,asaasPaymentId:row.asaas_payment_id,status:visibleStatus(row.status),amountCents:row.amount_cents,installmentCount:row.installment_count,invoiceUrl:safeURL(row.invoice_url),dueDate:row.due_date,createdAt:row.created_at,updatedAt:row.updated_at,paidAt:row.paid_at||null};}
@@ -58,16 +58,16 @@ export class AsaasService{
     this.repo=repo;this.config={...defaults,...config,baseUrl:cleanBase(config.baseUrl||defaults.baseUrl)};this.fetcher=fetcher;
     migrateAsaas(repo);
   }
-  status(){return {configured:!!this.config.apiKey,webhookProtected:!!this.config.webhookToken,environment:this.config.environment||'production',webhookURL:this.config.origin?this.config.origin+'/api/webhooks/asaas':'',message:!this.config.apiKey?'Configure ASAAS_API_KEY no servidor.':!this.config.webhookToken?'Configure ASAAS_WEBHOOK_TOKEN no servidor e use-o tambÃ©m no webhook da Asaas.':'Pronta para gerar cobranÃ§as. O status Ã© atualizado pelo webhook da Asaas.'};}
+  status(){return {configured:!!this.config.apiKey,webhookProtected:!!this.config.webhookToken,environment:this.config.environment||'production',webhookURL:this.config.origin?this.config.origin+'/api/webhooks/asaas':'',message:!this.config.apiKey?'Configure ASAAS_API_KEY no servidor.':!this.config.webhookToken?'Configure ASAAS_WEBHOOK_TOKEN no servidor e use-o também no webhook da Asaas.':'Pronta para gerar cobranças. O status é atualizado pelo webhook da Asaas.'};}
   list(proposalId){this.repo.requireProposal(proposalId);return this.repo.db.prepare('SELECT * FROM asaas_payments WHERE proposal_id=? ORDER BY created_at DESC').all(proposalId).map(publicPayment);}
   rowsForRevision(proposalId,revision){return this.repo.db.prepare('SELECT * FROM asaas_payments WHERE proposal_id=? AND proposal_revision=? ORDER BY created_at DESC').all(proposalId,revision);}
-  assertConfigured(){if(!this.config.apiKey||!this.config.baseUrl)throw fail(503,'A integraÃ§Ã£o Asaas ainda nÃ£o estÃ¡ configurada no servidor.');}
+  assertConfigured(){if(!this.config.apiKey||!this.config.baseUrl)throw fail(503,'A integração Asaas ainda não está configurada no servidor.');}
   async request(method,pathname,body,timeoutMs=15000){
     this.assertConfigured();
     const timeout=new AbortController(),timer=setTimeout(()=>timeout.abort(),timeoutMs);
     let response;
     try{response=await this.fetcher(this.config.baseUrl+pathname,{method,signal:timeout.signal,headers:{accept:'application/json','content-type':'application/json','access_token':this.config.apiKey,'User-Agent':this.config.userAgent},...(body===undefined?{}:{body:JSON.stringify(body)})});}
-    catch{throw fail(502,'NÃ£o foi possÃ­vel alcanÃ§ar a Asaas. Confira a conexÃ£o do servidor e tente novamente.');}
+    catch{throw fail(502,'Não foi possível alcançar a Asaas. Confira a conexão do servidor e tente novamente.');}
     finally{clearTimeout(timer);}
     const text=await response.text();let value={};try{value=text?JSON.parse(text):{}}catch{}
     if(!response.ok)throw fail(response.status>=500?502:400,errorMessage(response,value));
@@ -79,13 +79,13 @@ export class AsaasService{
     let customer;
     if(old){customer=await this.request('PUT','/customers/'+encodeURIComponent(old.asaas_customer_id),payload);}
     else {customer=await this.request('POST','/customers',payload);}
-    if(typeof customer?.id!=='string'||!customer.id)throw fail(502,'A Asaas nÃ£o retornou a identificaÃ§Ã£o do cliente. Tente novamente.');
+    if(typeof customer?.id!=='string'||!customer.id)throw fail(502,'A Asaas não retornou a identificação do cliente. Tente novamente.');
     const now=new Date().toISOString();this.repo.db.prepare('INSERT INTO asaas_payers VALUES (?,?,?,?) ON CONFLICT(document_ref) DO UPDATE SET asaas_customer_id=excluded.asaas_customer_id,display_name=excluded.display_name,updated_at=excluded.updated_at').run(ref,customer.id,payer.name,now);
     return customer.id;
   }
   store(proposal,kind,response,amountCents,installmentCount,due,externalReference){
     const invoice=safeURL(response?.invoiceUrl),paymentId=String(response?.id||'');
-    if(!invoice||!paymentId)throw fail(502,'A Asaas nÃ£o retornou o link seguro da cobranÃ§a. Tente novamente.');
+    if(!invoice||!paymentId)throw fail(502,'A Asaas não retornou o link seguro da cobrança. Tente novamente.');
     const now=new Date().toISOString(),row={id:crypto.randomUUID(),proposalId:proposal.id,revision:proposal.revision,kind,paymentId,customerId:response.customer,installmentId:typeof response.installment==='string'?response.installment:null,status:visibleStatus(response.status),amountCents,installmentCount,invoice,due,externalReference,now};
     this.repo.db.prepare('INSERT INTO asaas_payments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(row.id,row.proposalId,row.revision,row.kind,row.paymentId,row.customerId,row.installmentId,row.status,row.amountCents,row.installmentCount,row.invoice,row.due,row.externalReference,row.now,row.now,null);
     return publicPayment(this.repo.db.prepare('SELECT * FROM asaas_payments WHERE id=?').get(row.id));
@@ -94,26 +94,26 @@ export class AsaasService{
   async issue(proposalId,rawPayer){
     this.assertConfigured();
     const proposal=this.repo.requireProposal(proposalId),operation=this.repo.operation(proposalId);
-    if(!['generated','scheduled','approved'].includes(operation.status))throw fail(409,'NÃ£o Ã© possÃ­vel emitir cobranÃ§a para um orÃ§amento cancelado ou concluÃ­do.');
+    if(!['generated','scheduled','approved'].includes(operation.status))throw fail(409,'Não é possível emitir cobrança para um orçamento cancelado ou concluído.');
     modelo.validate(proposal);const calculated=modelo.totals(proposal);
-    if(!calculated.pix||!calculated.total)throw fail(400,'Informe valores maiores que zero antes de gerar a cobranÃ§a.');
+    if(!calculated.pix||!calculated.total)throw fail(400,'Informe valores maiores que zero antes de gerar a cobrança.');
     const existing=this.rowsForRevision(proposal.id,proposal.revision),pix=existing.find(row=>row.kind==='pix'&&this.active(row)),card=existing.find(row=>row.kind==='card'&&this.active(row));
     if(pix&&card)return {payments:existing.map(publicPayment),reused:true,partial:false};
     const payer=payerInput(rawPayer,proposal),customer=await this.customer(payer),due=dueDate(proposal.terms?.validity),base=`herboclean:${proposal.id.slice(0,24)}:r${proposal.revision}`;
     const created=[],failures=[];
     const create=async(kind,payload,amount,installments)=>{try{const value=await this.request('POST','/payments',payload);created.push(this.store(proposal,kind,{...value,customer:value.customer||customer},amount,installments,due,payload.externalReference));}catch(error){failures.push(error);}};
-    if(!pix)await create('pix',{customer,billingType:'PIX',value:toAmount(calculated.pix),dueDate:due,description:`Proposta ${proposal.number} Â· pagamento PIX`.slice(0,500),externalReference:base+':pix'},calculated.pix,1);
-    if(!card){const payload={customer,billingType:'CREDIT_CARD',dueDate:due,description:`Proposta ${proposal.number} Â· cartÃ£o`.slice(0,500),externalReference:base+':card'};if(calculated.count>1){payload.installmentCount=calculated.count;payload.totalValue=toAmount(calculated.total);}else payload.value=toAmount(calculated.total);await create('card',payload,calculated.total,calculated.count);}
+    if(!pix)await create('pix',{customer,billingType:'PIX',value:toAmount(calculated.pix),dueDate:due,description:`Proposta ${proposal.number} · pagamento PIX`.slice(0,500),externalReference:base+':pix'},calculated.pix,1);
+    if(!card){const payload={customer,billingType:'CREDIT_CARD',dueDate:due,description:`Proposta ${proposal.number} · cartão`.slice(0,500),externalReference:base+':card'};if(calculated.count>1){payload.installmentCount=calculated.count;payload.totalValue=toAmount(calculated.total);}else payload.value=toAmount(calculated.total);await create('card',payload,calculated.total,calculated.count);}
     const payments=this.rowsForRevision(proposal.id,proposal.revision).map(publicPayment);
-    if(!payments.length)throw failures[0]||fail(502,'NÃ£o foi possÃ­vel gerar a cobranÃ§a.');
+    if(!payments.length)throw failures[0]||fail(502,'Não foi possível gerar a cobrança.');
     return {payments,reused:false,partial:failures.length>0,warning:failures[0]?.message||null};
   }
   async cancel(proposalId,localId){
     const row=this.repo.db.prepare('SELECT * FROM asaas_payments WHERE id=? AND proposal_id=?').get(localId,proposalId);
-    if(!row)throw fail(404,'CobranÃ§a nÃ£o encontrada.');
-    if(settled.has(visibleStatus(row.status)))throw fail(409,'Uma cobranÃ§a recebida nÃ£o pode ser excluÃ­da. Consulte a Asaas para eventual estorno.');
+    if(!row)throw fail(404,'Cobrança não encontrada.');
+    if(settled.has(visibleStatus(row.status)))throw fail(409,'Uma cobrança recebida não pode ser excluída. Consulte a Asaas para eventual estorno.');
     if(terminal.has(visibleStatus(row.status)))return publicPayment(row);
-    // O cartÃ£o parcelado cria vÃ¡rias cobranÃ§as. Nessa situaÃ§Ã£o a Asaas exige cancelar o parcelamento inteiro, nÃ£o sÃ³ a primeira parcela.
+    // O cartão parcelado cria várias cobranças. Nessa situação a Asaas exige cancelar o parcelamento inteiro, não só a primeira parcela.
     const endpoint=row.asaas_installment_id?'/installments/'+encodeURIComponent(row.asaas_installment_id)+'/payments':'/payments/'+encodeURIComponent(row.asaas_payment_id);
     await this.request('DELETE',endpoint,undefined,row.asaas_installment_id?70000:15000);
     const now=new Date().toISOString();this.repo.db.prepare("UPDATE asaas_payments SET status='DELETED',updated_at=? WHERE id=?").run(now,row.id);
@@ -126,12 +126,12 @@ export class AsaasService{
   }
   verifyWebhook(value){
     const expected=Buffer.from(this.config.webhookToken||''),actual=Buffer.from(String(value||''));
-    if(!expected.length)throw fail(503,'O webhook Asaas nÃ£o estÃ¡ configurado no servidor.');
-    if(expected.length!==actual.length||!crypto.timingSafeEqual(expected,actual))throw fail(401,'Token de webhook invÃ¡lido.');
+    if(!expected.length)throw fail(503,'O webhook Asaas não está configurado no servidor.');
+    if(expected.length!==actual.length||!crypto.timingSafeEqual(expected,actual))throw fail(401,'Token de webhook inválido.');
   }
   async webhook(token,payload){
     this.verifyWebhook(token);
-    const paymentId=String(payload?.payment?.id||'');if(!paymentId)throw fail(400,'Evento da Asaas sem cobranÃ§a.');
+    const paymentId=String(payload?.payment?.id||'');if(!paymentId)throw fail(400,'Evento da Asaas sem cobrança.');
     const id=eventId(payload),name=String(payload?.event||'PAYMENT_UPDATED').slice(0,120),now=new Date().toISOString();
     let inserted=false;
     this.repo.transaction(()=>{const result=this.repo.db.prepare('INSERT INTO asaas_webhook_events VALUES (?,?,?,?) ON CONFLICT(id) DO NOTHING').run(id,name,paymentId,now);inserted=result.changes===1;if(!inserted)return;const installment=String(payload?.payment?.installment||'');const row=this.repo.db.prepare('SELECT * FROM asaas_payments WHERE asaas_payment_id=? OR (?<>\'\' AND asaas_installment_id=?) ORDER BY CASE WHEN asaas_payment_id=? THEN 0 ELSE 1 END LIMIT 1').get(paymentId,installment,installment,paymentId);if(!row)return;const incoming=asaasStatus(name,payload.payment),status=(settled.has(visibleStatus(row.status))&&!settled.has(incoming))?visibleStatus(row.status):incoming,paidAt=settled.has(status)?(row.paid_at||now):row.paid_at;this.repo.db.prepare('UPDATE asaas_payments SET status=?,updated_at=?,paid_at=? WHERE id=?').run(status,now,paidAt,row.id);});
@@ -145,4 +145,3 @@ export class AsaasService{
     for(const row of alternatives){try{await this.cancel(received.proposal_id,row.id)}catch{}}
   }
 }
-

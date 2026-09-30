@@ -1,7 +1,7 @@
 {
   "name": "orcamento-generator",
   "version": "1.0.0",
-  "description": "Sistema de geraÃ§Ã£o de orÃ§amentos para limpeza de estofados",
+  "description": "Sistema de geração de orçamentos para limpeza de estofados",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -32,4 +32,3 @@
     "node": ">=24.0.0"
   }
 }
-

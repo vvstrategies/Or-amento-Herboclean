@@ -29,7 +29,7 @@ const publicPDF=({storageKey,...pdf})=>pdf;
 const wrap=fn=>(req,res,next)=>Promise.resolve().then(()=>fn(req,res)).catch(next);
 export function createApp(options={}){
   const origin=options.origin||'http://localhost:3000',production=options.production||false;
-  if(production&&new URL(origin).protocol!=='https:')throw Error('APP_ORIGIN deve usar HTTPS em produÃ§Ã£o.');
+  if(production&&new URL(origin).protocol!=='https:')throw Error('APP_ORIGIN deve usar HTTPS em produção.');
   const repo=options.repo||new Repository(options.dataDir||path.join(root,'data'));
   adoptHerboclean(repo);
   initializeInstallation(repo);
@@ -44,7 +44,7 @@ export function createApp(options={}){
   const ads=options.adProviders||{'google-ads':new GoogleAdsProvider(options.integrationConfig?.googleAds,options.integrationFetcher),'meta-ads':new MetaAdsProvider(options.integrationConfig?.metaAds,options.integrationFetcher)};
   const integrations=new IntegrationService(repo,tokenVault,ads,finance,dre,google);
   app.disable('x-powered-by');app.use(sec.headers);app.use(express.json({limit:'100mb'}));
-  // A Asaas chama esta rota sem sessÃ£o do navegador. O token prÃ³prio do webhook Ã© validado no serviÃ§o.
+  // A Asaas chama esta rota sem sessão do navegador. O token próprio do webhook é validado no serviço.
   app.post('/api/webhooks/asaas',wrap(async(req,res)=>{await asaas.webhook(req.headers['asaas-access-token'],req.body);res.status(204).end();}));
   app.get('/api/health',(req,res)=>res.json({status:'ok',product:'herboclean'}));
   app.get('/api/session',(req,res)=>res.json({...sec.status(req),needsCompanySetup:!!req.session&&!completed(repo)}));
@@ -73,43 +73,42 @@ export function createApp(options={}){
   app.get('/api/proposals',(req,res)=>res.json(repo.list()));
   app.get('/api/proposals/:id',(req,res)=>res.json(repo.requireProposal(req.params.id)));
   app.put('/api/proposals/:id',wrap(async(req,res)=>{if(req.params.id!==req.body.id)throw fail(400,'Identificador divergente.');if(service.locks.has(req.params.id))throw fail(409,'Aguarde o agendamento terminar antes de editar.');const current=repo.proposal(req.params.id),changed=!!current&&documentHash(current)!==documentHash(cleanQuote(req.body));if(changed&&Number(req.body.revision)===current.revision)await asaas.cancelActiveForRevision(current.id,current.revision);const saved=repo.saveProposal(req.body);await finance.refreshAutomatically(saved.id).catch(()=>null);const latest=repo.listPDFs(saved.id)[0];if(repo.operation(saved.id).status==='generated'&&latest?.fingerprint!==documentHash(saved))await service.locked(saved.id,()=>service.pdf(saved)).catch(()=>null);res.json(saved)}));
-  app.delete('/api/proposals/:id',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operaÃ§Ã£o em andamento antes de excluir.');res.json(repo.purgeCancelledProposal(req.params.id));}));
+  app.delete('/api/proposals/:id',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir.');res.json(repo.purgeCancelledProposal(req.params.id));}));
   app.get('/api/operations',(req,res)=>res.json(repo.list().map(q=>{const job=repo.job(q.id);return {...repo.operation(q.id),pendingAction:job?{kind:job.kind,values:job.values,error:job.error}:null}})));
   app.get('/api/documents',(req,res)=>res.json(repo.listPDFs(req.query.proposalId).map(publicPDF)));
-  app.get('/api/pdfs/:id',(req,res)=>{const pdf=repo.pdf(req.params.id);if(!pdf)throw fail(404,'PDF nÃ£o encontrado.');res.type('pdf');res.set('Content-Disposition',`inline; filename="${pdf.filename.replace(/["\r\n]/g,'_')}"`);res.sendFile(repo.file(pdf))});
+  app.get('/api/pdfs/:id',(req,res)=>{const pdf=repo.pdf(req.params.id);if(!pdf)throw fail(404,'PDF não encontrado.');res.type('pdf');res.set('Content-Disposition',`inline; filename="${pdf.filename.replace(/["\r\n]/g,'_')}"`);res.sendFile(repo.file(pdf))});
   app.post('/api/proposals/:id/pdf',wrap(async(req,res)=>res.json(publicPDF(await service.generate(req.params.id,req.body)))));
-  app.post('/api/proposals/:id/document/refresh',wrap(async(req,res)=>{const id=req.params.id;if(service.locks.has(id))throw fail(409,'Aguarde a operaÃ§Ã£o em andamento antes de atualizar o documento.');const quote=repo.requireProposal(id);if(repo.operation(id).status!=='generated')throw fail(409,'O documento Ã© preservado apÃ³s o agendamento.');const latest=repo.listPDFs(id)[0],pdf=latest?.fingerprint===documentHash(quote)?latest:await service.locked(id,()=>service.pdf(quote));res.json(publicPDF(pdf));}));
+  app.post('/api/proposals/:id/document/refresh',wrap(async(req,res)=>{const id=req.params.id;if(service.locks.has(id))throw fail(409,'Aguarde a operação em andamento antes de atualizar o documento.');const quote=repo.requireProposal(id);if(repo.operation(id).status!=='generated')throw fail(409,'O documento é preservado após o agendamento.');const latest=repo.listPDFs(id)[0],pdf=latest?.fingerprint===documentHash(quote)?latest:await service.locked(id,()=>service.pdf(quote));res.json(publicPDF(pdf));}));
   app.post('/api/preview-pdf',wrap(async(req,res)=>{const q=cleanQuote(req.body,true),file=await gerarPDFEcoclean(q,{outputDir:repo.files});try{res.type('pdf').send(fs.readFileSync(file))}finally{fs.unlinkSync(file)}}));
   app.post('/api/proposals/:id/schedule',wrap(async(req,res)=>res.json(await service.schedule(req.params.id,req.body))));
   app.post('/api/proposals/:id/schedule/cancel',wrap(async(req,res)=>res.json(await service.cancelSchedule(req.params.id,req.body))));
   app.post('/api/proposals/:id/status',wrap(async(req,res)=>res.json(await service.status(req.params.id,req.body.status,req.body))));
   app.get('/api/google/status',(req,res)=>res.json(google.status()));
   app.post('/api/google/connect',(req,res)=>res.json(google.connect(req.session)));
-  app.get('/api/google/callback',wrap(async(req,res)=>{try{await google.callback(req.query,req.session);res.redirect('/?google=connected#configuracoes')}catch(error){res.redirect('/?google=error&reason='+encodeURIComponent(error.status?error.message:'NÃ£o foi possÃ­vel conectar. Tente novamente.')+'#configuracoes')}}));
-  app.post('/api/google/disconnect',wrap(async(req,res)=>{if(service.locks.size)throw fail(409,'Aguarde as operaÃ§Ãµes em andamento antes de desconectar.');res.json(await google.disconnect())}));
+  app.get('/api/google/callback',wrap(async(req,res)=>{try{await google.callback(req.query,req.session);res.redirect('/?google=connected#configuracoes')}catch(error){res.redirect('/?google=error&reason='+encodeURIComponent(error.status?error.message:'Não foi possível conectar. Tente novamente.')+'#configuracoes')}}));
+  app.post('/api/google/disconnect',wrap(async(req,res)=>{if(service.locks.size)throw fail(409,'Aguarde as operações em andamento antes de desconectar.');res.json(await google.disconnect())}));
   app.get('/api/backup',(req,res)=>res.json({version:4,settings:settings(),proposals:repo.list(),draft:repo.config('draft'),operations:repo.listOperations(),documents:repo.listPDFs().map(p=>({...publicPDF(p),data:'data:application/pdf;base64,'+fs.readFileSync(repo.file(p)).toString('base64')}))}));
   app.post('/api/import',wrap(async(req,res)=>{
-    const data=req.body;if(![1,2,3,4].includes(data.version)||!Array.isArray(data.proposals)||data.proposals.length>500||!data.proposals.length||!Array.isArray(data.operations||[])||!Array.isArray(data.documents||[]))throw fail(400,'Backup invÃ¡lido.');
+    const data=req.body;if(![1,2,3,4].includes(data.version)||!Array.isArray(data.proposals)||data.proposals.length>500||!data.proposals.length||!Array.isArray(data.operations||[])||!Array.isArray(data.documents||[]))throw fail(400,'Backup inválido.');
     const idMap=new Map(),staged=[],proposals=[],ops=[],migration=req.query.migration==='yes';
     try{
       for(const raw of data.proposals){if(idMap.has(raw.id))throw fail(400,'Identificador repetido no backup.');const source=hash(JSON.stringify({id:raw.id,content:documentHash(cleanQuote(raw))}));const existing=migration&&repo.db.prepare('SELECT proposal_id FROM migrations WHERE source_id=?').get(source);if(existing){idMap.set(raw.id,null);continue}const q=cleanQuote({...raw,id:crypto.randomUUID()});idMap.set(raw.id,q.id);proposals.push({q,source})}
       for(const raw of data.operations||[]){if(!idMap.has(raw.id))throw fail(400,'Status sem proposta no backup.');const id=idMap.get(raw.id);if(!id)continue;ops.push({id,status:['completed','cancelled'].includes(raw.status)?raw.status:'generated',schedule:null,suggestedSchedule:raw.schedule||raw.suggestedSchedule||null})}
       const versions=new Set();
-      for(const p of data.documents||[]){if(!idMap.has(p.proposalId))throw fail(400,'PDF sem proposta no backup.');const id=idMap.get(p.proposalId);if(!id)continue;const unique=id+':'+p.version;if(!Number.isInteger(p.version)||p.version<1||versions.has(unique)||!/^data:application\/pdf;base64,[A-Za-z0-9+/]+={0,2}$/.test(p.data||''))throw fail(400,'PDF invÃ¡lido no backup.');versions.add(unique);const bytes=Buffer.from(p.data.split(',')[1],'base64');if(bytes.subarray(0,5).toString()!=='%PDF-')throw fail(400,'ConteÃºdo do PDF invÃ¡lido.');const snapshot=cleanQuote({...p.snapshot,id});staged.push({id:crypto.randomUUID(),proposalId:id,version:p.version,snapshot,storage:crypto.randomUUID()+'.pdf',bytes,generatedAt:Number.isFinite(Date.parse(p.generatedAt))?p.generatedAt:new Date().toISOString()})}
+      for(const p of data.documents||[]){if(!idMap.has(p.proposalId))throw fail(400,'PDF sem proposta no backup.');const id=idMap.get(p.proposalId);if(!id)continue;const unique=id+':'+p.version;if(!Number.isInteger(p.version)||p.version<1||versions.has(unique)||!/^data:application\/pdf;base64,[A-Za-z0-9+/]+={0,2}$/.test(p.data||''))throw fail(400,'PDF inválido no backup.');versions.add(unique);const bytes=Buffer.from(p.data.split(',')[1],'base64');if(bytes.subarray(0,5).toString()!=='%PDF-')throw fail(400,'Conteúdo do PDF inválido.');const snapshot=cleanQuote({...p.snapshot,id});staged.push({id:crypto.randomUUID(),proposalId:id,version:p.version,snapshot,storage:crypto.randomUUID()+'.pdf',bytes,generatedAt:Number.isFinite(Date.parse(p.generatedAt))?p.generatedAt:new Date().toISOString()})}
       for(const p of staged)fs.writeFileSync(path.join(repo.files,p.storage),p.bytes,{flag:'wx'});
       repo.transaction(()=>{const now=new Date().toISOString();for(const {q,source} of proposals){repo.db.prepare('INSERT INTO proposals VALUES (?,?,?,?,?)').run(q.id,JSON.stringify(q),1,now,q.updatedAt||now);if(migration)repo.db.prepare('INSERT OR IGNORE INTO migrations VALUES (?,?)').run(source,q.id)}for(const o of ops)repo.setOperation(o);for(const p of staged)repo.db.prepare('INSERT INTO pdfs VALUES (?,?,?,?,?,?,?,?)').run(p.id,p.proposalId,p.version,p.snapshot.number.replace(/[^\w-]/g,'_')+'.pdf',p.storage,JSON.stringify(p.snapshot),documentHash(p.snapshot),p.generatedAt);});
       res.json({imported:proposals.length,proposals:proposals.map(({q})=>repo.proposal(q.id))});
     }catch(error){for(const p of staged){const file=path.join(repo.files,p.storage);if(fs.existsSync(file))fs.unlinkSync(file)}throw error}
   }));
-  app.use('/api',(req,res)=>res.status(404).json({error:'Recurso nÃ£o encontrado.'}));
+  app.use('/api',(req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   const allowed=new Set(fs.readdirSync(path.join(root,'public')).filter(n=>/\.(html|css|js)$/.test(n)));
   app.get('/',(req,res)=>res.sendFile(path.join(root,'public/index.html')));
   app.get('/guia-integracoes',sec.requireAuth,(req,res)=>res.type('text/plain; charset=utf-8').sendFile(path.join(root,'INTEGRATIONS_SETUP.md')));
   app.get('/guia-google',sec.requireAuth,(req,res)=>res.type('text/plain').sendFile(path.join(root,'docs/CONEXAO-GOOGLE.md')));
   app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name));next()});
-  app.use((req,res)=>res.status(404).json({error:'Recurso nÃ£o encontrado.'}));
-  app.use((error,req,res,next)=>{if(res.headersSent)return next(error);res.status(error.status||400).json({error:error.status?error.message:'NÃ£o foi possÃ­vel concluir. Confira os dados e tente novamente.'})});
+  app.use((req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
+  app.use((error,req,res,next)=>{if(res.headersSent)return next(error);res.status(error.status||400).json({error:error.status?error.message:'Não foi possível concluir. Confira os dados e tente novamente.'})});
   return {app,repo,google,service,finance,dre,profit,integrations,asaas};
 }
-
 

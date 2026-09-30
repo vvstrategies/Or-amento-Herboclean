@@ -1,4 +1,4 @@
-// CobranÃ§as ficam separadas das propostas para que CPF/CNPJ nunca entre em PDFs ou backups comerciais.
+// Cobranças ficam separadas das propostas para que CPF/CNPJ nunca entre em PDFs ou backups comerciais.
 export function migrateAsaas(repo){
   repo.db.exec(`
     CREATE TABLE IF NOT EXISTS asaas_payers (
@@ -39,4 +39,3 @@ export function migrateAsaas(repo){
   repo.db.exec('CREATE INDEX IF NOT EXISTS asaas_payments_installment ON asaas_payments(asaas_installment_id)');
   repo.setConfig('asaas-schema-version',2);
 }
-

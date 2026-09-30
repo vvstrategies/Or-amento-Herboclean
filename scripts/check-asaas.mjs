@@ -24,7 +24,7 @@ async function data(url,body,method,headers){const response=await request(url,bo
 try{
  const setup=await request('/api/setup',{password:'asaas-test-password'});assert.equal(setup.status,200);cookie=setup.headers.get('set-cookie').split(';')[0];csrf=(await setup.json()).csrf;
  await data('/api/onboarding',settings);
- modelo.configure(settings);let quote=modelo.quote(settings);quote.client='Cliente pagamento';quote.address='Rua de teste, 100';quote.items=[{...modelo.item('SofÃ¡'),price:200,photos:[image]}];quote=await data('/api/proposals/'+quote.id,quote,'PUT');
+ modelo.configure(settings);let quote=modelo.quote(settings);quote.client='Cliente pagamento';quote.address='Rua de teste, 100';quote.items=[{...modelo.item('Sofá'),price:200,photos:[image]}];quote=await data('/api/proposals/'+quote.id,quote,'PUT');
  const status=await data('/api/asaas/status');assert.equal(status.configured,true);assert.equal(status.webhookProtected,true);assert.equal(status.environment,'sandbox');
  const issued=await data('/api/proposals/'+quote.id+'/payments',{name:'Cliente pagamento',cpfCnpj:'529.982.247-25',email:'cliente@example.test',mobilePhone:'11999999999'});assert.equal(issued.payments.length,2);assert.equal(issued.partial,false);
  const total=modelo.totals(quote),pixCall=calls.find(x=>x.body?.billingType==='PIX'),cardCall=calls.find(x=>x.body?.billingType==='CREDIT_CARD');assert.equal(pixCall.body.value,total.pix/100);assert.equal(cardCall.body.totalValue,total.total/100);assert.equal(cardCall.body.installmentCount,total.count);assert.ok(calls.every(x=>x.headers?.access_token==='test-api-key'));
@@ -37,6 +37,5 @@ try{
  assert.equal(calls.filter(x=>x.method==='DELETE').length,3);
  const invalid=await request('/api/webhooks/asaas',{id:'evt-2',event:'PAYMENT_UPDATED',payment:{id:'pay_pix'}},'POST',{'asaas-access-token':'wrong',Origin:'https://not-the-browser.example'});assert.equal(invalid.status,401);
  const rows=system.repo.db.prepare('SELECT * FROM asaas_payers').all();assert.equal(rows.length,1);assert.ok(!JSON.stringify(rows).includes('52998224725'));
- console.log('PASS: Asaas â€” PIX e cartÃ£o em 3x, valores do orÃ§amento, reuso, webhook autenticado, idempotÃªncia, cancelamento da alternativa e privacidade do CPF/CNPJ.');
+ console.log('PASS: Asaas — PIX e cartão em 3x, valores do orçamento, reuso, webhook autenticado, idempotência, cancelamento da alternativa e privacidade do CPF/CNPJ.');
 }finally{await new Promise(resolve=>server.close(resolve));system.repo.close();}
-
