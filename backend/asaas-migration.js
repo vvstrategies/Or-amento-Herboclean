@@ -14,6 +14,7 @@ export function migrateAsaas(repo){
       kind TEXT NOT NULL CHECK(kind IN ('pix','card')),
       asaas_payment_id TEXT NOT NULL UNIQUE,
       asaas_customer_id TEXT NOT NULL,
+      asaas_installment_id TEXT,
       status TEXT NOT NULL,
       amount_cents INTEGER NOT NULL,
       installment_count INTEGER NOT NULL,
@@ -33,6 +34,9 @@ export function migrateAsaas(repo){
       received_at TEXT NOT NULL
     );
   `);
-  repo.setConfig('asaas-schema-version',1);
+  const columns=repo.db.prepare('PRAGMA table_info(asaas_payments)').all().map(row=>row.name);
+  if(!columns.includes('asaas_installment_id'))repo.db.exec('ALTER TABLE asaas_payments ADD COLUMN asaas_installment_id TEXT');
+  repo.db.exec('CREATE INDEX IF NOT EXISTS asaas_payments_installment ON asaas_payments(asaas_installment_id)');
+  repo.setConfig('asaas-schema-version',2);
 }
 

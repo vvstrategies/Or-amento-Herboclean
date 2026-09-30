@@ -62,9 +62,9 @@ export class AsaasService{
   list(proposalId){this.repo.requireProposal(proposalId);return this.repo.db.prepare('SELECT * FROM asaas_payments WHERE proposal_id=? ORDER BY created_at DESC').all(proposalId).map(publicPayment);}
   rowsForRevision(proposalId,revision){return this.repo.db.prepare('SELECT * FROM asaas_payments WHERE proposal_id=? AND proposal_revision=? ORDER BY created_at DESC').all(proposalId,revision);}
   assertConfigured(){if(!this.config.apiKey||!this.config.baseUrl)throw fail(503,'A integraÃ§Ã£o Asaas ainda nÃ£o estÃ¡ configurada no servidor.');}
-  async request(method,pathname,body){
+  async request(method,pathname,body,timeoutMs=15000){
     this.assertConfigured();
-    const timeout=new AbortController(),timer=setTimeout(()=>timeout.abort(),15000);
+    const timeout=new AbortController(),timer=setTimeout(()=>timeout.abort(),timeoutMs);
     let response;
     try{response=await this.fetcher(this.config.baseUrl+pathname,{method,signal:timeout.signal,headers:{accept:'application/json','content-type':'application/json','access_token':this.config.apiKey,'User-Agent':this.config.userAgent},...(body===undefined?{}:{body:JSON.stringify(body)})});}
     catch{throw fail(502,'NÃ£o foi possÃ­vel alcanÃ§ar a Asaas. Confira a conexÃ£o do servidor e tente novamente.');}
@@ -86,8 +86,8 @@ export class AsaasService{
   store(proposal,kind,response,amountCents,installmentCount,due,externalReference){
     const invoice=safeURL(response?.invoiceUrl),paymentId=String(response?.id||'');
     if(!invoice||!paymentId)throw fail(502,'A Asaas nÃ£o retornou o link seguro da cobranÃ§a. Tente novamente.');
-    const now=new Date().toISOString(),row={id:crypto.randomUUID(),proposalId:proposal.id,revision:proposal.revision,kind,paymentId,customerId:response.customer,status:visibleStatus(response.status),amountCents,installmentCount,invoice,due,externalReference,now};
-    this.repo.db.prepare('INSERT INTO asaas_payments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(row.id,row.proposalId,row.revision,row.kind,row.paymentId,row.customerId,row.status,row.amountCents,row.installmentCount,row.invoice,row.due,row.externalReference,row.now,row.now,null);
+    const now=new Date().toISOString(),row={id:crypto.randomUUID(),proposalId:proposal.id,revision:proposal.revision,kind,paymentId,customerId:response.customer,installmentId:typeof response.installment==='string'?response.installment:null,status:visibleStatus(response.status),amountCents,installmentCount,invoice,due,externalReference,now};
+    this.repo.db.prepare('INSERT INTO asaas_payments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(row.id,row.proposalId,row.revision,row.kind,row.paymentId,row.customerId,row.installmentId,row.status,row.amountCents,row.installmentCount,row.invoice,row.due,row.externalReference,row.now,row.now,null);
     return publicPayment(this.repo.db.prepare('SELECT * FROM asaas_payments WHERE id=?').get(row.id));
   }
   active(row){return pending.has(visibleStatus(row.status));}
@@ -113,7 +113,9 @@ export class AsaasService{
     if(!row)throw fail(404,'CobranÃ§a nÃ£o encontrada.');
     if(settled.has(visibleStatus(row.status)))throw fail(409,'Uma cobranÃ§a recebida nÃ£o pode ser excluÃ­da. Consulte a Asaas para eventual estorno.');
     if(terminal.has(visibleStatus(row.status)))return publicPayment(row);
-    await this.request('DELETE','/payments/'+encodeURIComponent(row.asaas_payment_id));
+    // O cartÃ£o parcelado cria vÃ¡rias cobranÃ§as. Nessa situaÃ§Ã£o a Asaas exige cancelar o parcelamento inteiro, nÃ£o sÃ³ a primeira parcela.
+    const endpoint=row.asaas_installment_id?'/installments/'+encodeURIComponent(row.asaas_installment_id)+'/payments':'/payments/'+encodeURIComponent(row.asaas_payment_id);
+    await this.request('DELETE',endpoint,undefined,row.asaas_installment_id?70000:15000);
     const now=new Date().toISOString();this.repo.db.prepare("UPDATE asaas_payments SET status='DELETED',updated_at=? WHERE id=?").run(now,row.id);
     return publicPayment(this.repo.db.prepare('SELECT * FROM asaas_payments WHERE id=?').get(row.id));
   }
@@ -127,7 +129,7 @@ export class AsaasService{
     const paymentId=String(payload?.payment?.id||'');if(!paymentId)throw fail(400,'Evento da Asaas sem cobranÃ§a.');
     const id=eventId(payload),name=String(payload?.event||'PAYMENT_UPDATED').slice(0,120),now=new Date().toISOString();
     let inserted=false;
-    this.repo.transaction(()=>{const result=this.repo.db.prepare('INSERT INTO asaas_webhook_events VALUES (?,?,?,?) ON CONFLICT(id) DO NOTHING').run(id,name,paymentId,now);inserted=result.changes===1;if(!inserted)return;const row=this.repo.db.prepare('SELECT * FROM asaas_payments WHERE asaas_payment_id=?').get(paymentId);if(!row)return;const status=asaasStatus(name,payload.payment),paidAt=settled.has(status)?(row.paid_at||now):row.paid_at;this.repo.db.prepare('UPDATE asaas_payments SET status=?,updated_at=?,paid_at=? WHERE id=?').run(status,now,paidAt,row.id);});
+    this.repo.transaction(()=>{const result=this.repo.db.prepare('INSERT INTO asaas_webhook_events VALUES (?,?,?,?) ON CONFLICT(id) DO NOTHING').run(id,name,paymentId,now);inserted=result.changes===1;if(!inserted)return;const installment=String(payload?.payment?.installment||'');const row=this.repo.db.prepare('SELECT * FROM asaas_payments WHERE asaas_payment_id=? OR (?<>\'\' AND asaas_installment_id=?) ORDER BY CASE WHEN asaas_payment_id=? THEN 0 ELSE 1 END LIMIT 1').get(paymentId,installment,installment,paymentId);if(!row)return;const incoming=asaasStatus(name,payload.payment),status=(settled.has(visibleStatus(row.status))&&!settled.has(incoming))?visibleStatus(row.status):incoming,paidAt=settled.has(status)?(row.paid_at||now):row.paid_at;this.repo.db.prepare('UPDATE asaas_payments SET status=?,updated_at=?,paid_at=? WHERE id=?').run(status,now,paidAt,row.id);});
     if(!inserted)return {duplicate:true};
     const current=this.repo.db.prepare('SELECT * FROM asaas_payments WHERE asaas_payment_id=?').get(paymentId);
     if(current&&settled.has(visibleStatus(current.status)))await this.cancelAlternatives(current);
