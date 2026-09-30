@@ -88,7 +88,16 @@
   function meaningful(){return q.client.trim()||q.items.some(i=>i.price!==''||i.photos.length)}
   const revisionConflict=error=>String(error?.message||'').includes('atualizado em outra aba');
   async function preserve({allowRevisionConflict=false}={}){clearTimeout(timer);if(!meaningful())return true;try{await put('quotes',q);return true}catch(error){if(allowRevisionConflict&&revisionConflict(error))return false;throw error}}
-  async function newQuote(){if(pendingPhotos)throw Error('Aguarde o carregamento das fotos.');await preserve({allowRevisionConflict:true});q=M.quote(settings);fill();changed();await refreshSaved();window.EcoWorkspace?.navigate('create');toast('Novo orçamento pronto. Os dados da empresa já estão preenchidos.')}
+  async function newQuote(){
+    if(pendingPhotos)throw Error('Aguarde o carregamento das fotos.');
+    try{await preserve({allowRevisionConflict:true})}catch(error){
+      // A previous agenda operation must not prevent the operator from starting a
+      // separate proposal. The existing draft remains available on the server.
+      if(!/agendamento terminar|operação deste orçamento está em andamento|operação em andamento/i.test(String(error.message||'')))throw error;
+      await saveDraft().catch(()=>null);
+    }
+    q=M.quote(settings);fill();changed();await refreshSaved();window.EcoWorkspace?.navigate('create');toast('Novo orçamento pronto. Os dados da empresa já estão preenchidos.')
+  }
   $('#new').onclick=()=>newQuote().catch(error=>toast(error.message));
   $('#save').onclick=async()=>{try{if(!$('#form').reportValidity())return;M.validate(q);if(pendingPhotos)return toast('Aguarde as fotos.');await put('quotes',q);await saveDraft();await refreshSaved();toast('Orçamento salvo.')}catch(error){toast(error.message||'Não foi possível salvar.')}};
   function renderLibrary(){window.dispatchEvent(new CustomEvent('eco:quotes-changed'))}

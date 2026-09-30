@@ -47,6 +47,9 @@ try{
   const originalComplete=system.repo.complete.bind(system.repo);system.repo.complete=()=>{throw Error('Falha de confirmação no banco')};assert.equal((await request('/api/proposals/'+q2.id+'/schedule',{...input,key:key(),revision:q2.revision})).status,400);system.repo.complete=originalComplete;assert.equal(fixture.events.size,1);
   await data('/api/proposals/'+q2.id+'/schedule',{...input,key:key(),revision:q2.revision});assert.equal(fixture.events.size,1);
   const reopen=new Repository(dir);assert.equal(reopen.list().length,2);assert.equal(reopen.operation(q2.id).status,'scheduled');assert.equal(reopen.listPDFs(q.id).length,2);reopen.close();
+  const originalLockTimeout=system.service.lockTimeoutMs;system.service.lockTimeoutMs=20;let aborted=false;
+  await assert.rejects(system.service.locked('lock-timeout-test',async signal=>new Promise((resolve,reject)=>signal.addEventListener('abort',()=>{aborted=true;reject(Error('operation aborted'));},{once:true}))),/operation aborted/);
+  assert.equal(aborted,true);assert.equal(system.service.locks.has('lock-timeout-test'),false);assert.equal(system.repo.db.prepare('SELECT key FROM leases WHERE key=?').get('proposal:lock-timeout-test'),undefined);system.service.lockTimeoutMs=originalLockTimeout;
   await data('/api/logout',{});assert.equal((await request(pdf.url)).status,401);
   console.log('PASS: autenticação, CSRF, arquivos privados, SQLite, revisões, PDFs imutáveis, OAuth, Drive, agenda, recuperação, reagendamento, cancelamento, backup e migração.');
 }finally{await new Promise(r=>server.close(r));system.repo.close()}
