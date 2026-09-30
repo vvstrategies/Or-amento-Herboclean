@@ -119,6 +119,11 @@ export class AsaasService{
     const now=new Date().toISOString();this.repo.db.prepare("UPDATE asaas_payments SET status='DELETED',updated_at=? WHERE id=?").run(now,row.id);
     return publicPayment(this.repo.db.prepare('SELECT * FROM asaas_payments WHERE id=?').get(row.id));
   }
+  async cancelActiveForRevision(proposalId,revision){
+    const rows=this.rowsForRevision(proposalId,revision).filter(row=>this.active(row));
+    for(const row of rows)await this.cancel(proposalId,row.id);
+    return rows.length;
+  }
   verifyWebhook(value){
     const expected=Buffer.from(this.config.webhookToken||''),actual=Buffer.from(String(value||''));
     if(!expected.length)throw fail(503,'O webhook Asaas nÃ£o estÃ¡ configurado no servidor.');

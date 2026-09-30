@@ -12,7 +12,7 @@ const fetcher=async(url,options={})=>{
  const body=options.body?JSON.parse(options.body):null;calls.push({url,method:options.method,body,headers:options.headers});
  if(url.endsWith('/customers'))return new Response(JSON.stringify({id:'cus_test'}),{status:200});
  if(url.includes('/customers/cus_test'))return new Response(JSON.stringify({id:'cus_test'}),{status:200});
- if(url.endsWith('/payments')&&options.method==='POST'){counter++;const pix=body.billingType==='PIX';return new Response(JSON.stringify({id:pix?'pay_pix':'pay_card',customer:'cus_test',installment:pix?null:'inst_card',status:'PENDING',invoiceUrl:'https://payments.example/'+(pix?'pix':'card')}),{status:200});}
+ if(url.endsWith('/payments')&&options.method==='POST'){counter++;const pix=body.billingType==='PIX',suffix=counter>2?'_r2':'';return new Response(JSON.stringify({id:(pix?'pay_pix':'pay_card')+suffix,customer:'cus_test',installment:pix?null:'inst_card'+suffix,status:'PENDING',invoiceUrl:'https://payments.example/'+(pix?'pix':'card')+suffix}),{status:200});}
  if((url.includes('/payments/')||url.includes('/installments/'))&&options.method==='DELETE')return new Response(JSON.stringify({deleted:true}),{status:200});
  return new Response(JSON.stringify({errors:[{description:'unexpected'}]}),{status:400});
 };
@@ -31,6 +31,10 @@ try{
  const retry=await data('/api/proposals/'+quote.id+'/payments',{name:'Cliente pagamento',cpfCnpj:'52998224725'});assert.equal(retry.reused,true);assert.equal(calls.filter(x=>x.method==='POST'&&x.url.endsWith('/payments')).length,2);
  const webhook=await request('/api/webhooks/asaas',{id:'evt-1',event:'PAYMENT_RECEIVED',payment:{id:'pay_pix',status:'RECEIVED'}},'POST',{'asaas-access-token':'test-webhook-token',Origin:'https://not-the-browser.example'});assert.equal(webhook.status,204);const payments=(await data('/api/proposals/'+quote.id+'/payments')).payments;assert.equal(payments.find(x=>x.kind==='pix').status,'RECEIVED');assert.equal(payments.find(x=>x.kind==='card').status,'DELETED');assert.equal(calls.filter(x=>x.method==='DELETE')[0].url.endsWith('/installments/inst_card/payments'),true);
  const duplicate=await request('/api/webhooks/asaas',{id:'evt-1',event:'PAYMENT_RECEIVED',payment:{id:'pay_pix',status:'RECEIVED'}},'POST',{'asaas-access-token':'test-webhook-token',Origin:'https://not-the-browser.example'});assert.equal(duplicate.status,204);assert.equal(calls.filter(x=>x.method==='DELETE').length,1);
+ quote=await data('/api/proposals/'+quote.id,{...quote,items:[{...quote.items[0],price:210}],revision:quote.revision},'PUT');
+ const reissued=await data('/api/proposals/'+quote.id+'/payments',{name:'Cliente pagamento',cpfCnpj:'52998224725'});assert.equal(reissued.payments.length,2);
+ quote=await data('/api/proposals/'+quote.id,{...quote,items:[{...quote.items[0],price:220}],revision:quote.revision},'PUT');
+ assert.equal(calls.filter(x=>x.method==='DELETE').length,3);
  const invalid=await request('/api/webhooks/asaas',{id:'evt-2',event:'PAYMENT_UPDATED',payment:{id:'pay_pix'}},'POST',{'asaas-access-token':'wrong',Origin:'https://not-the-browser.example'});assert.equal(invalid.status,401);
  const rows=system.repo.db.prepare('SELECT * FROM asaas_payers').all();assert.equal(rows.length,1);assert.ok(!JSON.stringify(rows).includes('52998224725'));
  console.log('PASS: Asaas â€” PIX e cartÃ£o em 3x, valores do orÃ§amento, reuso, webhook autenticado, idempotÃªncia, cancelamento da alternativa e privacidade do CPF/CNPJ.');
