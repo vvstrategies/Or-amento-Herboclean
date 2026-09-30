@@ -82,7 +82,7 @@
     if(schedule&&['generated','scheduled'].includes(op.status))actions.push('<button class="text-button" data-cancel-schedule>Cancelar agendamento</button>');
     if(!schedule&&['generated'].includes(op.status))actions.push('<button class="text-button danger" data-status="cancelled">Cancelar orçamento</button>');
     if(op.status==='cancelled')actions.push('<button class="text-button" data-status="generated">Reabrir orçamento</button>');
-    if(!demo&&op.status==='cancelled')actions.push('<button class="text-button danger" data-delete-permanently>Excluir definitivamente</button>');
+    if(!demo&&['cancelled','completed'].includes(op.status))actions.push('<button class="text-button danger" data-delete-permanently>Excluir definitivamente</button>');
     $('#detail-actions').innerHTML=actions.join('');
   }
   function safeEventURL(value){try{const url=new URL(value);return url.protocol==='https:'&&['calendar.google.com','www.google.com'].includes(url.hostname)}catch{return false}}
@@ -183,7 +183,8 @@
     if(button.hasAttribute('data-edit'))return busy(button,'Abrindo...',async()=>{if(demo)navigate('create');else await EcoStudio.openQuote(selected);$('#detail-dialog').close()});
     if(button.hasAttribute('data-delete-permanently')){
       const id=selected,q=findQuote(id);if(!q)return;
-      confirmAction('Excluir definitivamente','Esta ação remove o orçamento cancelado, seus PDFs e dados financeiros locais. Não pode ser desfeita.','Excluir definitivamente',async()=>{await EcoAuth.api('/api/proposals/'+encodeURIComponent(id),{method:'DELETE'});selected=null;if($('#detail-dialog').open)$('#detail-dialog').close();await refresh();notify('Orçamento excluído definitivamente do sistema local.');});return;
+      const completed=getOp(id).status==='completed';
+      confirmAction('Excluir definitivamente',completed?'Esta ação remove o atendimento concluído, o evento de teste no Google Agenda, PDFs e dados financeiros locais. Não pode ser desfeita.':'Esta ação remove o orçamento cancelado, seus PDFs e dados financeiros locais. Não pode ser desfeita.','Excluir definitivamente',async()=>{await EcoAuth.api('/api/proposals/'+encodeURIComponent(id),{method:'DELETE'});selected=null;if($('#detail-dialog').open)$('#detail-dialog').close();await refresh();notify('Orçamento excluído definitivamente do sistema local.');});return;
     }
     if(button.hasAttribute('data-schedule'))return openSchedule();
     if(button.hasAttribute('data-generate-pdf'))return generateFromDetail(button);

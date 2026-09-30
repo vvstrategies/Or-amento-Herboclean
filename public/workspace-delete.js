@@ -243,3 +243,4 @@
   window.EcoWorkspace={navigate,refresh};
   if(window.EcoStudio)init().catch(error=>console.error(error));else window.addEventListener('eco:ready',()=>init().catch(error=>console.error(error)),{once:true});
 })();
+

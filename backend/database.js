@@ -76,9 +76,9 @@ export class Repository{
   job(id){const r=this.db.prepare('SELECT intent FROM sync_jobs WHERE proposal_id=?').get(id);return r?JSON.parse(r.intent):null}
   setJob(id,value){this.db.prepare('INSERT INTO sync_jobs VALUES (?,?) ON CONFLICT(proposal_id) DO UPDATE SET intent=excluded.intent').run(id,JSON.stringify(value))}
   complete(id,operation,key,requestHash){return this.transaction(()=>{const op=this.setOperation(operation);this.db.prepare('DELETE FROM sync_jobs WHERE proposal_id=?').run(id);this.db.prepare('INSERT INTO idempotency VALUES (?,?,?) ON CONFLICT(key) DO NOTHING').run(key,requestHash,JSON.stringify(op));return op})}
-  purgeCancelledProposal(id){
+  purgeProposal(id){
     const quote=this.requireProposal(id),operation=this.operation(id);
-    if(operation.status!=='cancelled')throw fail(409,'A exclusão definitiva está disponível apenas para orçamentos cancelados.');
+    if(!['cancelled','completed'].includes(operation.status))throw fail(409,'A exclusão definitiva está disponível apenas para orçamentos cancelados ou concluídos.');
     if(operation.schedule||this.job(id))throw fail(409,'Cancele o agendamento pendente antes de excluir definitivamente.');
     const exists=name=>!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
     if(exists('asaas_payments')){

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createApp} from '../backend/app.js';
+import {Service} from '../backend/service.js';
 import {modelo} from '../utils/proposta.js';
 import {settings as company,fees} from './test-company.mjs';
 
@@ -22,10 +23,14 @@ try{
  repo.db.prepare('INSERT INTO finance_geocodes VALUES (?,?,?,?,?,?)').run(crypto.randomUUID(),'address-test','proposal',saved.id,JSON.stringify({addressKey:'address-test'}),new Date().toISOString());
  repo.db.prepare('INSERT INTO finance_routes VALUES (?,?,?,?)').run(crypto.randomUUID(),'route-test',JSON.stringify({destination:saved.address}),new Date().toISOString());
  repo.db.prepare('INSERT INTO finance_audit VALUES (?,?,?,?,?,?)').run(crypto.randomUUID(),'actual',saved.id,'administrator',new Date().toISOString(),'{}');
- const deleted=repo.purgeCancelledProposal(saved.id);
+ const deleted=repo.purgeProposal(saved.id);
  assert.equal(deleted.id,saved.id);assert.equal(deleted.deletedDocuments,1);assert.equal(repo.proposal(saved.id),null);assert.equal(repo.pdf(pdf.id),null);assert.equal(fs.existsSync(file),false);
  for(const [table,column] of [['operations','id'],['finance_estimates','proposal_id'],['finance_actuals','proposal_id'],['finance_contexts','proposal_id'],['finance_geocodes','subject_id'],['finance_audit','entity_id']])assert.equal(repo.db.prepare('SELECT COUNT(*) n FROM '+table+' WHERE '+column+'=?').get(saved.id).n,0,table);
  const active=modelo.quote({...company,terms:fees});active.id=crypto.randomUUID();active.client='Não excluir';active.items=[{...modelo.item('Sofá'),price:100}];const current=repo.saveProposal(active);
- assert.throws(()=>repo.purgeCancelledProposal(current.id),error=>error.status===409);
- console.log('PASS: exclusão definitiva remove dados locais de orçamento cancelado, documentos, dados financeiros, cache associado e auditoria.');
+ assert.throws(()=>repo.purgeProposal(current.id),error=>error.status===409);
+ const completed=modelo.quote({...company,terms:fees});completed.client='Atendimento de teste concluído';completed.address='Rua de teste, 200, Santo André - SP';completed.items=[{...modelo.item('Sofá'),price:100}];
+ const completedSaved=repo.saveProposal(completed);repo.setOperation({id:completedSaved.id,status:'completed',schedule:{eventId:'test-event',calendarId:'primary',accountSub:'test-account'},suggestedSchedule:null});
+ const deletedEvents=[],service=new Service(repo,{requireConnection:()=>({sub:'test-account'}),deleteEvent:async(...args)=>{deletedEvents.push(args)}});
+ const deletedCompleted=await service.purge(completedSaved.id);assert.equal(deletedCompleted.id,completedSaved.id);assert.equal(repo.proposal(completedSaved.id),null);assert.equal(deletedEvents.length,1);assert.deepEqual(deletedEvents[0].slice(0,2),['primary','test-event']);
+ console.log('PASS: exclusão definitiva remove orçamentos cancelados ou concluídos de teste, incluindo o evento Google vinculado e os dados locais.');
 }finally{repo.close();fs.rmSync(dir,{recursive:true,force:true});}

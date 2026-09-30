@@ -56,6 +56,19 @@ export class Service{
       try{await this.google.deleteEvent(schedule.calendarId,schedule.eventId,this.repo.config('workspaceId'));return this.repo.complete(id,{id,status:'generated',schedule:null,suggestedSchedule:null},input.key,requestHash)}catch(error){this.repo.setJob(id,{...job,error:error.message});throw error}
     });
   }
+  async purge(id){return this.locked(id,async()=>{
+    const operation=this.repo.operation(id);
+    if(!['cancelled','completed'].includes(operation.status))throw fail(409,'A exclusão definitiva está disponível apenas para orçamentos cancelados ou concluídos.');
+    if(this.repo.job(id))throw fail(409,'Conclua a operação pendente no Google antes de excluir definitivamente.');
+    const schedule=operation.schedule;
+    if(schedule?.eventId){
+      const connection=this.google.requireConnection();
+      if(schedule.accountSub&&schedule.accountSub!==connection.sub)throw fail(409,'Reconecte a conta usada neste agendamento antes de excluir definitivamente.');
+      await this.google.deleteEvent(schedule.calendarId,schedule.eventId,this.repo.config('workspaceId'));
+      this.repo.setOperation({...operation,schedule:null,suggestedSchedule:null});
+    }
+    return this.repo.purgeProposal(id);
+  })}
   async status(id,next,input={}){return this.locked(id,async()=>{
     this.repo.requireProposal(id);const current=this.repo.operation(id);
     if(this.repo.job(id))throw fail(409,'Resolva a operação pendente no Google antes de alterar o orçamento.');
