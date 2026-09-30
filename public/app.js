@@ -8,7 +8,7 @@
   const quoteAmount=value=>{try{return money(M.totals(value).total)}catch{return 'Confira as condições de pagamento'}};
   const date=v=>new Date(v+'T12:00:00').toLocaleDateString('pt-BR');
   const settingsKey='ecoclean-settings-v2';
-  let settings={company:M.company(),terms:M.terms()}, q, saved=[], db, timer, toastTimer, version=0, pendingPhotos=0;
+  let settings={company:M.company(),terms:M.terms()}, q, saved=[], db, timer, toastTimer, version=0, pendingPhotos=0, lastCepLookup='', cepRequest=0;
   function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').style.display='none',5500)}
   settings=await EcoAuth.api('/api/settings');
   M.configure(settings);UniversalBrand.apply(settings.company);
@@ -20,7 +20,7 @@
   async function saveDraft(){const current=version;try{await put('draft',{id:'current',quote:structuredClone(q)});if(current===version)$('#draft-status').textContent='Rascunho salvo automaticamente'}catch{$('#draft-status').textContent='Não foi possível salvar. Exporte um backup.'}}
   function changed(){q.updatedAt=new Date().toISOString();version++;$('#draft-status').textContent='Salvando rascunho...';clearTimeout(timer);timer=setTimeout(saveDraft,500);render()}
   function fill(){
-    for(const input of $$('#form [name]'))input.value=Object.hasOwn(q.terms,input.name)?q.terms[input.name]:q[input.name]??'';
+    for(const input of $$('#form [name]'))input.value=input.name==='postalCode'?M.formatPostalCode(q.postalCode):Object.hasOwn(q.terms,input.name)?q.terms[input.name]:q[input.name]??'';
     for(const input of $$('[data-company]'))input.value=q.company[input.dataset.company]??'';
     $('#logo-preview').hidden=!q.company.logo;$('#logo-preview').src=q.company.logo||'';$('#logo-preview').style.background=q.company.logoBackground==='light'?'#fff':UniversalCompany.theme(q.company).deep;
     renderItems();render();
@@ -39,12 +39,38 @@
     $('#fee-summary').textContent=`PIX: ${money(t.pix)} · Cartão: ${t.count}x de ${money(t.part)} · Líquido estimado: ${money(t.net)}. ${q.terms.anticipate==='yes'?'Antecipação incluída.':'Sem antecipação.'}`;
     $$('#items [data-item-total]').forEach((el,i)=>el.textContent=money(t.rows[i]));
   }
+  const addressFields=new Set(['addressStreet','addressNumber','addressComplement','addressNeighborhood','addressCity','addressState']);
+  function cepStatus(message,kind=''){const status=$('#cep-status');status.textContent=message;status.dataset.state=kind;}
+  function clearCepAddress(){for(const key of [...addressFields,'addressIbgeCode'])q[key]='';q.address='';}
+  function updateStructuredAddress(){const address=M.addressFromFields(q);if(address){q.address=address;const input=$('#form [name="address"]');if(input)input.value=address;}}
+  async function lookupCep(){
+    const postalCode=M.digits(q.postalCode);if(postalCode.length!==8)return;
+    if(lastCepLookup===postalCode)return;
+    const request=++cepRequest;lastCepLookup=postalCode;cepStatus('Buscando endereço...','loading');
+    try{
+      const value=await EcoAuth.api('/api/cep/'+postalCode);if(request!==cepRequest||q.postalCode!==postalCode)return;
+      Object.assign(q,{postalCode:value.postalCode,addressStreet:value.street||'',addressNeighborhood:value.neighborhood||'',addressCity:value.city||'',addressState:value.state||'',addressIbgeCode:value.ibgeCode||'',addressSource:'cep'});updateStructuredAddress();fill();cepStatus('Endereço encontrado. Informe o número.','success');changed();
+      if(!q.addressNumber)$('#form [name="addressNumber"]')?.focus();
+    }catch(error){if(request!==cepRequest)return;lastCepLookup='';cepStatus(error.message||'Não foi possível consultar este CEP. Preencha o endereço manualmente.','error');}
+  }
   $('#form').addEventListener('input',e=>{
     const field=e.target.name;
-    if(field){if(Object.hasOwn(q.terms,field))q.terms[field]=e.target.type==='number'?Number(e.target.value):e.target.value;else q[field]=e.target.value;changed()}
+    if(field){
+      if(field==='postalCode'){
+        const postalCode=M.digits(e.target.value),changedCep=q.postalCode!==postalCode;q.postalCode=postalCode;e.target.value=M.formatPostalCode(postalCode);
+        if(changedCep&&q.addressSource!=='manual'){clearCepAddress();q.addressSource='';}
+        if(postalCode.length<8){lastCepLookup='';cepRequest++;cepStatus('','');}
+        changed();if(postalCode.length===8)lookupCep();
+      }else if(addressFields.has(field)){
+        q[field]=field==='addressState'?e.target.value.toUpperCase():e.target.value;q.addressSource='manual';updateStructuredAddress();changed();
+      }else if(field==='address'){
+        q.address=e.target.value;q.addressSource='manual';changed();
+      }else {if(Object.hasOwn(q.terms,field))q.terms[field]=e.target.type==='number'?Number(e.target.value):e.target.value;else q[field]=e.target.value;changed();}
+    }
     const key=e.target.dataset.field;
     if(key){const it=q.items.find(x=>x.id===e.target.closest('[data-id]').dataset.id);it[key]=['quantity','price'].includes(key)?e.target.value===''?'':Number(e.target.value):e.target.value;if(key==='service'){const preset=M.services.find(s=>s.name===it.service);it.unit=preset.unit;it.description=preset.description;renderItems()}changed()}
   });
+  $('#lookup-cep').onclick=()=>{if(M.digits(q.postalCode).length!==8){cepStatus('Informe um CEP com 8 dígitos.','error');return}lastCepLookup='';lookupCep();};
   $('#items').addEventListener('click',e=>{const action=e.target.dataset.action;if(!action)return;const it=q.items.find(x=>x.id===e.target.closest('[data-id]').dataset.id);if(action==='remove'){if(q.items.length===1)return toast('Mantenha pelo menos um serviço.');q.items=q.items.filter(x=>x!==it)}else it.photos.splice(Number(e.target.dataset.photoIndex),1);renderItems();changed()});
   $('#add').onclick=()=>{if(q.items.length>=100)return toast('Limite de 100 serviços por proposta.');q.items.push(M.item());renderItems();changed()};
   async function readImage(file,logo=false){
@@ -99,7 +125,8 @@
       if(pendingPhotos)return toast('Aguarde o carregamento das fotos.');
       button.disabled=true;button.textContent='Gerando PDF...';
       const document=await generatePDF(q);EcoDownloadBlob(document.blob,document.filename);
-      toast('PDF gerado com a identidade da empresa e guardado na biblioteca.');
+      await window.EcoWorkspace?.refresh();window.EcoWorkspace?.navigate('quotes');
+      toast('Orçamento gerado com sucesso. PDF baixado.');
     }catch(error){toast(error.message)}finally{button.disabled=false;button.textContent='Gerar PDF ↗'}
   };
   $('#backup').onclick=async()=>{

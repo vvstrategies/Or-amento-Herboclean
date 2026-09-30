@@ -55,6 +55,14 @@ Logo, cores, tipografia, apresentação e diferenciais da Herboclean permanecem 
 
 Propostas curtas ocupam uma página; propostas extensas continuam em páginas adicionais. O PDF direto não inclui caminho local nem cabeçalho/rodapé da impressão do navegador. Alterações futuras geram outra versão; as anteriores permanecem intactas. Uma nova confirmação/reagendamento atualiza o anexo com a versão atual.
 
+## CEP e histórico de versões
+
+No editor, o CEP aceita `00000-000` ou oito dígitos. A consulta pontual usa `BrasilAPI` como fonte principal e `ViaCEP` como fallback, por meio de `CepLookupProvider`. Resultados válidos são guardados em `cep_lookups`, um cache separado dos caches de geocodificação e rota. O preenchimento sugere logradouro, bairro, cidade, UF e IBGE; número e complemento permanecem editáveis. Após informar o número, o endereço completo segue para HeiGIT/Pelias e, então, para openrouteservice. Alterar CEP ou número gera um novo endereço comercial e a rota anterior deixa de ser usada.
+
+O download usa `Proposta de orçamento para {cliente}.pdf`, preservando espaços e acentos e removendo somente caracteres inválidos para arquivos. Depois de gerar o PDF, o download começa antes do retorno automático à lista **Orçamentos gerados**.
+
+Cada alteração comercial cria uma versão imutável da proposta com seu snapshot financeiro. Em **Histórico de versões**, a versão atual é identificada e as anteriores mantêm seus PDFs disponíveis. Excluir uma versão é um soft delete: PDFs e registros ficam preservados para auditoria, mas deixam de compor a listagem e os cálculos ativos. Ao excluir a versão atual, a versão válida anterior é promovida com o seu próprio snapshot, sem recalcular premissas antigas. Se houver apenas uma versão, a proposta é arquivada da lista ativa. Propostas agendadas ou concluídas não permitem excluir versões, para preservar atendimento, DRE e o evento existente no Google Agenda.
+
 ## Variáveis de ambiente
 
 Consulte `.env.example`. Preencha os valores no `.env` privado, sem sobrescrever outras configurações existentes.

@@ -26,9 +26,9 @@
   const put=(name,value)=>operation(name,'readwrite',s=>s.put(structuredClone(value)));
   const pdfs=id=>operation('pdfs','readonly',s=>s.index('proposalId').getAll(id));
   async function fingerprint(q){
-    const {number,date,client,address,clientContact,company,terms}=q;
+    const {number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms}=q;
     const items=q.items.map(({service,description,unit,quantity,price,photos})=>({service,description,unit,quantity,price,photos}));
-    const data=new TextEncoder().encode(JSON.stringify({number,date,client,address,clientContact,company,terms,items}));
+    const data=new TextEncoder().encode(JSON.stringify({number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms,items}));
     return [...new Uint8Array(await crypto.subtle.digest('SHA-256',data))].map(x=>x.toString(16).padStart(2,'0')).join('');
   }
   async function savePDF(q,blob,hash){
@@ -39,7 +39,7 @@
       const request=store.index('proposalId').getAll(q.id);
       request.onsuccess=()=>{
         const version=1+Math.max(0,...request.result.map(p=>p.version));
-        record={id:crypto.randomUUID(),proposalId:q.id,version,filename:q.number.replace(/[^\w-]/g,'_')+'.pdf',blob,fingerprint:hash,snapshot:structuredClone(q),generatedAt:new Date().toISOString()};
+        record={id:crypto.randomUUID(),proposalId:q.id,version,filename:EcoModel.proposalFilename(q),blob,fingerprint:hash,snapshot:structuredClone(q),generatedAt:new Date().toISOString()};
         store.put(record);
         const quotes=tx.objectStore('quotes'),current=quotes.get(q.id);
         current.onsuccess=()=>{
@@ -76,7 +76,7 @@
       const bytes=Uint8Array.from(atob(p.data.split(',')[1]),c=>c.charCodeAt(0));
       if(new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')throw Error('O backup contém um PDF inválido.');
       const snapshot=EcoModel.normalize({...p.snapshot,id:idMap.get(p.proposalId)});
-      return {id:crypto.randomUUID(),proposalId:snapshot.id,version:p.version,filename:snapshot.number.replace(/[^\w-]/g,'_')+'.pdf',generatedAt:p.generatedAt,fingerprint:p.fingerprint,blob:new Blob([bytes],{type:'application/pdf'}),snapshot};
+      return {id:crypto.randomUUID(),proposalId:snapshot.id,version:p.version,filename:EcoModel.proposalFilename(snapshot),generatedAt:p.generatedAt,fingerprint:p.fingerprint,blob:new Blob([bytes],{type:'application/pdf'}),snapshot};
     });
     // Não restaurar vínculos externos ativos nem presumir sincronização a partir de um backup.
     for(const op of operations)if(op.schedule){op.schedule.sync='pending';op.schedule.eventId=null;op.schedule.eventUrl=null;if(op.status==='scheduled')op.status='approved'}

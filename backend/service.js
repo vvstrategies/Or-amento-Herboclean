@@ -12,7 +12,7 @@ export class Service{
   async locked(id,fn){if(this.locks.has(id))throw fail(409,'A operação deste orçamento está em andamento. Aguarde.');const key='proposal:'+id;this.repo.claim(key,this.owner);const task=Promise.resolve().then(fn);this.locks.set(id,task);try{return await task}finally{this.locks.delete(id);this.repo.release(key,this.owner)}}
   async pdf(q,force=false){
     q=cleanQuote(q,true);const fingerprint=documentHash(q),last=this.repo.listPDFs(q.id)[0];
-    if(!force&&last?.fingerprint===fingerprint&&fs.existsSync(this.repo.file(last)))return last;
+    if(!force&&last?.proposalVersionId===q.versionId&&last?.fingerprint===fingerprint&&fs.existsSync(this.repo.file(last)))return last;
     const file=await gerarPDFEcoclean(q,{outputDir:this.repo.files});return this.repo.savePDF(q,file,fingerprint);
   }
   async generate(id,{revision,force=false}={}){return this.locked(id,async()=>{const q=this.repo.requireProposal(id);if(Number(revision)!==q.revision)throw fail(409,'O orçamento mudou. Reabra antes de gerar o PDF.');return this.pdf(q,force)})}

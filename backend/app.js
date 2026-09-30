@@ -12,11 +12,13 @@ import {registerDre} from './dre-routes.js';
 import {financialDemo} from './finance-demo.js';
 import {FinanceService} from './finance-service.js';
 import {HeiGITOpenRouteServiceProvider,HeiGITPeliasGeocoder} from './routes-provider.js';
+import {CepLookupService} from './cep-cache.js';
+import {BrasilApiCepProvider,ViaCepProvider} from './cep-provider.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {Repository,cleanQuote,documentHash,fail,hash} from './database.js';
+import {Repository,cleanQuote,documentHash,fail,hash,proposalFilename} from './database.js';
 import {security,vault} from './security.js';
 import {GoogleIntegration} from './google.js';
 import {Service} from './service.js';
@@ -37,6 +39,7 @@ export function createApp(options={}){
   const tokenVault=vault(repo.dir,options.encryptionKey,production);
   const google=options.google||new GoogleIntegration(repo,tokenVault,options.googleConfig,options.fetcher);
   const service=new Service(repo,google),sec=security(repo,{origin,production}),app=express();
+  const cepLookup=options.cepLookup||new CepLookupService(repo,{primary:new BrasilApiCepProvider({fetcher:options.fetcher||globalThis.fetch}),fallback:new ViaCepProvider({fetcher:options.fetcher||globalThis.fetch})});
   const geocoder=options.geocoder||new HeiGITPeliasGeocoder(options.routesConfig);
   const finance=new FinanceService(repo,service,options.routeProvider||new HeiGITOpenRouteServiceProvider(options.routesConfig),{dailyLimit:options.routesConfig?.dailyLimit,directionsDailyLimit:options.routesConfig?.directionsDailyLimit,geocodingDailyLimit:options.routesConfig?.geocodingDailyLimit,routeCacheHours:options.routesConfig?.cacheHours,geocoder:options.routeProvider&&options.geocoder===undefined?null:geocoder});
   const dre=new DreService(repo,finance),profit=new ProfitService(repo,finance,dre,service);service.onComplete=(id,day)=>{const value=dre.recognize(id,day);profit.captureContext(id);return value;};
@@ -67,13 +70,16 @@ export function createApp(options={}){
   app.get('/api/financial-export',(req,res)=>{res.set('Cache-Control','no-store');res.json({...profit.export(),integrations:integrations.export()});});
   const settings=()=>repo.config('settings')||{company:modelo.company(),terms:modelo.terms()};
   app.get('/api/settings',(req,res)=>res.json(settings()));
+  app.get('/api/cep/:postalCode',wrap(async(req,res)=>res.json(await cepLookup.lookup(req.params.postalCode))));
   app.put('/api/settings',wrap(async(req,res)=>{const value=await validateSettings({...settings(),...req.body});repo.transaction(()=>{const old=settings(),draft=repo.config('draft');if(draft?.quote){if(JSON.stringify(draft.quote.company)===JSON.stringify(old.company))draft.quote.company=value.company;if(JSON.stringify(draft.quote.terms)===JSON.stringify(old.terms))draft.quote.terms=value.terms;repo.setConfig('draft',draft)}repo.setConfig('settings',value)});await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
   app.get('/api/draft',(req,res)=>res.json(repo.config('draft')));
   app.put('/api/draft',(req,res)=>{const quote=cleanQuote(req.body.quote);quote.revision=req.body.quote.revision;repo.setConfig('draft',{id:'current',quote});res.json({id:'current',quote})});
   app.get('/api/proposals',(req,res)=>res.json(repo.list()));
   app.get('/api/proposals/:id',(req,res)=>res.json(repo.requireProposal(req.params.id)));
-  app.put('/api/proposals/:id',wrap(async(req,res)=>{if(req.params.id!==req.body.id)throw fail(400,'Identificador divergente.');if(service.locks.has(req.params.id))throw fail(409,'Aguarde o agendamento terminar antes de editar.');const current=repo.proposal(req.params.id),changed=!!current&&documentHash(current)!==documentHash(cleanQuote(req.body));if(changed&&Number(req.body.revision)===current.revision)await asaas.cancelActiveForRevision(current.id,current.revision);const saved=repo.saveProposal(req.body);await finance.refreshAutomatically(saved.id).catch(()=>null);const latest=repo.listPDFs(saved.id)[0];if(repo.operation(saved.id).status==='generated'&&latest?.fingerprint!==documentHash(saved))await service.locked(saved.id,()=>service.pdf(saved)).catch(()=>null);res.json(saved)}));
+  app.get('/api/proposals/:id/versions',(req,res)=>res.json(repo.listVersions(req.params.id)));
+  app.put('/api/proposals/:id',wrap(async(req,res)=>{if(req.params.id!==req.body.id)throw fail(400,'Identificador divergente.');if(service.locks.has(req.params.id))throw fail(409,'Aguarde o agendamento terminar antes de editar.');const current=repo.proposal(req.params.id),changed=!!current&&documentHash(current)!==documentHash(cleanQuote(req.body));if(changed&&Number(req.body.revision)===current.revision)await asaas.cancelActiveForRevision(current.id,current.revision);const saved=repo.saveProposal(req.body);await finance.refreshAutomatically(saved.id).catch(()=>null);const latest=repo.listPDFs(saved.id)[0];if(repo.operation(saved.id).status==='generated'&&(latest?.proposalVersionId!==saved.versionId||latest?.fingerprint!==documentHash(saved)))await service.locked(saved.id,()=>service.pdf(saved)).catch(()=>null);res.json(saved)}));
   app.delete('/api/proposals/:id',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir.');res.json(await service.purge(req.params.id));}));
+  app.delete('/api/proposals/:id/versions/:versionId',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir a versão.');res.json(repo.deleteVersion(req.params.id,req.params.versionId));}));
   app.get('/api/operations',(req,res)=>res.json(repo.list().map(q=>{const job=repo.job(q.id);return {...repo.operation(q.id),pendingAction:job?{kind:job.kind,values:job.values,error:job.error}:null}})));
   app.get('/api/documents',(req,res)=>res.json(repo.listPDFs(req.query.proposalId).map(publicPDF)));
   app.get('/api/pdfs/:id',(req,res)=>{const pdf=repo.pdf(req.params.id);if(!pdf)throw fail(404,'PDF não encontrado.');res.type('pdf');res.set('Content-Disposition',`inline; filename="${pdf.filename.replace(/["\r\n]/g,'_')}"`);res.sendFile(repo.file(pdf))});
@@ -97,7 +103,7 @@ export function createApp(options={}){
       const versions=new Set();
       for(const p of data.documents||[]){if(!idMap.has(p.proposalId))throw fail(400,'PDF sem proposta no backup.');const id=idMap.get(p.proposalId);if(!id)continue;const unique=id+':'+p.version;if(!Number.isInteger(p.version)||p.version<1||versions.has(unique)||!/^data:application\/pdf;base64,[A-Za-z0-9+/]+={0,2}$/.test(p.data||''))throw fail(400,'PDF inválido no backup.');versions.add(unique);const bytes=Buffer.from(p.data.split(',')[1],'base64');if(bytes.subarray(0,5).toString()!=='%PDF-')throw fail(400,'Conteúdo do PDF inválido.');const snapshot=cleanQuote({...p.snapshot,id});staged.push({id:crypto.randomUUID(),proposalId:id,version:p.version,snapshot,storage:crypto.randomUUID()+'.pdf',bytes,generatedAt:Number.isFinite(Date.parse(p.generatedAt))?p.generatedAt:new Date().toISOString()})}
       for(const p of staged)fs.writeFileSync(path.join(repo.files,p.storage),p.bytes,{flag:'wx'});
-      repo.transaction(()=>{const now=new Date().toISOString();for(const {q,source} of proposals){repo.db.prepare('INSERT INTO proposals VALUES (?,?,?,?,?)').run(q.id,JSON.stringify(q),1,now,q.updatedAt||now);if(migration)repo.db.prepare('INSERT OR IGNORE INTO migrations VALUES (?,?)').run(source,q.id)}for(const o of ops)repo.setOperation(o);for(const p of staged)repo.db.prepare('INSERT INTO pdfs VALUES (?,?,?,?,?,?,?,?)').run(p.id,p.proposalId,p.version,p.snapshot.number.replace(/[^\w-]/g,'_')+'.pdf',p.storage,JSON.stringify(p.snapshot),documentHash(p.snapshot),p.generatedAt);});
+      repo.transaction(()=>{const now=new Date().toISOString(),versionIds=new Map();for(const {q,source} of proposals){q.versionId=crypto.randomUUID();versionIds.set(q.id,q.versionId);repo.db.prepare('INSERT INTO proposals (id,snapshot,revision,created_at,updated_at,archived_at) VALUES (?,?,?,?,?,NULL)').run(q.id,JSON.stringify(q),1,now,q.updatedAt||now);repo.db.prepare('INSERT INTO proposal_versions (id,proposal_id,sequence,snapshot,financial_snapshot,created_at,deleted_at,deleted_by) VALUES (?,?,?,?,?,?,NULL,NULL)').run(q.versionId,q.id,1,JSON.stringify(q),null,now);if(migration)repo.db.prepare('INSERT OR IGNORE INTO migrations VALUES (?,?)').run(source,q.id)}for(const o of ops)repo.setOperation(o);for(const p of staged){const versionId=versionIds.get(p.proposalId)||null;p.snapshot.versionId=versionId;repo.db.prepare('INSERT INTO pdfs (id,proposal_id,version,filename,storage_key,snapshot,fingerprint,generated_at,proposal_version_id) VALUES (?,?,?,?,?,?,?,?,?)').run(p.id,p.proposalId,p.version,proposalFilename(p.snapshot),p.storage,JSON.stringify(p.snapshot),documentHash(p.snapshot),p.generatedAt,versionId);}});
       res.json({imported:proposals.length,proposals:proposals.map(({q})=>repo.proposal(q.id))});
     }catch(error){for(const p of staged){const file=path.join(repo.files,p.storage);if(fs.existsSync(file))fs.unlinkSync(file)}throw error}
   }));

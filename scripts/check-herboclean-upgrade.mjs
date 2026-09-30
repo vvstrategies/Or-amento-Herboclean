@@ -9,7 +9,7 @@ const company={name:'Herboclean Higienização Profissional',phone:'11999990000'
 repo.setConfig('settings',{company,terms:fees});repo.setConfig('adminPassword',{existingHash:'unchanged'});
 repo.setConfig('google','encrypted-account-preserved');repo.setConfig('herboclean-brand-v1',true);
 const q={...modelo.quote(),company,terms:fees,client:'Cliente legado',address:'Endereço preservado',items:[{...modelo.item('Sofá'),price:200}]};
-repo.db.prepare('INSERT INTO proposals VALUES (?,?,?,?,?)').run(q.id,JSON.stringify(q),3,q.updatedAt,q.updatedAt);
+repo.db.prepare('INSERT INTO proposals (id,snapshot,revision,created_at,updated_at,archived_at) VALUES (?,?,?,?,?,NULL)').run(q.id,JSON.stringify(q),3,q.updatedAt,q.updatedAt);
 repo.setOperation({id:q.id,status:'scheduled',schedule:{start:'2030-09-15T12:00:00Z',end:'2030-09-15T14:00:00Z',eventId:'existing-event',calendarId:'primary',accountSub:'existing-account'}});
 repo.setConfig('draft',{id:'current',quote:q});
 const file=path.join(repo.files,'legacy.pdf');fs.writeFileSync(file,'%PDF-1.4 legacy immutable fixture');

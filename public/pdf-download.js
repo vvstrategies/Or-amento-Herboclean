@@ -27,5 +27,5 @@
     a.href=url;a.download=filename;a.click();
     setTimeout(()=>URL.revokeObjectURL(url),60000);
   };
-  root.EcoDownloadPDF=async quote=>root.EcoDownloadBlob(await root.EcoCreatePDFBlob(quote),quote.number.replace(/[^\w-]/g,'_')+'.pdf');
+  root.EcoDownloadPDF=async quote=>root.EcoDownloadBlob(await root.EcoCreatePDFBlob(quote),EcoModel.proposalFilename(quote));
 })(globalThis);

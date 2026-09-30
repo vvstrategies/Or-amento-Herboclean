@@ -14,7 +14,12 @@ export class FinanceService{
  saveSettings(raw){const settings=validateFinancialSettings(raw);this.repo.setConfig('financial-settings-v1',settings);return settings;}
  company(){return this.repo.config('settings')?.company||{};}
  async rememberCompanyAddress(address){return this.routeCache.rememberCompany(address);}
- versions(id){return this.repo.db.prepare('SELECT data FROM finance_estimates WHERE proposal_id=? ORDER BY version DESC LIMIT 2').all(id).map(r=>JSON.parse(r.data));}
+ versions(id){
+  const current=this.repo.currentVersion(id),currentSnapshot=current?.financialSnapshot||null;
+  const historical=this.repo.db.prepare('SELECT data FROM finance_estimates WHERE proposal_id=? ORDER BY version DESC').all(id).map(r=>JSON.parse(r.data));
+  const related=currentSnapshot?[currentSnapshot,...historical.filter(value=>value.id!==currentSnapshot.id)]:historical;
+  return related.slice(0,2);
+ }
  latest(id){return this.versions(id)[0]||null;}
  editable(id){return this.repo.operation(id).status==='generated'&&!this.repo.job(id);}
  checkEditable(id){if(!this.editable(id))throw fail(409,'A estimativa está preservada para este atendimento. Só orçamentos em elaboração podem ser recalculados.');}
@@ -38,12 +43,15 @@ export class FinanceService{
   const value={id:crypto.randomUUID(),proposalId:id,version,kind:'estimate',actual:null,quoteKey:financialQuoteKey(q),proposalRevision:q.revision,
    destinationAddressSnapshot:q.address,assumptions,inputs,routeSnapshot:route,result,calculatedAt:now};
   this.repo.db.prepare('INSERT INTO finance_estimates VALUES (?,?,?,?,?)').run(value.id,id,version,JSON.stringify(value),now);
+  if(q.versionId)this.repo.setVersionFinance(id,q.versionId,value);
   return this.view(id);
  }
- automaticReady(q){
-  const settings=this.settings(),origin=resolveOrigin(settings,this.company()),rates=settings.serviceMaterialBps||{},vehicle=settings.vehicle||{};
-  const materialsReady=q.items.every(item=>Object.hasOwn(rates,item.service)?rates[item.service]!==null:settings.defaultMaterialBps!==null);
-  return !!(this.routeCache.status().configured&&origin&&q.address&&materialsReady&&vehicle.consumptionCentiKmL!==null&&vehicle.fuelPriceCents!==null);
+  automaticReady(q){
+    const settings=this.settings(),origin=resolveOrigin(settings,this.company()),rates=settings.serviceMaterialBps||{},vehicle=settings.vehicle||{};
+    const materialsReady=q.items.every(item=>Object.hasOwn(rates,item.service)?rates[item.service]!==null:settings.defaultMaterialBps!==null);
+  const structuredAddressStarted=!!(q.postalCode||q.addressStreet||q.addressCity||q.addressState);
+  const destinationReady=!!q.address&&(!structuredAddressStarted||!!q.addressNumber);
+  return !!(this.routeCache.status().configured&&origin&&destinationReady&&materialsReady&&vehicle.consumptionCentiKmL!==null&&vehicle.fuelPriceCents!==null);
  }
  async refreshAutomatically(id,{alreadyLocked=false}={}){
   const run=async()=>{

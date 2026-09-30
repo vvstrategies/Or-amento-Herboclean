@@ -8,8 +8,20 @@
   const company = U.defaults;
   const terms = () => ({ pricingVersion: 3, validity: 15, installments: 3, notes: '', fixedFee: .49, rate1: 2.99, rate6: 3.49, rate12: 3.99, rate21: 4.29, anticipate: 'yes', anticipationRate: 1.70, anticipationRate1: 1.70, creditDays: 32 });
   const item = (service = services[0].name) => { const s = services.find(x => x.name === service) || services[0]; return { id: id(), service: s.name, description: s.description, unit: s.unit, quantity: 1, price: '', photos: [] }; };
-  const quote = (settings = {}) => ({ id: id(), number: `${settings.company?.proposalPrefix||'ORC'}-${today().replaceAll('-','')}-${id().slice(0,4).toUpperCase()}`, date: today(), client: '', address: '', clientContact: '', company: { ...company(), ...settings.company }, terms: { ...terms(), ...settings.terms }, items: [item()], updatedAt: new Date().toISOString() });
+  const quote = (settings = {}) => ({ id: id(), number: `${settings.company?.proposalPrefix||'ORC'}-${today().replaceAll('-','')}-${id().slice(0,4).toUpperCase()}`, date: today(), client: '', address: '', postalCode: '', addressStreet: '', addressNumber: '', addressComplement: '', addressNeighborhood: '', addressCity: '', addressState: '', addressIbgeCode: '', addressSource: '', clientContact: '', company: { ...company(), ...settings.company }, terms: { ...terms(), ...settings.terms }, items: [item()], updatedAt: new Date().toISOString() });
   const text = (v, n = 2000) => typeof v === 'string' ? v.slice(0,n) : '';
+  const digits = value => String(value ?? '').replace(/\D/g, '').slice(0,8);
+  const formatPostalCode = value => { const clean=digits(value); return clean.length>5 ? clean.slice(0,5)+'-'+clean.slice(5) : clean; };
+  function addressFromFields(raw={}) {
+    const street=text(raw.addressStreet,240).trim(),number=text(raw.addressNumber,80).trim(),complement=text(raw.addressComplement,160).trim(),neighborhood=text(raw.addressNeighborhood,160).trim(),city=text(raw.addressCity,160).trim(),state=text(raw.addressState,2).trim().toUpperCase(),postalCode=digits(raw.postalCode);
+    const first=[street,number].filter(Boolean).join(', ')+(complement?' - '+complement:'');
+    const cityState=[city,state].filter(Boolean).join(' - ');
+    return [first,neighborhood,cityState,postalCode?formatPostalCode(postalCode):'',(first||cityState)?'Brasil':''].filter(Boolean).join(', ');
+  }
+  function proposalFilename(value) {
+    const client=text(value?.client,240).replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim();
+    return client ? `Proposta de orçamento para ${client}.pdf` : 'Proposta de orçamento.pdf';
+  }
   const image = v => typeof v === 'string' && v.length < 4000000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(v) ? v : '';
   const numeric = (v, min, max, fallback) => Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Number(v))) : fallback;
   const normalizeCompany=U.normalize;
@@ -29,7 +41,11 @@
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items) || !raw.items.length || raw.items.length > 100) throw Error('A proposta precisa ter entre 1 e 100 serviços.');
     const q = quote();
-    for (const key of ['id','number','client','address','clientContact','date','updatedAt']) if (typeof raw[key] === 'string') q[key] = text(raw[key],key==='address'?800:240);
+    for (const key of ['id','number','client','address','clientContact','date','updatedAt','versionId']) if (typeof raw[key] === 'string') q[key] = text(raw[key],key==='address'?800:240);
+    for (const key of ['addressStreet','addressNumber','addressComplement','addressNeighborhood','addressCity','addressState','addressIbgeCode']) if (typeof raw[key] === 'string') q[key] = text(raw[key],key==='addressNumber'?80:240);
+    q.postalCode=digits(raw.postalCode);
+    q.addressSource=raw.addressSource==='cep'?'cep':raw.addressSource==='manual'?'manual':'';
+    const structuredAddress=addressFromFields(q);if(structuredAddress)q.address=structuredAddress;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(q.date) || Number.isNaN(Date.parse(q.date))) q.date = today();
     q.company = normalizeCompany(typeof raw.company === 'object' ? raw.company : { name: raw.company || company().name, phone: raw.phone || company().phone, email: raw.email || '', location: raw.companyAddress || company().location, tagline: raw.tagline || company().tagline, intro: raw.intro || company().intro, benefits: raw.benefits || '', ...(raw.logo ? { logo: raw.logo, logoBackground:'light' } : {}) });
     q.terms = normalizeTerms(raw.terms || raw);
@@ -85,5 +101,5 @@
     });
     return q;
   }
-  root.EcoModel = { toPublicProposal:normalize,services,company,terms,item,quote,normalize,normalizeCompany,normalizeTerms,configure,totals,validate,today,image };
+  root.EcoModel = { toPublicProposal:normalize,services,company,terms,item,quote,normalize,normalizeCompany,normalizeTerms,configure,totals,validate,today,image,digits,formatPostalCode,addressFromFields,proposalFilename };
 })(globalThis);
