@@ -1,5 +1,5 @@
 import {adoptHerboclean} from './herboclean-installation.js';
-ï»¿import express from 'express';
+import express from 'express';
 import {IntegrationService} from './integration-service.js';
 import {GoogleAdsProvider,MetaAdsProvider} from './ad-spend-providers.js';
 import {registerIntegrations} from './integration-routes.js';

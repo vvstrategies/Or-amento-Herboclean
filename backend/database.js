@@ -13,10 +13,10 @@ export function documentHash(q){
   return hash(JSON.stringify({number,date,client,address,clientContact,company,terms,items}));
 }
 export function cleanQuote(raw,strict=false){
-  if(!raw||!validId(raw.id))throw fail(400,'Identificador do orçamento inválido.');
+  if(!raw||!validId(raw.id))throw fail(400,'Identificador do orÃ§amento invÃ¡lido.');
   if(strict)modelo.validate(raw);
-  if(raw.company?.logo&&!modelo.image(raw.company.logo))throw fail(400,'Logotipo inválido.');
-  if(!Array.isArray(raw.items)||raw.items.some(i=>!Array.isArray(i.photos)||i.photos.length>6||i.photos.some(p=>!modelo.image(p))))throw fail(400,'As fotos do orçamento são inválidas.');
+  if(raw.company?.logo&&!modelo.image(raw.company.logo))throw fail(400,'Logotipo invÃ¡lido.');
+  if(!Array.isArray(raw.items)||raw.items.some(i=>!Array.isArray(i.photos)||i.photos.length>6||i.photos.some(p=>!modelo.image(p))))throw fail(400,'As fotos do orÃ§amento sÃ£o invÃ¡lidas.');
   const q=modelo.toPublicProposal(raw);if(strict)modelo.validate(q);return q;
 }
 export class Repository{
@@ -46,14 +46,14 @@ export class Repository{
   setConfig(key,value){this.db.prepare('INSERT INTO config VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,JSON.stringify(value))}
   list(){return this.db.prepare('SELECT * FROM proposals ORDER BY updated_at DESC').all().map(r=>({...JSON.parse(r.snapshot),revision:r.revision}))}
   proposal(id){const r=this.db.prepare('SELECT * FROM proposals WHERE id=?').get(id);return r?{...JSON.parse(r.snapshot),revision:r.revision}:null}
-  requireProposal(id){const q=this.proposal(id);if(!q)throw fail(404,'Orçamento não encontrado.');return q}
+  requireProposal(id){const q=this.proposal(id);if(!q)throw fail(404,'OrÃ§amento nÃ£o encontrado.');return q}
   saveProposal(raw,{force=false}={}){
     const q=cleanQuote(raw),now=new Date().toISOString();
     return this.transaction(()=>{
       const current=this.proposal(q.id);
       if(current&&!force&&Number(raw.revision)!==current.revision){
         if(documentHash(current)===documentHash(q))return current;
-        throw fail(409,'Este orçamento foi atualizado em outra aba. Reabra-o antes de salvar; seu rascunho continua disponível.');
+        throw fail(409,'Este orÃ§amento foi atualizado em outra aba. Reabra-o antes de salvar; seu rascunho continua disponÃ­vel.');
       }
       const revision=(current?.revision||0)+1;q.updatedAt=now;
       this.db.prepare('INSERT INTO proposals VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET snapshot=excluded.snapshot,revision=excluded.revision,updated_at=excluded.updated_at').run(q.id,JSON.stringify(q),revision,now,now);
@@ -72,18 +72,18 @@ export class Repository{
       this.db.prepare('INSERT INTO pdfs VALUES (?,?,?,?,?,?,?,?)').run(id,q.id,version,extra.filename||q.number.replace(/[^\w-]/g,'_')+'.pdf',path.basename(file),JSON.stringify(q),fingerprint,extra.generatedAt||new Date().toISOString());return this.pdf(id);
     });
   }
-  file(pdf){if(path.basename(pdf.storageKey)!==pdf.storageKey)throw fail(500,'Referência de arquivo inválida.');return path.join(this.files,pdf.storageKey)}
+  file(pdf){if(path.basename(pdf.storageKey)!==pdf.storageKey)throw fail(500,'ReferÃªncia de arquivo invÃ¡lida.');return path.join(this.files,pdf.storageKey)}
   job(id){const r=this.db.prepare('SELECT intent FROM sync_jobs WHERE proposal_id=?').get(id);return r?JSON.parse(r.intent):null}
   setJob(id,value){this.db.prepare('INSERT INTO sync_jobs VALUES (?,?) ON CONFLICT(proposal_id) DO UPDATE SET intent=excluded.intent').run(id,JSON.stringify(value))}
   complete(id,operation,key,requestHash){return this.transaction(()=>{const op=this.setOperation(operation);this.db.prepare('DELETE FROM sync_jobs WHERE proposal_id=?').run(id);this.db.prepare('INSERT INTO idempotency VALUES (?,?,?) ON CONFLICT(key) DO NOTHING').run(key,requestHash,JSON.stringify(op));return op})}
   purgeCancelledProposal(id){
     const quote=this.requireProposal(id),operation=this.operation(id);
-    if(operation.status!=='cancelled')throw fail(409,'A exclusão definitiva está disponível apenas para orçamentos cancelados.');
+    if(operation.status!=='cancelled')throw fail(409,'A exclusÃ£o definitiva estÃ¡ disponÃ­vel apenas para orÃ§amentos cancelados.');
     if(operation.schedule||this.job(id))throw fail(409,'Cancele o agendamento pendente antes de excluir definitivamente.');
     const exists=name=>!!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
     if(exists('asaas_payments')){
       const active=this.db.prepare("SELECT status FROM asaas_payments WHERE proposal_id=? AND status NOT IN ('DELETED','REFUNDED','CHARGEBACK_REVERSED')").all(id);
-      if(active.length)throw fail(409,'Exclua ou trate as cobranças Asaas pendentes antes de excluir este orçamento. Cobranças recebidas permanecem no histórico financeiro.');
+      if(active.length)throw fail(409,'Exclua ou trate as cobranÃ§as Asaas pendentes antes de excluir este orÃ§amento. CobranÃ§as recebidas permanecem no histÃ³rico financeiro.');
     }
     const pdfs=this.db.prepare('SELECT id,storage_key FROM pdfs WHERE proposal_id=?').all(id);
     const routeIds=exists('finance_routes')?this.db.prepare('SELECT id,data FROM finance_routes').all().filter(row=>{try{return JSON.parse(row.data).destination===quote.address}catch{return false}}).map(row=>row.id):[];
@@ -116,8 +116,8 @@ export class Repository{
     for(const pdf of pdfs){const file=this.file({storageKey:pdf.storage_key});try{if(fs.existsSync(file))fs.unlinkSync(file)}catch{}}
     return {id,number:quote.number,deletedDocuments:pdfs.length};
   }
-  replay(key,requestHash){const r=this.db.prepare('SELECT * FROM idempotency WHERE key=?').get(key);if(!r)return null;if(r.request_hash!==requestHash)throw fail(409,'Esta confirmação já foi usada com outros dados. Revise novamente.');return JSON.parse(r.response)}
-  claim(key,owner){const now=Date.now();return this.transaction(()=>{const r=this.db.prepare('SELECT * FROM leases WHERE key=?').get(key);if(r&&r.expires>now)throw fail(409,'Há uma operação em andamento. Aguarde e tente novamente.');this.db.prepare('INSERT OR REPLACE INTO leases VALUES (?,?,?)').run(key,owner,now+300000)})}
+  replay(key,requestHash){const r=this.db.prepare('SELECT * FROM idempotency WHERE key=?').get(key);if(!r)return null;if(r.request_hash!==requestHash)throw fail(409,'Esta confirmaÃ§Ã£o jÃ¡ foi usada com outros dados. Revise novamente.');return JSON.parse(r.response)}
+  claim(key,owner){const now=Date.now();return this.transaction(()=>{const r=this.db.prepare('SELECT * FROM leases WHERE key=?').get(key);if(r&&r.expires>now)throw fail(409,'HÃ¡ uma operaÃ§Ã£o em andamento. Aguarde e tente novamente.');this.db.prepare('INSERT OR REPLACE INTO leases VALUES (?,?,?)').run(key,owner,now+300000)})}
   release(key,owner){this.db.prepare('DELETE FROM leases WHERE key=? AND owner=?').run(key,owner)}
 }
 
