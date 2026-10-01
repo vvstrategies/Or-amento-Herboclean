@@ -6,7 +6,7 @@ import {defaultFinancialSettings,validateFinancialSettings,defaultEstimateInput,
 
 export class FinanceService{
  constructor(repo,operations,provider,{dailyLimit=100,directionsDailyLimit=dailyLimit,geocoder=null,geocodingDailyLimit=100,routeCacheHours=24}={}){
-  this.repo=repo;this.operations=operations;this.provider=provider;this.dailyLimit=Number.isInteger(directionsDailyLimit)&&directionsDailyLimit>0?Math.min(directionsDailyLimit,10000):100;this.pendingRoutes=new Map();
+  this.repo=repo;this.operations=operations;this.provider=provider;this.dailyLimit=Number.isInteger(directionsDailyLimit)&&directionsDailyLimit>0?Math.min(directionsDailyLimit,10000):100;this.pendingRoutes=new Map();this.autoRefreshes=new Map();this.autoErrors=new Map();
   migrateFinance(repo);
   this.routeCache=new RouteCache(repo,provider,{directionsDailyLimit:this.dailyLimit,geocoder,geocodingDailyLimit,ttlHours:routeCacheHours});
  }
@@ -28,7 +28,7 @@ export class FinanceService{
   const addressChanged=!!latest&&addressKey(latest.destinationAddressSnapshot)!==addressKey(q.address);
   const stale=!!latest&&latest.quoteKey!==financialQuoteKey(q),routes=this.routeCache.status();
   const routeNeedsRefresh=!!latest&&latest.inputs?.considerTravel&&latest.inputs?.distanceMode==='automatic'&&isUnexpectedZeroRoute(latest.assumptions?.originAddressSnapshot,latest.destinationAddressSnapshot,latest.routeSnapshot);
-  return {latest:latest||null,previous:previous||null,editable,stale,addressChanged,routeNeedsRefresh,status:this.repo.operation(id).status,
+  return {latest:latest||null,previous:previous||null,editable,stale,addressChanged,routeNeedsRefresh,automaticReady:this.automaticReady(q),autoRouteError:this.autoErrors.get(id)||null,status:this.repo.operation(id).status,
    currentRevenue:quotedRevenue(q),defaults:this.settings(),currentOrigin:resolveOrigin(this.settings(),this.company()),
    routes};
  }
@@ -51,7 +51,9 @@ export class FinanceService{
     const settings=this.settings(),origin=resolveOrigin(settings,this.company()),rates=settings.serviceMaterialBps||{},vehicle=settings.vehicle||{};
     const materialsReady=q.items.every(item=>Object.hasOwn(rates,item.service)?rates[item.service]!==null:settings.defaultMaterialBps!==null);
   const structuredAddressStarted=!!(q.postalCode||q.addressStreet||q.addressCity||q.addressState);
-  const destinationReady=!!q.address&&(!structuredAddressStarted||!!q.addressNumber);
+  // A rua e a cidade já permitem uma rota aproximada. O número melhora a precisão,
+  // mas não deve impedir o cálculo automático quando o cliente ainda não o informou.
+  const destinationReady=!!q.address&&(!structuredAddressStarted||!!(q.addressStreet&&q.addressCity));
   return !!(this.routeCache.status().configured&&origin&&destinationReady&&materialsReady&&vehicle.consumptionCentiKmL!==null&&vehicle.fuelPriceCents!==null);
  }
  async refreshAutomatically(id,{alreadyLocked=false}={}){
@@ -66,13 +68,23 @@ export class FinanceService{
    inputs.distanceMode='automatic';inputs.manualDistanceMeters=null;inputs.routeId=null;
    let route;
    try{route=await this.routeCache.get(assumptions.originAddressSnapshot,q.address,{originRef:{type:'company',id:'operational'},destinationRef:{type:'proposal',id}});}
-   catch{return this.view(id);}
+   catch(error){this.autoErrors.set(id,error.message||'Não foi possível calcular a rota automática.');return this.view(id);}
+   // A consulta é assíncrona. Não grave uma estimativa para uma proposta que tenha
+   // sido alterada, cancelada ou agendada enquanto a rota era calculada.
+   const current=this.repo.requireProposal(id);
+   if(!this.editable(id)||financialQuoteKey(current)!==quoteKey)return this.view(id);
+   this.autoErrors.delete(id);
    inputs.routeId=route.id;
-   return this.record(id,q,assumptions,validateEstimateInput(inputs),route);
+   return this.record(id,current,assumptions,validateEstimateInput(inputs),route);
   };
-  return alreadyLocked?run():this.operations.locked(id,run);
+  if(alreadyLocked)return run();
+  // A estimativa financeira não usa Google Agenda. Ela nunca deve bloquear
+  // cancelamento, edição ou agendamento da proposta.
+  if(this.autoRefreshes.has(id))return this.autoRefreshes.get(id);
+  const task=Promise.resolve().then(run);this.autoRefreshes.set(id,task);
+  try{return await task}finally{if(this.autoRefreshes.get(id)===task)this.autoRefreshes.delete(id);}
  }
- async calculate(id,body){return this.operations.locked(id,async()=>{
+ async calculate(id,body){return (async()=>{
   this.checkEditable(id);const q=this.checkVersion(id,body),assumptions=this.assumptions(id,body.useCurrentSettings===true),inputs=validateEstimateInput(body.inputs||defaultEstimateInput());
   let route=null;
   if(inputs.considerTravel&&inputs.distanceMode==='automatic'){
@@ -83,11 +95,11 @@ export class FinanceService{
   const previous=this.latest(id);
   if(inputs.considerTravel&&inputs.distanceMode==='manual'&&previous&&(addressKey(previous.destinationAddressSnapshot)!==addressKey(q.address)||addressKey(previous.assumptions.originAddressSnapshot)!==addressKey(assumptions.originAddressSnapshot))&&body.confirmDistance!==true)throw fail(409,'O endereÃ§o de origem ou destino mudou. Confirme novamente a distÃ¢ncia manual para este destino.');
   return this.record(id,q,assumptions,inputs,route);
- });}
- async route(id,body){return this.operations.locked(id,async()=>{
+ })();}
+ async route(id,body){return (async()=>{
   this.checkEditable(id);const q=this.checkVersion(id,body),a=this.assumptions(id,body.useCurrentSettings===true),origin=a.originAddressSnapshot,destination=q.address;
   if(!origin||!destination)throw fail(400,'Informe a origem nas configurações e o endereço do atendimento.');
   const route=await this.routeCache.get(origin,destination,{force:body.force===true,originRef:{type:'company',id:'operational'},destinationRef:{type:'proposal',id}});
   this.checkVersion(id,body);this.checkEditable(id);return route;
- });}
+ })();}
 }

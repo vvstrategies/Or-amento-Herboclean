@@ -108,11 +108,11 @@ export class ProfitService {
   const items=q.items.map((i,n)=>{const cents=Math.ceil(shares[n]/Number(i.quantity));if(cents>100000000)throw fail(400,'Preço unitário acima do limite.');return {...i,price:cents/100};}),total=quotedRevenue({...q,items});
   return {...sim,private:true,proposalRevision:q.revision,estimateVersion:e.version,requestedPrice:requested,appliedTotal:total,items,canApply:this.finance.editable(id),appliedMarginPercent:ratio(total-e.result.totalDirectCost,total)};
  }
- async applyPrice(id,raw){return this.operations.locked(id,async()=>{
+ async applyPrice(id,raw){return (async()=>{
   if(!this.finance.editable(id))throw fail(409,'Só orçamentos em elaboração podem receber novo preço.');
   const p=this.pricing(id,raw),q=this.repo.requireProposal(id);
   if(raw.proposalRevision!==q.revision||raw.estimateVersion!==p.estimateVersion||raw.confirmedTotal!==p.appliedTotal||raw.confirm!==true)throw fail(409,'Simule novamente e confirme o total exibido antes de aplicar.');
-  const saved=this.repo.saveProposal({...q,items:p.items}),finance=await this.finance.refreshAutomatically(id,{alreadyLocked:true});this.dre.audit('pricing',id,{revision:q.revision,total:quotedRevenue(q)},{revision:saved.revision,total:quotedRevenue(saved),estimateVersion:finance.latest?.version||p.estimateVersion,targetBps:p.targetBps,confirmedAt:now()});return {quote:saved,finance,message:'Preço aplicado. Custos e rentabilidade foram atualizados automaticamente. PDFs anteriores foram preservados.'};
- });}
+  const saved=this.repo.saveProposal({...q,items:p.items}),finance=await this.finance.refreshAutomatically(id);this.dre.audit('pricing',id,{revision:q.revision,total:quotedRevenue(q)},{revision:saved.revision,total:quotedRevenue(saved),estimateVersion:finance.latest?.version||p.estimateVersion,targetBps:p.targetBps,confirmedAt:now()});return {quote:saved,finance,message:'Preço aplicado. Custos e rentabilidade foram atualizados automaticamente. PDFs anteriores foram preservados.'};
+ })();}
  export(){return {...this.dre.export(),version:3,profitabilitySettings:this.settings(),goalDefaultsHistory:this.repo.config('profit-goal-defaults-v1')||[],actuals:this.repo.db.prepare('SELECT data FROM finance_actuals ORDER BY created_at').all().map(read),contexts:this.repo.db.prepare('SELECT data FROM finance_contexts').all().map(read),goals:this.repo.db.prepare('SELECT data FROM finance_goals ORDER BY competence,version').all().map(read)};}
 }

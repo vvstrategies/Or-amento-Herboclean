@@ -22,7 +22,7 @@ export class Service{
     if(!force&&last?.proposalVersionId===q.versionId&&last?.fingerprint===fingerprint&&fs.existsSync(this.repo.file(last)))return last;
     const file=await gerarPDFEcoclean(q,{outputDir:this.repo.files});return this.repo.savePDF(q,file,fingerprint);
   }
-  async generate(id,{revision,force=false}={}){return this.locked(id,async()=>{const q=this.repo.requireProposal(id);if(Number(revision)!==q.revision)throw fail(409,'O orçamento mudou. Reabra antes de gerar o PDF.');return this.pdf(q,force)})}
+  async generate(id,{revision,force=false}={}){const q=this.repo.requireProposal(id);if(Number(revision)!==q.revision)throw fail(409,'O orçamento mudou. Reabra antes de gerar o PDF.');return this.pdf(q,force)}
   async schedule(id,input){
     if(typeof input.key!=='string'||!/^[a-zA-Z0-9-]{16,100}$/.test(input.key))throw fail(400,'Confirmação inválida. Revise o agendamento.');
     const requestHash=crypto.createHash('sha256').update(JSON.stringify({id,kind:'schedule',date:input.date,time:input.time,duration:input.duration,revision:input.revision})).digest('hex');
