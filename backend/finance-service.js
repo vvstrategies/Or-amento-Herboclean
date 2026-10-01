@@ -27,8 +27,9 @@ export class FinanceService{
   const q=this.repo.requireProposal(id),[latest,previous]=this.versions(id),editable=this.editable(id);
   const addressChanged=!!latest&&addressKey(latest.destinationAddressSnapshot)!==addressKey(q.address);
   const stale=!!latest&&latest.quoteKey!==financialQuoteKey(q),routes=this.routeCache.status();
-  const routeNeedsRefresh=!!latest&&latest.inputs?.considerTravel&&latest.inputs?.distanceMode==='automatic'&&isUnexpectedZeroRoute(latest.assumptions?.originAddressSnapshot,latest.destinationAddressSnapshot,latest.routeSnapshot);
-  return {latest:latest||null,previous:previous||null,editable,stale,addressChanged,routeNeedsRefresh,automaticReady:this.automaticReady(q),autoRouteError:this.autoErrors.get(id)||null,status:this.repo.operation(id).status,
+  const routeNeedsRefresh=!!latest&&latest.inputs?.considerTravel&&latest.inputs?.distanceMode==='automatic'&&(!latest.routeSnapshot||isUnexpectedZeroRoute(latest.assumptions?.originAddressSnapshot,latest.destinationAddressSnapshot,latest.routeSnapshot));
+  const automatic=this.automaticState(q);
+  return {latest:latest||null,previous:previous||null,editable,stale,addressChanged,routeNeedsRefresh,automaticReady:automatic.ready,autoRouteIssue:automatic.reason,autoRouteError:this.autoErrors.get(id)||null,status:this.repo.operation(id).status,
    currentRevenue:quotedRevenue(q),defaults:this.settings(),currentOrigin:resolveOrigin(this.settings(),this.company()),
    routes};
  }
@@ -47,21 +48,30 @@ export class FinanceService{
   if(q.versionId)this.repo.setVersionFinance(id,q.versionId,value);
   return this.view(id);
  }
-  automaticReady(q){
-    const settings=this.settings(),origin=resolveOrigin(settings,this.company()),rates=settings.serviceMaterialBps||{},vehicle=settings.vehicle||{};
-    const materialsReady=q.items.every(item=>Object.hasOwn(rates,item.service)?rates[item.service]!==null:settings.defaultMaterialBps!==null);
+ automaticState(q){
+  const settings=this.settings(),configured=this.routeCache.status().configured,origin=resolveOrigin(settings,this.company()),rates=settings.serviceMaterialBps||{},vehicle=settings.vehicle||{};
+  const materialsReady=q.items.every(item=>Object.hasOwn(rates,item.service)?rates[item.service]!==null:settings.defaultMaterialBps!==null);
   const structuredAddressStarted=!!(q.postalCode||q.addressStreet||q.addressCity||q.addressState);
-  // A rua e a cidade já permitem uma rota aproximada. O número melhora a precisão,
-  // mas não deve impedir o cálculo automático quando o cliente ainda não o informou.
   const destinationReady=!!q.address&&(!structuredAddressStarted||!!(q.addressStreet&&q.addressCity));
-  return !!(this.routeCache.status().configured&&origin&&destinationReady&&materialsReady&&vehicle.consumptionCentiKmL!==null&&vehicle.fuelPriceCents!==null);
+  if(!configured)return {ready:false,reason:'As rotas automáticas não estão configuradas.'};
+  if(!origin)return {ready:false,reason:'Defina o endereço de saída da equipe em Configurações › Financeiro.'};
+  if(!q.address)return {ready:false,reason:'Informe o endereço do atendimento para calcular a rota.'};
+  if(!destinationReady)return {ready:false,reason:'Complete pelo menos o logradouro e a cidade do atendimento para calcular a rota.'};
+  if(!materialsReady)return {ready:false,reason:'Configure o custo de materiais deste serviço em Configurações › Financeiro.'};
+  if(vehicle.consumptionCentiKmL===null)return {ready:false,reason:'Configure o consumo médio do veículo em Configurações › Financeiro.'};
+  if(vehicle.fuelPriceCents===null)return {ready:false,reason:'Configure o preço do combustível em Configurações › Financeiro.'};
+  return {ready:true,reason:null};
+ }
+ automaticReady(q){
+  return this.automaticState(q).ready;
  }
  async refreshAutomatically(id,{alreadyLocked=false}={}){
   const run=async()=>{
    this.checkEditable(id);const q=this.repo.requireProposal(id),previous=this.latest(id),quoteKey=financialQuoteKey(q);
-   const routeNeedsRefresh=!!previous&&previous.inputs?.considerTravel&&previous.inputs?.distanceMode==='automatic'&&isUnexpectedZeroRoute(previous.assumptions?.originAddressSnapshot,previous.destinationAddressSnapshot,previous.routeSnapshot);
-   if(previous?.quoteKey===quoteKey&&previous.result?.complete&&!routeNeedsRefresh)return this.view(id);
-   if(!this.automaticReady(q))return this.view(id);
+   const routeNeedsRefresh=!!previous&&previous.inputs?.considerTravel&&previous.inputs?.distanceMode==='automatic'&&(!previous.routeSnapshot||isUnexpectedZeroRoute(previous.assumptions?.originAddressSnapshot,previous.destinationAddressSnapshot,previous.routeSnapshot));
+   if(previous?.quoteKey===quoteKey&&!routeNeedsRefresh){this.autoErrors.delete(id);return this.view(id);}
+   const automatic=this.automaticState(q);
+   if(!automatic.ready){this.autoErrors.set(id,automatic.reason);return this.view(id);}
    const assumptions=snapshotAssumptions(this.settings(),this.company());
    const inputs=previous?structuredClone(previous.inputs):defaultEstimateInput();
    if(!inputs.considerTravel)return this.record(id,q,assumptions,validateEstimateInput(inputs),null);
@@ -90,8 +100,17 @@ export class FinanceService{
   if(inputs.considerTravel&&inputs.distanceMode==='automatic'){
    const row=this.repo.db.prepare('SELECT data FROM finance_routes WHERE id=?').get(inputs.routeId||'');
    route=row?JSON.parse(row.data):null;
+   const valid=route&&addressKey(route.origin)===addressKey(assumptions.originAddressSnapshot)&&addressKey(route.destination)===addressKey(q.address)&&!isUnexpectedZeroRoute(assumptions.originAddressSnapshot,q.address,route);
+   // Uma rota de versão anterior, sem registro ou com 0 km não pode travar o
+   // atendimento. Recalcule-a aqui, inclusive quando a pessoa salva ajustes.
+   if(!valid){
+    const automatic=this.automaticState(q);
+    if(!automatic.ready)throw fail(409,automatic.reason);
+    route=await this.routeCache.get(assumptions.originAddressSnapshot,q.address,{force:true,originRef:{type:'company',id:'operational'},destinationRef:{type:'proposal',id}});
+   }
    if(!route||addressKey(route.origin)!==addressKey(assumptions.originAddressSnapshot)||addressKey(route.destination)!==addressKey(q.address))throw fail(409,'A rota nÃ£o corresponde aos endereÃ§os atuais. Recalcule o deslocamento ou informe a distÃ¢ncia manualmente.');
   }
+  this.autoErrors.delete(id);
   const previous=this.latest(id);
   if(inputs.considerTravel&&inputs.distanceMode==='manual'&&previous&&(addressKey(previous.destinationAddressSnapshot)!==addressKey(q.address)||addressKey(previous.assumptions.originAddressSnapshot)!==addressKey(assumptions.originAddressSnapshot))&&body.confirmDistance!==true)throw fail(409,'O endereÃ§o de origem ou destino mudou. Confirme novamente a distÃ¢ncia manual para este destino.');
   return this.record(id,q,assumptions,inputs,route);

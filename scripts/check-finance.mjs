@@ -86,7 +86,8 @@ try{
  await data('/api/proposals/'+q.id+'/finance',{...envelope(),inputs:{...input,distanceMode:'automatic',routeId:route.id}},'PUT');
  await data('/api/proposals/'+q.id+'/finance');await data('/api/proposals');assert.equal(calls,1);
  proposal=await data('/api/proposals/'+q.id,{...proposal,address:'Destino C'},'PUT');
- assert.equal((await request('/api/proposals/'+q.id+'/finance',{...envelope(),inputs:{...input,distanceMode:'automatic',routeId:route.id}},'PUT')).status,409);
+ const refreshedAfterAddressChange=await data('/api/proposals/'+q.id+'/finance',{...envelope(),inputs:{...input,distanceMode:'automatic',routeId:route.id}},'PUT');
+ assert.equal(refreshedAfterAddressChange.latest.result.distanceMeters,18000);assert.ok(calls>=2);
  // Origin changes require a new route/manual acknowledgement as well.
  await data('/api/financial-settings',{...settings,originMode:'custom',originAddress:'Outra base'},'PUT');
  assert.equal((await request('/api/proposals/'+q.id+'/finance',{...envelope(),useCurrentSettings:true},'PUT')).status,409);

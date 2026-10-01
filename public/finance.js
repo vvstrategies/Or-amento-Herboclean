@@ -82,7 +82,7 @@ function render(slot,q,view){
  slot.innerHTML=`<div class="finance-heading"><h3>Rentabilidade estimada</h3><span class="finance-private">Uso interno</span></div><p class="hint">Custos diretos e margem deste atendimento. Estas informações não entram no PDF.</p>
  ${view.stale?`<p class="finance-alert">${view.addressChanged?'O endereço do atendimento mudou.':'Os itens ou valores do orçamento mudaram.'} ${view.editable?'A atualização automática será tentada ao abrir este detalhe; se a rota estiver indisponível, use os ajustes abaixo.':'A estimativa histórica abaixo foi preservada.'}</p>`:''}
  ${view.routeNeedsRefresh?`<p class="finance-alert">A rota automática retornou 0 km para endereços diferentes. Confira a origem e o endereço do cliente; o sistema tentará atualizar o deslocamento automaticamente.</p>`:''}
- ${view.autoRouteError?`<p class="finance-alert">A rota automática não foi concluída: ${esc(view.autoRouteError)}. Revise a origem e o endereço; a próxima atualização tentará novamente.</p>`:''}
+ ${view.autoRouteError?`<p class="finance-alert">A rota automática não foi concluída: ${esc(view.autoRouteError)}. Revise a origem e o endereço; a próxima atualização tentará novamente.</p>`:view.routeNeedsRefresh&&view.autoRouteIssue?`<p class="finance-alert">A rota não pôde ser refeita automaticamente: ${esc(view.autoRouteIssue)}</p>`:''}
  ${metrics(view)}
  ${e?`<p class="finance-caption">Estimativa v${e.version} · ${when(e.calculatedAt)}${view.editable?'':' · Histórico preservado'}</p>
  ${!view.stale||!view.editable?distance(e):''}
@@ -95,7 +95,7 @@ function render(slot,q,view){
 function editor(target,slot,q,view){
  const e=view.latest,a=e?.assumptions||view.defaults;
  const i=e?structuredClone(e.inputs):{considerTravel:true,materialOverrideCents:null,distanceMode:'manual',manualDistanceMeters:null,routeId:null,tollCents:0,parkingCents:0,otherTravelCents:0,otherDirectCosts:[]};
- let route=view.addressChanged?null:e?.routeSnapshot||null,confirmedDistance=false;
+ let route=view.addressChanged||view.routeNeedsRefresh?null:e?.routeSnapshot||null,confirmedDistance=false;
  if(view.addressChanged){i.manualDistanceMeters=null;i.routeId=null;i.distanceMode='manual';}
  target.innerHTML=`<details class="finance-edit" ${!e||view.stale?'open':''}><summary>${e?'Ajustar estimativa':'Configurar estimativa'}</summary>
  <form class="finance-estimate-form"><label class="finance-check"><input name="useCurrent" type="checkbox" ${!e?'checked':''}> Recalcular usando configurações atuais</label><p class="hint">Se desmarcado, preserva as premissas da última estimativa. Cada cálculo salva uma nova versão.</p>
