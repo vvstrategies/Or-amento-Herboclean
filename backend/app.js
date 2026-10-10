@@ -7,6 +7,7 @@ import {AsaasService} from './asaas-service.js';
 import {registerAsaas} from './asaas-routes.js';
 import {ProfitService} from './profit-service.js';
 import {registerProfit} from './profit-routes.js';
+import {CommercialService,registerCommercial} from './commercial.js';
 import {DreService} from './dre-service.js';
 import {registerDre} from './dre-routes.js';
 import {financialDemo} from './finance-demo.js';
@@ -46,6 +47,7 @@ export function createApp(options={}){
   const asaas=new AsaasService(repo,options.asaasConfig,options.asaasFetcher||options.fetcher||globalThis.fetch);
   const ads=options.adProviders||{'google-ads':new GoogleAdsProvider(options.integrationConfig?.googleAds,options.integrationFetcher),'meta-ads':new MetaAdsProvider(options.integrationConfig?.metaAds,options.integrationFetcher)};
   const integrations=new IntegrationService(repo,tokenVault,ads,finance,dre,google);
+  const commercial=new CommercialService(repo,{dre,finance});
   app.disable('x-powered-by');app.use(sec.headers);app.use(express.json({limit:'100mb'}));
   // A Asaas chama esta rota sem sessão do navegador. O token próprio do webhook é validado no serviço.
   app.post('/api/webhooks/asaas',wrap(async(req,res)=>{await asaas.webhook(req.headers['asaas-access-token'],req.body);res.status(204).end();}));
@@ -60,6 +62,7 @@ export function createApp(options={}){
   registerDre(app,dre,wrap);
   registerIntegrations(app,integrations,wrap);
   registerProfit(app,profit,wrap);
+  registerCommercial(app,commercial,wrap);
   app.get('/api/financial-demo',(req,res)=>res.json(financialDemo()));
   app.get('/api/financial-settings',(req,res)=>res.json({settings:finance.settings(),companyLocation:finance.company().location||'',services:repo.config('settings')?.services||[],routes:finance.routeCache.status()}));
   app.put('/api/financial-settings',(req,res)=>res.json(finance.saveSettings(req.body)));
@@ -77,7 +80,7 @@ export function createApp(options={}){
   app.get('/api/proposals',(req,res)=>res.json(repo.list()));
   app.get('/api/proposals/:id',(req,res)=>res.json(repo.requireProposal(req.params.id)));
   app.get('/api/proposals/:id/versions',(req,res)=>res.json(repo.listVersions(req.params.id)));
-  app.put('/api/proposals/:id',wrap(async(req,res)=>{if(req.params.id!==req.body.id)throw fail(400,'Identificador divergente.');if(service.locks.has(req.params.id))throw fail(409,'Aguarde o agendamento terminar antes de editar.');const current=repo.proposal(req.params.id),changed=!!current&&documentHash(current)!==documentHash(cleanQuote(req.body));if(changed&&Number(req.body.revision)===current.revision)await asaas.cancelActiveForRevision(current.id,current.revision);const saved=repo.saveProposal(req.body);await finance.refreshAutomatically(saved.id).catch(()=>null);const latest=repo.listPDFs(saved.id)[0];if(repo.operation(saved.id).status==='generated'&&(latest?.proposalVersionId!==saved.versionId||latest?.fingerprint!==documentHash(saved)))await service.pdf(saved).catch(()=>null);res.json(saved)}));
+  app.put('/api/proposals/:id',wrap(async(req,res)=>{if(req.params.id!==req.body.id)throw fail(400,'Identificador divergente.');if(service.locks.has(req.params.id))throw fail(409,'Aguarde o agendamento terminar antes de editar.');const current=repo.proposal(req.params.id),changed=!!current&&documentHash(current)!==documentHash(cleanQuote(req.body));if(changed&&Number(req.body.revision)===current.revision)await asaas.cancelActiveForRevision(current.id,current.revision);const saved=repo.saveProposal(req.body);try{commercial.sync(saved)}catch{}await finance.refreshAutomatically(saved.id).catch(()=>null);const latest=repo.listPDFs(saved.id)[0];if(repo.operation(saved.id).status==='generated'&&(latest?.proposalVersionId!==saved.versionId||latest?.fingerprint!==documentHash(saved)))await service.pdf(saved).catch(()=>null);res.json(saved)}));
   app.delete('/api/proposals/:id',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir.');res.json(await service.purge(req.params.id));}));
   app.delete('/api/proposals/:id/versions/:versionId',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir a versão.');res.json(repo.deleteVersion(req.params.id,req.params.versionId));}));
   app.get('/api/operations',(req,res)=>res.json(repo.list().map(q=>{const job=repo.job(q.id);return {...repo.operation(q.id),pendingAction:job?{kind:job.kind,values:job.values,error:job.error}:null}})));
@@ -104,7 +107,7 @@ export function createApp(options={}){
       for(const p of data.documents||[]){if(!idMap.has(p.proposalId))throw fail(400,'PDF sem proposta no backup.');const id=idMap.get(p.proposalId);if(!id)continue;const unique=id+':'+p.version;if(!Number.isInteger(p.version)||p.version<1||versions.has(unique)||!/^data:application\/pdf;base64,[A-Za-z0-9+/]+={0,2}$/.test(p.data||''))throw fail(400,'PDF inválido no backup.');versions.add(unique);const bytes=Buffer.from(p.data.split(',')[1],'base64');if(bytes.subarray(0,5).toString()!=='%PDF-')throw fail(400,'Conteúdo do PDF inválido.');const snapshot=cleanQuote({...p.snapshot,id});staged.push({id:crypto.randomUUID(),proposalId:id,version:p.version,snapshot,storage:crypto.randomUUID()+'.pdf',bytes,generatedAt:Number.isFinite(Date.parse(p.generatedAt))?p.generatedAt:new Date().toISOString()})}
       for(const p of staged)fs.writeFileSync(path.join(repo.files,p.storage),p.bytes,{flag:'wx'});
       repo.transaction(()=>{const now=new Date().toISOString(),versionIds=new Map();for(const {q,source} of proposals){q.versionId=crypto.randomUUID();versionIds.set(q.id,q.versionId);repo.db.prepare('INSERT INTO proposals (id,snapshot,revision,created_at,updated_at,archived_at) VALUES (?,?,?,?,?,NULL)').run(q.id,JSON.stringify(q),1,now,q.updatedAt||now);repo.db.prepare('INSERT INTO proposal_versions (id,proposal_id,sequence,snapshot,financial_snapshot,created_at,deleted_at,deleted_by) VALUES (?,?,?,?,?,?,NULL,NULL)').run(q.versionId,q.id,1,JSON.stringify(q),null,now);if(migration)repo.db.prepare('INSERT OR IGNORE INTO migrations VALUES (?,?)').run(source,q.id)}for(const o of ops)repo.setOperation(o);for(const p of staged){const versionId=versionIds.get(p.proposalId)||null;p.snapshot.versionId=versionId;repo.db.prepare('INSERT INTO pdfs (id,proposal_id,version,filename,storage_key,snapshot,fingerprint,generated_at,proposal_version_id) VALUES (?,?,?,?,?,?,?,?,?)').run(p.id,p.proposalId,p.version,proposalFilename(p.snapshot),p.storage,JSON.stringify(p.snapshot),documentHash(p.snapshot),p.generatedAt,versionId);}});
-      res.json({imported:proposals.length,proposals:proposals.map(({q})=>repo.proposal(q.id))});
+      for(const {q} of proposals){try{commercial.sync(repo.proposal(q.id))}catch{}}res.json({imported:proposals.length,proposals:proposals.map(({q})=>repo.proposal(q.id))});
     }catch(error){for(const p of staged){const file=path.join(repo.files,p.storage);if(fs.existsSync(file))fs.unlinkSync(file)}throw error}
   }));
   app.use('/api',(req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
@@ -115,6 +118,6 @@ export function createApp(options={}){
   app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name));next()});
   app.use((req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   app.use((error,req,res,next)=>{if(res.headersSent)return next(error);res.status(error.status||400).json({error:error.status?error.message:'Não foi possível concluir. Confira os dados e tente novamente.'})});
-  return {app,repo,google,service,finance,dre,profit,integrations,asaas};
+  return {app,repo,google,service,finance,dre,profit,integrations,asaas,commercial};
 }
 

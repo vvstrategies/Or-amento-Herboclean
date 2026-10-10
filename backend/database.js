@@ -148,6 +148,7 @@ export class Repository{
       if(exists('finance_actuals'))this.db.prepare('DELETE FROM finance_actuals WHERE proposal_id=?').run(id);
       if(exists('finance_contexts'))this.db.prepare('DELETE FROM finance_contexts WHERE proposal_id=?').run(id);
       if(exists('finance_recognitions'))this.db.prepare('DELETE FROM finance_recognitions WHERE proposal_id=?').run(id);
+      if(exists('client_links'))this.db.prepare('DELETE FROM client_links WHERE proposal_id=?').run(id);
       if(exists('proposal_attribution'))this.db.prepare('DELETE FROM proposal_attribution WHERE proposal_id=?').run(id);
       if(exists('finance_geocodes')){
         this.db.prepare("DELETE FROM finance_geocodes WHERE subject_type='proposal' AND subject_id=?").run(id);
