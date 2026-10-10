@@ -112,16 +112,14 @@ export function createApp(options={}){
   }));
   app.use('/api',(req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   const allowed=new Set(fs.readdirSync(path.join(root,'public')).filter(n=>/\.(html|css|js)$/.test(n)));
-  // O CDN da hospedagem guarda estáticos ignorando Cache-Control e query string; a versão no caminho obriga navegador e CDN a buscar os arquivos de cada deploy.
+  // Na Hostinger, public/ é servido direto pelo CDN, sem Cache-Control e ignorando query string; a versão no caminho passa pelo app e muda a cada deploy.
   const assetHash=crypto.createHash('sha256');for(const n of [...allowed].sort())assetHash.update(fs.readFileSync(path.join(root,'public',n)));const assetVersion=assetHash.digest('hex').slice(0,10);
   const indexHtml=fs.readFileSync(path.join(root,'public/index.html'),'utf8').replace(/(src|href)="([a-zA-Z0-9_.-]+\.(?:js|css))"/g,`$1="v/${assetVersion}/$2"`);
   app.get('/',(req,res)=>res.set('Cache-Control','no-cache').type('html').send(indexHtml));
   app.get('/guia-integracoes',sec.requireAuth,(req,res)=>res.type('text/plain; charset=utf-8').sendFile(path.join(root,'INTEGRATIONS_SETUP.md')));
   app.get('/guia-google',sec.requireAuth,(req,res)=>res.type('text/plain').sendFile(path.join(root,'docs/CONEXAO-GOOGLE.md')));
-  // Só uma página guardada em cache de um deploy anterior pede scripts sem versão: ela é recarregada por um endereço novo.
-  app.use((req,res,next)=>{const m=/^\/v\/[a-f0-9]{10}(\/.+)$/.exec(req.path);if(m){req.url=m[1];req.versioned=true}next()});
+  app.use((req,res,next)=>{const m=/^\/v\/[a-f0-9]{10}(\/.+)$/.exec(req.path);if(m)req.url=m[1];next()});
   app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}
-    if(allowed.has(name)&&name.endsWith('.js')&&name!=='pdf-fonts.js'&&!req.versioned)return res.set('Cache-Control','no-store').type('js').send("if(!window.__hcStale){window.__hcStale=1;location.replace(location.pathname+'?atualizado='+Date.now()+location.hash)}");
     if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name),{headers:{'Cache-Control':'no-cache'}});next()});
   app.use((req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   app.use((error,req,res,next)=>{if(res.headersSent)return next(error);res.status(error.status||400).json({error:error.status?error.message:'Não foi possível concluir. Confira os dados e tente novamente.'})});

@@ -1,5 +1,7 @@
 (function(root){
 'use strict';
+// Uma página antiga guardada no navegador carrega este arquivo sem a versão no caminho: recarrega pelo endereço atual.
+if(typeof document!=='undefined'&&document.currentScript&&!/\/v\/[a-f0-9]{10}\//.test(document.currentScript.src)&&!/[?&]atualizado=/.test(location.search))location.replace(location.pathname+'?atualizado='+Date.now()+location.hash);
 const defaultServices=()=>[["Limpeza de carpete","m²","Higienização de carpete na área indicada."],["Cadeiras estofadas","un.","Higienização de cadeiras estofadas."],["Colchão","un.","Higienização de colchão."],["Sofá","un.","Higienização de sofá."],["Poltronas","un.","Higienização de poltronas."],["Banco automotivo","un.","Higienização de banco automotivo."],["Tapete","m²","Higienização de tapete na área indicada."],["Persiana","un.","Limpeza de persiana."],["Cortinas","un.","Limpeza de cortinas."],["Impermeabilização","un.","Impermeabilização dos itens indicados."]].map(([name,unit,description])=>({name,unit,description}));
 const defaults=()=>({name:'',phone:'',email:'',location:'',website:'',taxId:'',tagline:'',intro:'',benefits:'',logo:'',logoBackground:'light',useInitials:true,primaryColor:'#044c3a',accentColor:'#a7cf21',proposalTitle:'Proposta Técnica de Higienização',proposalSubtitle:'Higienização de Estofados e Carpetes',proposalPrefix:'ECO'});
 const text=(v,n=240)=>typeof v==='string'?v.slice(0,n).trim():'';
