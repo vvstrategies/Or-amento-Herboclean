@@ -10,6 +10,9 @@
     }
     if(result.schedule?.sync==='pending'){result.suggestedSchedule=result.schedule;result.schedule=null;}
     if(result.status==='scheduled'&&!result.schedule)result.status='generated';
+    if(raw.crm&&typeof raw.crm==='object')result.crm=raw.crm;
+    if(typeof raw.serviceCompletedAt==='string')result.serviceCompletedAt=raw.serviceCompletedAt;
+    if(typeof raw.completionRecordedAt==='string')result.completionRecordedAt=raw.completionRecordedAt;
     return result;
   }
   function localDate(value=new Date()){

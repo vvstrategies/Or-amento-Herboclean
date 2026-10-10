@@ -20,7 +20,8 @@ export async function gerarPDFEcoclean(q, options = {}) {
   q=modelo.toPublicProposal(q);
   const photos=await Promise.all(q.items.map(i=>Promise.all(i.photos.map(decodeImage))));
   const logo=q.company.logo?await decodeImage(q.company.logo):null;
-  const doc=new PDFDocument({size:'A4',margin:0,autoFirstPage:false,info:{Title:`${q.number} - ${q.client}`,Author:q.company.name,Subject:'Proposta comercial'}});
+  const mobile=options.format==='mobile';
+  const doc=new PDFDocument({size:mobile?globalThis.EcoMobilePageSize:'A4',margin:0,autoFirstPage:false,info:{Title:`${q.number} - ${q.client}${mobile?' (celular)':''}`,Author:q.company.name,Subject:'Proposta comercial'}});
   doc.registerFont('EC',asset('plus-jakarta-regular.ttf'));
   doc.registerFont('EC-Bold',asset('plus-jakarta-bold.ttf'));
   // Verificar as imagens antes de criar um arquivo de saída.
@@ -33,7 +34,7 @@ export async function gerarPDFEcoclean(q, options = {}) {
     const ready=structuredClone(q);
     ready.company.logo=logo?`data:image/png;base64,${logo.toString("base64")}`:"";
     ready.items.forEach((it,i)=>it.photos=photos[i].map(buffer=>`data:image/png;base64,${buffer.toString("base64")}`));
-    globalThis.EcoRenderPDF(doc,ready);
+    (mobile?globalThis.EcoRenderMobilePDF:globalThis.EcoRenderPDF)(doc,ready);
     doc.end();return await completed;
   }catch(error){doc.destroy();stream.destroy();throw error}
 }

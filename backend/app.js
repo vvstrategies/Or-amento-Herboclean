@@ -88,7 +88,7 @@ export function createApp(options={}){
   app.get('/api/pdfs/:id',(req,res)=>{const pdf=repo.pdf(req.params.id);if(!pdf)throw fail(404,'PDF não encontrado.');res.type('pdf');res.set('Content-Disposition',`inline; filename="${pdf.filename.replace(/["\r\n]/g,'_')}"`);res.sendFile(repo.file(pdf))});
   app.post('/api/proposals/:id/pdf',wrap(async(req,res)=>res.json(publicPDF(await service.generate(req.params.id,req.body)))));
   app.post('/api/proposals/:id/document/refresh',wrap(async(req,res)=>{const id=req.params.id;if(service.locks.has(id))throw fail(409,'Aguarde a operação em andamento antes de atualizar o documento.');const quote=repo.requireProposal(id);if(repo.operation(id).status!=='generated')throw fail(409,'O documento é preservado após o agendamento.');const latest=repo.listPDFs(id)[0],pdf=latest?.fingerprint===documentHash(quote)?latest:await service.pdf(quote);res.json(publicPDF(pdf));}));
-  app.post('/api/preview-pdf',wrap(async(req,res)=>{const q=cleanQuote(req.body,true),file=await gerarPDFEcoclean(q,{outputDir:repo.files});try{res.type('pdf').send(fs.readFileSync(file))}finally{fs.unlinkSync(file)}}));
+  app.post('/api/preview-pdf',wrap(async(req,res)=>{const q=cleanQuote(req.body,true),file=await gerarPDFEcoclean(q,{outputDir:repo.files,format:req.query.format==='mobile'?'mobile':'a4'});try{res.type('pdf').send(fs.readFileSync(file))}finally{fs.unlinkSync(file)}}));
   app.post('/api/proposals/:id/schedule',wrap(async(req,res)=>res.json(await service.schedule(req.params.id,req.body))));
   app.post('/api/proposals/:id/schedule/cancel',wrap(async(req,res)=>res.json(await service.cancelSchedule(req.params.id,req.body))));
   app.post('/api/proposals/:id/status',wrap(async(req,res)=>res.json(await service.status(req.params.id,req.body.status,req.body))));
@@ -112,10 +112,10 @@ export function createApp(options={}){
   }));
   app.use('/api',(req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   const allowed=new Set(fs.readdirSync(path.join(root,'public')).filter(n=>/\.(html|css|js)$/.test(n)));
-  app.get('/',(req,res)=>res.sendFile(path.join(root,'public/index.html')));
+  app.get('/',(req,res)=>res.sendFile(path.join(root,'public/index.html'),{headers:{'Cache-Control':'no-cache'}}));
   app.get('/guia-integracoes',sec.requireAuth,(req,res)=>res.type('text/plain; charset=utf-8').sendFile(path.join(root,'INTEGRATIONS_SETUP.md')));
   app.get('/guia-google',sec.requireAuth,(req,res)=>res.type('text/plain').sendFile(path.join(root,'docs/CONEXAO-GOOGLE.md')));
-  app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name));next()});
+  app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name),{headers:{'Cache-Control':'no-cache'}});next()});
   app.use((req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   app.use((error,req,res,next)=>{if(res.headersSent)return next(error);res.status(error.status||400).json({error:error.status?error.message:'Não foi possível concluir. Confira os dados e tente novamente.'})});
   return {app,repo,google,service,finance,dre,profit,integrations,asaas,commercial};

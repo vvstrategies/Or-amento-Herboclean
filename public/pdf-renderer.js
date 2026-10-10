@@ -102,4 +102,64 @@ root.EcoRenderPDF=function(doc,q){
     footer();
   }
 };
+// Versão para celular: página estreita (400 pt), uma coluna e letras maiores.
+// Continua sendo um PDF comum, então o WhatsApp mostra a miniatura da primeira página.
+root.EcoMobilePageSize=[400,860];
+root.EcoRenderMobilePDF=function(doc,q){
+  q=root.EcoModel.toPublicProposal(q);
+  const color=root.UniversalCompany.theme(q.company),logo=q.company.logo,dark=q.company.logoBackground!=='light';
+  const [W,H]=root.EcoMobilePageSize,X=22,CW=W-2*X,bottom=H-46;
+  let y=0,page=0;
+  const text=(value,x,pos,width,size=10,bold=false,ink=color.ink,options={})=>{doc.font(bold?'EC-Bold':'EC').fontSize(size).fillColor(ink).text(String(value??''),x,pos,{width,lineGap:2,...options});return doc.y};
+  const measure=(value,width,size=10,bold=false)=>doc.font(bold?'EC-Bold':'EC').fontSize(size).heightOfString(String(value??''),{width,lineGap:2});
+  function brand(x,pos,width,height){if(!logo){text(root.UniversalCompany.initials(q.company.name),x,pos,width,Math.min(height*.6,26),true,dark?'#ffffff':color.green,{align:'center'});return}doc.image(logo,x,pos,{fit:[width,height],align:'center',valign:'center'})}
+  function footer(){doc.strokeColor(color.line).lineWidth(.6).moveTo(X,H-36).lineTo(W-X,H-36).stroke();text([q.company.name,q.company.phone].filter(Boolean).join(' · '),X,H-28,CW-30,7.5,false,color.muted,{height:12,ellipsis:true});text(String(page),W-X-24,H-28,24,7.5,false,color.muted,{align:'right'})}
+  function newPage(){
+    if(page)footer();doc.addPage({size:[W,H],margin:0});page++;
+    if(page===1){doc.rect(0,0,W,150).fill(dark?color.deep:'#ffffff');doc.rect(0,0,W,6).fill(color.lime);brand((W-230)/2,26,230,48);text(q.company.name,X,86,CW,12,true,dark?'#ffffff':color.green,{align:'center'});text(q.company.tagline,X,106,CW,8.5,false,dark?color.highlight:color.limeText,{align:'center'});y=172}
+    else{doc.rect(0,0,W,40).fill(color.deep);doc.rect(0,0,W,4).fill(color.lime);if(!dark)doc.rect(X,10,110,22).fill('#fff');brand(X,12,110,18);text(q.number,W/2,16,W/2-X,8,false,color.highlight,{align:'right'});y=58}
+  }
+  const ensure=h=>{if(y+h>bottom)newPage()};
+  const t=root.EcoModel.totals(q);
+  newPage();
+  text('PROPOSTA COMERCIAL',X,y,CW,9,true,color.limeText,{characterSpacing:1});y+=16;
+  text(q.number+' · emitida em '+date(q.date),X,y,CW,9,false,color.muted);y+=18;
+  y=text(q.company.proposalSubtitle||q.company.proposalTitle||'Proposta comercial',X,y,CW,20,true,color.green)+8;
+  y=text(q.client,X,y,CW,15,true)+4;
+  if(q.address)y=text(q.address,X,y,CW,10,false,color.muted)+2;
+  if(q.clientContact)y=text(q.clientContact,X,y,CW,10,false,color.muted)+2;
+  y+=10;
+  if(q.company.intro){const h=measure(q.company.intro,CW,10.5);ensure(h);y=text(q.company.intro,X,y,CW,10.5)+14}
+  ensure(30);text('SERVIÇOS',X,y,CW,9,true,color.green,{characterSpacing:1});text(q.items.length+(q.items.length===1?' item':' itens'),X,y,CW,9,false,color.muted,{align:'right'});y+=18;
+  q.items.forEach((item,i)=>{
+    const photos=item.photos,hero=photos.length?190:0,thumbs=photos.length>1?58:0;
+    const titleH=measure(item.service,CW-28,13,true),descH=item.description?measure(item.description,CW-28,10):0;
+    const h=hero+thumbs+titleH+descH+64;ensure(Math.min(h,bottom-58));
+    const top=y;doc.roundedRect(X,top,CW,h,14).fillAndStroke('#ffffff',color.line);
+    if(hero){doc.save();doc.roundedRect(X,top,CW,hero,14).clip();doc.rect(X,top,CW,hero).fill(color.soft);doc.image(photos[0],X,top,{cover:[CW,hero],align:'center',valign:'center'});doc.restore()}
+    let iy=top+hero+(thumbs?10:0);
+    if(thumbs){photos.slice(1,6).forEach((src,p)=>{const s=46,x=X+14+p*(s+8);doc.save();doc.roundedRect(x,iy,s,s,8).clip();doc.image(src,x,iy,{cover:[s,s],align:'center',valign:'center'});doc.restore()});iy+=thumbs-10}
+    iy+=14;iy=text(item.service,X+14,iy,CW-28,13,true,color.green)+3;
+    if(item.description)iy=text(item.description,X+14,iy,CW-28,10,false,color.muted)+4;
+    iy+=4;text(`${Number(item.quantity).toLocaleString('pt-BR')} ${item.unit} × ${money(Math.round(Number(item.price)*100))}`,X+14,iy,CW/2,10,false,color.muted);
+    text(money(t.rows[i]),X+CW/2,iy-2,CW/2-14,13,true,color.green,{align:'right'});
+    y=top+h+12;
+  });
+  y+=4;ensure(100);
+  doc.roundedRect(X,y,CW,98,16).fill(color.deep);
+  text('Investimento total',X+18,y+16,CW-36,11,true,'#ffffff');
+  text(money(t.total),X+18,y+34,CW-36,28,true,'#ffffff');
+  text(t.count>1?`no cartão em até ${t.count}x sem juros`:'no cartão em 1x',X+18,y+76,CW-36,9,false,color.highlight);y+=110;
+  ensure(90);doc.roundedRect(X,y,CW,82,14).fillAndStroke(color.soft,color.line);
+  text('VALOR NO PIX',X+16,y+12,CW-32,9,true,color.green,{characterSpacing:1});text(money(t.pix),X+16,y+28,CW-32,22,true,color.green);
+  text(t.saving?'Economize '+money(t.saving)+' à vista':'Pagamento à vista',X+16,y+60,CW-32,9,false,color.muted);y+=92;
+  ensure(74);doc.roundedRect(X,y,CW,64,14).fillAndStroke('#ffffff',color.line);
+  text('CARTÃO DE CRÉDITO',X+16,y+12,CW-32,9,true,color.green,{characterSpacing:1});text(t.count+'x de '+money(t.part),X+16,y+28,CW-32,18,true,color.green);y+=78;
+  if(q.company.benefits.trim()){ensure(40);y=text('Por que escolher a '+q.company.name,X,y,CW,12,true,color.green)+8;for(const b of q.company.benefits.split('\n').filter(Boolean)){ensure(measure(b,CW-16,10.5)+6);doc.circle(X+4,y+7,2.5).fill(color.limeText);y=text(b,X+16,y,CW-16,10.5)+6}y+=6}
+  if(q.terms.notes.trim()){const h=measure(q.terms.notes,CW,10.5);ensure(h+30);y=text('Condições do atendimento',X,y,CW,12,true,color.green)+6;y=text(q.terms.notes,X,y,CW,10.5)+12}
+  const until=new Date(q.date+'T12:00:00');until.setDate(until.getDate()+q.terms.validity);
+  const vText=`${q.terms.validity} dias a partir da emissão, até ${until.toLocaleDateString('pt-BR')}.\nPara combinar o atendimento, chame${q.company.phone?' no '+q.company.phone:' nossa equipe'}.`,vh=measure(vText,CW-28,10)+36;
+  ensure(vh);doc.roundedRect(X,y,CW,vh,14).fill(color.soft);text('Validade da proposta',X+14,y+12,CW-28,10,true,color.green);text(vText,X+14,y+28,CW-28,10);
+  footer();
+};
 })(globalThis);

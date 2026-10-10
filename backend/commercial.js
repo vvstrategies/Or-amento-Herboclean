@@ -103,7 +103,7 @@ export class CommercialService{
   summary(c){
     const h=this.history(c.id),done=h.filter(x=>x.status==='completed');
     const last=[...h].filter(x=>x.serviceDate&&['completed','scheduled'].includes(x.status)).sort((a,b)=>b.serviceDate.localeCompare(a.serviceDate))[0];
-    return {...c,quoteCount:h.length,closedCount:done.length,closedCents:done.reduce((s,x)=>s+x.pixCents,0),lastService:last?{date:last.serviceDate,status:last.status}:null,firstDate:h.length?h[h.length-1].date:null};
+    return {...c,proposalIds:h.map(x=>x.id),quoteCount:h.length,closedCount:done.length,closedCents:done.reduce((s,x)=>s+x.pixCents,0),lastService:last?{date:last.serviceDate,status:last.status}:null,firstDate:h.length?h[h.length-1].date:null};
   }
   clients(){return this.clientRows().map(c=>this.summary(c))}
   clientDetail(id){const c=this.client(id);if(!c)throw fail(404,'Cliente não encontrado.');return {...this.summary(c),history:this.history(id)}}
