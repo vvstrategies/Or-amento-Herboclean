@@ -89,7 +89,19 @@
     const button=f.querySelector('[type=submit]');button.disabled=true;
     try{const saved=detail?.id?await EcoAuth.api('/api/clients/'+encodeURIComponent(detail.id),{method:'PUT',body:JSON.stringify(data)}):await EcoAuth.api('/api/clients',{method:'POST',body:JSON.stringify(data)});selected=saved.id;editing=false;await load();notify('Ficha do cliente salva.')}catch(error){notify(error.message)}finally{button.disabled=false}
   }
+  async function settings(){
+    const box=$('#commercial-settings');if(!box||!root.EcoAuth?.online)return;
+    const [list,f]=await Promise.all([EcoAuth.api('/api/tags'),EcoAuth.api('/api/crm/funnels')]);tags=list;
+    const draw=()=>{box.innerHTML=`<div class="settings-card-heading"><div><h2>Tags e funis</h2><p>Classificação dos clientes e etapas do follow-up e pós-venda.</p></div></div>
+      <div class="field-group"><span>Tags dos orçamentos</span><div class="tag-editor">${tags.map((t,i)=>`<span class="tag ${tagClass(t.id)}">${esc(t.label)}${tags.length>1?`<button type="button" data-tag-remove="${i}" aria-label="Remover ${esc(t.label)}">×</button>`:''}</span>`).join('')}<form id="tag-add" class="tag-add"><input maxlength="24" placeholder="Nova tag" aria-label="Nova tag" required><button class="secondary small" type="submit">Adicionar</button></form></div></div>
+      <div class="funnel-cfg">${[['follow','Follow-up · orçamentos sem resposta'],['pos','Pós-venda · após o atendimento']].map(([k,l])=>`<div><b>${l}</b>${f.funnels[k].map(s=>`<span class="stage-row"><i></i>${esc(s.label)}<small>${s.days==null?(s.id==='lost'?'com motivo':'manual'):k==='follow'?s.days+' dias após gerar':s.id==='p4'?'6 meses ou aniversário':s.days+' dia'+(s.days>1?'s':'')+' após concluir'}</small></span>`).join('')}</div>`).join('')}</div>`;
+      box.querySelector('#tag-add').onsubmit=async e=>{e.preventDefault();const v=e.target.querySelector('input').value.trim();if(!v)return;try{tags=await EcoAuth.api('/api/tags',{method:'PUT',body:JSON.stringify([...tags,{label:v}])});draw();notify('Tag adicionada.')}catch(err){notify(err.message)}};
+      box.querySelectorAll('[data-tag-remove]').forEach(b=>b.onclick=async()=>{const next=tags.filter((_,i)=>i!==+b.dataset.tagRemove);try{tags=await EcoAuth.api('/api/tags',{method:'PUT',body:JSON.stringify(next)});draw();notify('Tag removida. Orçamentos antigos mantêm a marcação.')}catch(err){notify(err.message)}});};
+    draw();
+  }
+  window.addEventListener('hashchange',()=>{if(location.hash==='#configuracoes')settings().catch(()=>null)});
+  Promise.resolve(root.EcoAuth?.ready).then(()=>settings()).catch(()=>null);
   function open(){if(!$('#client-rows'))shell();load().catch(error=>notify(error.message))}
   window.addEventListener('eco:data-changed',()=>{if(!$('#clients-view')?.hidden)load().catch(()=>null)});
-  root.EcoClients={open,load};
+  root.EcoClients={open,load,settings};
 })(globalThis);

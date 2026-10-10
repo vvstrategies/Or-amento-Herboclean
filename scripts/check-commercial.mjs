@@ -41,7 +41,7 @@ try{
   repo.setOperation({id:c.id,status:'completed',schedule:{start:today+'T12:00:00Z',end:today+'T14:00:00Z'},serviceCompletedAt:today});
   repo.setOperation({id:b.id,status:'cancelled'});
   repo.db.exec('CREATE TABLE IF NOT EXISTS ad_spend_daily(provider TEXT NOT NULL,account_id TEXT NOT NULL,campaign_id TEXT NOT NULL,day TEXT NOT NULL,currency TEXT NOT NULL,spend_cents INTEGER NOT NULL,data TEXT NOT NULL,sync_run_id TEXT NOT NULL,PRIMARY KEY(provider,account_id,campaign_id,day))');
-  const spend=(provider,cents,day=today)=>repo.db.prepare('INSERT INTO ad_spend_daily VALUES (?,?,?,?,?,?,?,?)').run(provider,'acc','c-'+provider+day,day,'BRL',cents,JSON.stringify({provider,currency:'BRL',spendCents:cents,day}),'run');
+  const spend=(provider,cents,day=today)=>repo.db.prepare('INSERT INTO ad_spend_daily VALUES (?,?,?,?,?,?,?,?)').run(provider,'acc','c-'+provider+day,day,'BRL',cents,JSON.stringify({provider,currency:'BRL',spendCents:cents,date:day}),'run');
   spend('meta-ads',6000);spend('google-ads',4000);spend('meta-ads',999999,addDays(today,-40));
   const from=addDays(today,-29);
   const all=service.dashboard({from,to:today});
