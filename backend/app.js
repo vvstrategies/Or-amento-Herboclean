@@ -112,7 +112,10 @@ export function createApp(options={}){
   }));
   app.use('/api',(req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   const allowed=new Set(fs.readdirSync(path.join(root,'public')).filter(n=>/\.(html|css|js)$/.test(n)));
-  app.get('/',(req,res)=>res.sendFile(path.join(root,'public/index.html'),{headers:{'Cache-Control':'no-cache'}}));
+  // A hospedagem remove o Cache-Control dos estáticos; a versão na URL obriga o navegador a baixar os arquivos de cada deploy.
+  const assetHash=crypto.createHash('sha256');for(const n of [...allowed].sort())assetHash.update(fs.readFileSync(path.join(root,'public',n)));const assetVersion=assetHash.digest('hex').slice(0,10);
+  const indexHtml=fs.readFileSync(path.join(root,'public/index.html'),'utf8').replace(/(src|href)="([a-zA-Z0-9_.-]+\.(?:js|css))"/g,`$1="$2?v=${assetVersion}"`);
+  app.get('/',(req,res)=>res.set('Cache-Control','no-cache').type('html').send(indexHtml));
   app.get('/guia-integracoes',sec.requireAuth,(req,res)=>res.type('text/plain; charset=utf-8').sendFile(path.join(root,'INTEGRATIONS_SETUP.md')));
   app.get('/guia-google',sec.requireAuth,(req,res)=>res.type('text/plain').sendFile(path.join(root,'docs/CONEXAO-GOOGLE.md')));
   app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name),{headers:{'Cache-Control':'no-cache'}});next()});
