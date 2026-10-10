@@ -1,5 +1,6 @@
 (function(){
   'use strict';
+  if(new URLSearchParams(location.search).has('atualizado'))history.replaceState(null,'',location.pathname+location.hash);
   const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],M=EcoModel,O=EcoOperations,S=EcoStore;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=c=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(c/100);

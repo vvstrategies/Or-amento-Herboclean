@@ -118,7 +118,10 @@ export function createApp(options={}){
   app.get('/',(req,res)=>res.set('Cache-Control','no-cache').type('html').send(indexHtml));
   app.get('/guia-integracoes',sec.requireAuth,(req,res)=>res.type('text/plain; charset=utf-8').sendFile(path.join(root,'INTEGRATIONS_SETUP.md')));
   app.get('/guia-google',sec.requireAuth,(req,res)=>res.type('text/plain').sendFile(path.join(root,'docs/CONEXAO-GOOGLE.md')));
-  app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name),{headers:{'Cache-Control':'no-cache'}});next()});
+  // Só uma página guardada em cache de um deploy anterior pede scripts sem versão: ela é recarregada por um endereço novo.
+  app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}
+    if(allowed.has(name)&&name.endsWith('.js')&&name!=='pdf-fonts.js'&&req.query.v===undefined)return res.set('Cache-Control','no-store').type('js').send("if(!window.__hcStale){window.__hcStale=1;location.replace(location.pathname+'?atualizado='+Date.now()+location.hash)}");
+    if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name),{headers:{'Cache-Control':'no-cache'}});next()});
   app.use((req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   app.use((error,req,res,next)=>{if(res.headersSent)return next(error);res.status(error.status||400).json({error:error.status?error.message:'Não foi possível concluir. Confira os dados e tente novamente.'})});
   return {app,repo,google,service,finance,dre,profit,integrations,asaas,commercial};
