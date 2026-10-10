@@ -72,7 +72,7 @@
     const metric=(label,value,formula,hi)=>`<div class="${hi?'hi':''}"><small>${label}</small><strong>${value}</strong><span class="formula">${formula}</span></div>`;
     const reais=v=>num(v/100,0);
     $('#home-bento').innerHTML=`
-      ${kpi('hero',svg('<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>'),'Receita concluída',money(c.revenueCents),`${delta(c.revenueCents,p.revenueCents)}vs ${money(p.revenueCents)}`)}
+      ${kpi('',svg('<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>'),'Receita concluída',money(c.revenueCents),`${delta(c.revenueCents,p.revenueCents)}vs ${money(p.revenueCents)}`)}
       ${kpi('',svg('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>'),'Orçamentos gerados',c.generated,`${delta(c.generated,p.generated)}vs ${p.generated}`)}
       ${kpi('',svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>'),'Conversão em serviço',c.conversion==null?'—':num(c.conversion*100,1)+'<small>%</small>',`${delta(c.conversion,p.conversion,'pp')}vs ${p.conversion==null?'—':num(p.conversion*100,1)+'%'}`)}
       ${kpi('',svg('<path d="M3 9h18l-2 11H5z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/>'),'Ticket médio',c.ticketCents==null?'—':money(c.ticketCents),`${delta(c.ticketCents,p.ticketCents)}vs ${p.ticketCents==null?'—':money(p.ticketCents)}`)}
@@ -107,7 +107,7 @@
     const line=a=>a.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
     h+=`<path d="${line(cur)} L${x(n)} ${y(0)} L${x(0)} ${y(0)} Z" fill="url(#home-g)"/><path d="${line(prev)}" fill="none" stroke="var(--r-accent)" stroke-width="2.2" stroke-dasharray="6 5" stroke-linecap="round"/><path d="${line(cur)}" fill="none" stroke="var(--r-primary)" stroke-width="2.8" stroke-linejoin="round"/>`;
     const end=cur.at(-1)||0,pend=prev.at(-1)||0;
-    h+=`<circle cx="${x(n)}" cy="${y(end)}" r="9" fill="var(--r-accent)" fill-opacity=".35"/><circle cx="${x(n)}" cy="${y(end)}" r="5" fill="var(--r-primary)" stroke="#fff" stroke-width="2"/><text x="${x(n)-14}" y="${y(end)+(end>=pend?4:-8)}" text-anchor="end" class="strong">${esc(money(end))}</text>`;
+    h+=`<circle cx="${x(n)}" cy="${y(end)}" r="9" fill="var(--r-accent)" fill-opacity=".35"/><circle cx="${x(n)}" cy="${y(end)}" r="5" fill="var(--r-primary)" stroke="#fff" stroke-width="2"/><text x="${x(n)-14}" y="${end>=pend?(y(end)>T+18?y(end)-14:y(end)+22):y(end)+22}" text-anchor="end" class="strong">${esc(money(end))}</text>`;
     if(Math.abs(y(end)-y(pend))>14)h+=`<text x="${x(n)-14}" y="${y(pend)+(pend>end?-6:16)}" text-anchor="end">${esc(money(pend))}</text>`;
     svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=h;
   }
