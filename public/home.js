@@ -94,16 +94,6 @@
     draw();
     if(!observer){observer=new ResizeObserver(()=>draw())}observer.disconnect();const box=$('#home-chartbox');if(box)observer.observe(box);
   }
-  // Curva monotônica: suave sem passar dos valores reais (acumulado nunca "desce" no desenho).
-  function smooth(P){
-    if(P.length<2)return P.length?`M${P[0][0]} ${P[0][1]}`:'';
-    const d=[],m=[];for(let i=0;i<P.length-1;i++)d.push((P[i+1][1]-P[i][1])/(P[i+1][0]-P[i][0]));
-    m[0]=d[0];for(let i=1;i<P.length-1;i++)m[i]=d[i-1]*d[i]<=0?0:(d[i-1]+d[i])/2;m[P.length-1]=d.at(-1);
-    for(let i=0;i<d.length;i++){if(!d[i]){m[i]=m[i+1]=0;continue}const a=m[i]/d[i],b=m[i+1]/d[i],q=a*a+b*b;if(q>9){const t=3/Math.sqrt(q);m[i]=t*a*d[i];m[i+1]=t*b*d[i]}}
-    let s=`M${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)}`;
-    for(let i=0;i<P.length-1;i++){const h=(P[i+1][0]-P[i][0])/3;s+=` C${(P[i][0]+h).toFixed(1)} ${(P[i][1]+m[i]*h).toFixed(1)} ${(P[i+1][0]-h).toFixed(1)} ${(P[i+1][1]-m[i+1]*h).toFixed(1)} ${P[i+1][0].toFixed(1)} ${P[i+1][1].toFixed(1)}`}
-    return s;
-  }
   let drawnKey='';
   function draw(){
     const box=$('#home-chartbox'),svg=$('#home-chart'),tip=$('#home-tip');if(!box||!svg||!data)return;const W=box.clientWidth,H=box.clientHeight;if(!W||!H)return;
@@ -116,7 +106,7 @@
     for(let v=0;v<=max;v+=step)h+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--r-line)" stroke-dasharray="${v?'3 5':'0'}"/><text x="${L-10}" y="${y(v)+4}" text-anchor="end">${v?fmt(v):'0'}</text>`;
     const ticks=n<3?[0,n]:[0,Math.round(n/3),Math.round(2*n/3),n];
     for(const i of ticks)h+=`<text x="${x(i)}" y="${H-6}" text-anchor="${i===0?'start':i===n?'end':'middle'}">${fmtDay(addDays(data.from,i))}</text>`;
-    const pc=cur.map((v,i)=>[x(i),y(v)]),pp=prev.map((v,i)=>[x(i),y(v)]),line=smooth(pc),pline=smooth(pp),cls=animate?' class="draw" pathLength="1"':'';
+    const pc=cur.map((v,i)=>[x(i),y(v)]),pp=prev.map((v,i)=>[x(i),y(v)]),line=EcoChart.smooth(pc),pline=EcoChart.smooth(pp),cls=animate?' class="draw" pathLength="1"':'';
     h+=`<path${animate?' class="rise"':''} d="${line} L${x(n)} ${y(0)} L${x(0)} ${y(0)} Z" fill="url(#home-g)"/><path${cls} d="${pline}" fill="none" stroke="var(--r-accent)" stroke-width="2" stroke-dasharray="${animate?'':'6 6'}" stroke-linecap="round" opacity=".9"/><path d="${line}" fill="none" stroke="var(--r-accent)" stroke-width="7" opacity=".3" filter="url(#home-glow)"/><path${cls} d="${line}" fill="none" stroke="url(#home-s)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
     h+=`<g id="home-hover" hidden><line y1="${T}" y2="${y(0)}" stroke="var(--r-primary)" stroke-opacity=".25" stroke-dasharray="3 4"/><circle class="hp" r="4" fill="#fff" stroke="var(--r-accent)" stroke-width="2"/><circle class="hc" r="10" fill="var(--r-accent)" fill-opacity=".3"/><circle class="hc2" r="5.5" fill="var(--r-primary)" stroke="#fff" stroke-width="2.5"/></g><g id="home-end"><circle cx="${x(n)}" cy="${y(cur.at(-1)||0)}" r="10" fill="var(--r-accent)" fill-opacity=".3"/><circle cx="${x(n)}" cy="${y(cur.at(-1)||0)}" r="5.5" fill="var(--r-primary)" stroke="#fff" stroke-width="2.5"/></g><rect x="${L}" y="0" width="${W-L-R}" height="${H}" fill="transparent" id="home-hit"/>`;
     svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=h;
