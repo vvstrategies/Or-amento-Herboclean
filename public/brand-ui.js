@@ -14,7 +14,7 @@ function apply(raw){
  document.querySelectorAll('[data-company-name]').forEach(e=>e.textContent=c.name);
  document.querySelectorAll('[data-company-location]').forEach(e=>e.textContent=c.location);
  document.querySelectorAll('[data-company-initials]').forEach(e=>e.textContent=U.initials(c.name));
- const mark=document.querySelector('.sidebar-brand');if(mark){mark.replaceChildren();mark.setAttribute('aria-label',c.name+', orçamentos');mark.style.background=c.logoBackground==='dark'?U.theme(c).deep:'#fff';if(c.logo){const img=document.createElement('img');img.src=c.logo;img.alt=c.name;mark.appendChild(img)}else{const span=document.createElement('span');span.className='company-initials';span.textContent=U.initials(c.name);mark.appendChild(span)}}
+ const mark=document.querySelector('.sidebar-brand');if(mark){mark.replaceChildren();mark.setAttribute('aria-label',c.name+', orçamentos');mark.style.background=c.logoBackground==='dark'?U.theme(c).deep:'#fff';if(c.logo){const img=document.createElement('img');img.src=c.logo;img.alt=c.name;img.className='brand-full';mark.appendChild(img)}else{const span=document.createElement('span');span.className='company-initials brand-full';span.textContent=U.initials(c.name);mark.appendChild(span)}const iconSrc=c.logoIcon||(/herboclean/i.test(c.name)?'assets/herboclean-icon.png':'');if(iconSrc){const icon=document.createElement('img');icon.src=iconSrc;icon.alt='';icon.className='brand-icon';mark.appendChild(icon)}else{const span=document.createElement('span');span.className='company-initials brand-icon';span.textContent=U.initials(c.name);mark.appendChild(span)}}
 }
 root.UniversalBrand={apply,style,vars};
 })(globalThis);

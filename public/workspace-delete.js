@@ -11,7 +11,7 @@
   const icon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[name]||paths.document}"></path></svg>`;
   const badge=status=>`<span class="status-badge ${status}">${esc(O.statuses[status])}</span>`;
   const initials=name=>name.trim().split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase()||'OU';
-  let pipeline='generated',funnel='comercial',tagFilter='',showCancelled=false,tagList=[],clientIndex=new Map(),dragId=null;
+  let pipeline='generated',funnel='comercial',tagFilter='',showCancelled=false,tagList=[],clientIndex=new Map(),settled=null,lastCounts={};
   let quotes=[],operations=new Map(),documents=[],demo=false,examples=[],exampleOperations=new Map(),exampleDocs=[],selected=null,view='quotes',refreshSerial=0,viewerURL,review=null,initialized=false;
   const getQuotes=()=>demo?examples:quotes;
   const getOp=id=>O.normalize((demo?exampleOperations:operations).get(id)||{id});
@@ -78,7 +78,7 @@
   }
   function card(q,stage){
     const op=getOp(q.id),t=totals(q),photos=q.items.reduce((n,i)=>n+i.photos.length,0),place=q.addressNeighborhood||q.addressCity||q.address||'Endereço não informado';
-    return `<button type="button" class="proposal-card" draggable="${demo||EcoAuth.online?'true':'false'}" data-detail="${esc(q.id)}" data-stage="${esc(stage)}" aria-label="Abrir orçamento de ${esc(q.client||'cliente não informado')}"><span class="kc-h"><span class="kc-av">${esc(initials(q.client||'?'))}</span><span class="kc-nm"><b>${esc(q.client||'Cliente não informado')}</b><span>${esc(place)}</span></span></span>${(q.tags||[]).length?`<span class="kc-tags">${q.tags.map(id=>`<span class="tag ${tagClass(id)}">${esc(tagLabel(id))}</span>`).join('')}</span>`:''}<span class="kc-svc">${esc(O.summary(q))}${photos?`<small>${photos} foto${photos>1?'s':''}</small>`:''}</span>${cardAlert(q,op,stage)}<span class="kc-f"><span class="kc-v"><small>VALOR NO PIX</small>${t?money(t.pix):'Revisar valores'}</span>${cardMeta(q,op,stage)}</span></button>`;
+    return `<article class="proposal-card${q.id===settled?' settle':''}" tabindex="0" role="button" data-detail="${esc(q.id)}" data-stage="${esc(stage)}" aria-label="Abrir orçamento de ${esc(q.client||'cliente não informado')}. Alt e setas movem de etapa."><span class="kc-h"><span class="kc-av">${esc(initials(q.client||'?'))}</span><span class="kc-nm"><b>${esc(q.client||'Cliente não informado')}</b><span>${esc(place)}</span></span></span>${(q.tags||[]).length?`<span class="kc-tags">${q.tags.map(id=>`<span class="tag ${tagClass(id)}">${esc(tagLabel(id))}</span>`).join('')}</span>`:''}<span class="kc-svc">${esc(O.summary(q))}${photos?`<small>${photos} foto${photos>1?'s':''}</small>`:''}</span>${cardAlert(q,op,stage)}<span class="kc-f"><span class="kc-v"><small>VALOR NO PIX</small>${t?money(t.pix):'Revisar valores'}</span>${cardMeta(q,op,stage)}</span></article>`;
   }
   function visible(){
     const all=getQuotes(),f=filters(),invalid=f.from&&f.to&&f.from>f.to;
@@ -97,7 +97,8 @@
     const cols=FUNNELS[funnel].filter(([id])=>id!=='cancelled'||showCancelled);
     if(!all.length){$('#board').innerHTML=`<div class="empty-library"><span class="feature-icon">${icon('folder')}</span><h3>Seu próximo atendimento começa aqui.</h3><p>Crie sua primeira proposta com a identidade da empresa. Depois, acompanhe a aprovação e prepare o atendimento por aqui.</p><div class="empty-actions"><button class="primary" data-new>＋ Criar orçamento</button><button class="secondary" data-demo>Explorar exemplos</button></div></div>`;$('#library-count-note').textContent='';return}
     $('#board').innerHTML=cols.map(([id,label])=>{const cards=list.filter(q=>stageOf(q,getOp(q.id))===id),sum=cards.reduce((n,q)=>n+(totals(q)?.pix||0),0);
-      return `<section class="kcol" data-col="${id}" aria-label="${esc(label)}"><div class="kcol-head"><div class="t"><i class="dot" style="background:${COLORS[id]}"></i>${esc(label)}<span class="c">${cards.length}</span></div><div class="sum">${money(sum)}<small>no PIX</small></div></div><div class="kcol-body">${cards.map(q=>card(q,id)).join('')||'<p class="kcol-empty">Nenhum card aqui</p>'}</div></section>`}).join('');
+      return `<section class="kcol" data-col="${id}" aria-label="${esc(label)}"><div class="kcol-head"><div class="t"><i class="dot" style="background:${COLORS[id]}"></i>${esc(label)}<span class="c${lastCounts[funnel+id]!==undefined&&lastCounts[funnel+id]!==cards.length?' bump':''}">${cards.length}</span></div><div class="sum">${money(sum)}<small>no PIX</small></div></div><div class="kcol-body">${cards.map(q=>card(q,id)).join('')||'<p class="kcol-empty">Nenhum orçamento nesta etapa</p>'}</div></section>`}).join('');
+    for(const [id] of cols)lastCounts[funnel+id]=list.filter(q=>stageOf(q,getOp(q.id))===id).length;settled=null;
     $('#library-count-note').textContent=`${list.length} de ${all.length} orçamento${all.length===1?'':'s'}${demo?' de demonstração':''}`;
   }
   // Regras de movimentação entre colunas do funil comercial seguem o fluxo operacional.
@@ -118,7 +119,7 @@
     selected=id;
     if(funnel!=='comercial'){
       const name=funnel==='follow'?'follow':'pos';
-      const save=async note=>{if(demo){const raw=exampleOperations.get(id)||{id,status:'generated'};exampleOperations.set(id,{...raw,crm:{...(raw.crm||{}),[name]:{stage:to,note:note||'',updatedAt:new Date().toISOString()}}});renderLibrary()}else{await EcoAuth.api('/api/proposals/'+encodeURIComponent(id)+'/crm',{method:'POST',body:JSON.stringify({funnel:name,stage:to,note})});await refresh()}notify('Card movido para '+FUNNELS[funnel].find(c=>c[0]===to)[1]+'.')};
+      const save=async note=>{if(demo){const raw=exampleOperations.get(id)||{id,status:'generated'};exampleOperations.set(id,{...raw,crm:{...(raw.crm||{}),[name]:{stage:to,note:note||'',updatedAt:new Date().toISOString()}}});renderLibrary()}else{await EcoAuth.api('/api/proposals/'+encodeURIComponent(id)+'/crm',{method:'POST',body:JSON.stringify({funnel:name,stage:to,note})});await refresh()}notify('Orçamento movido para '+FUNNELS[funnel].find(c=>c[0]===to)[1]+'.')};
       if(to==='lost'){$('#stage-note').value='';$('#stage-dialog').showModal();$('#stage-form').onsubmit=e=>{e.preventDefault();const note=$('#stage-note').value.trim();if(!note)return;busy($('#stage-save'),'Salvando...',async()=>{await save(note);$('#stage-dialog').close()})};return}
       return save('');
     }
@@ -127,13 +128,59 @@
     if(rule.action==='cancel')return confirmAction('Cancelar orçamento',`A proposta de ${q.client} e seus PDFs serão preservados no histórico.`,'Cancelar orçamento',async()=>{await mutate(id,raw=>O.changeStatus(raw,'cancelled'));notify('Orçamento cancelado.')});
     if(rule.action==='reopen')return confirmAction('Reabrir orçamento','A proposta voltará a aguardar a confirmação do cliente.','Reabrir orçamento',async()=>{await mutate(id,raw=>O.changeStatus(raw,'generated'));notify('Orçamento reaberto.')});
   }
+  // Arrastar com eventos de ponteiro: mouse começa após 6 px, toque após segurar 260 ms; funciona igual em qualquer navegador.
   function bindBoard(){
-    const board=$('#board');
-    board.addEventListener('dragstart',e=>{const c=e.target.closest('.proposal-card');if(!c)return;dragId=c.dataset.detail;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragId)});
-    board.addEventListener('dragend',()=>{dragId=null;$$('.proposal-card.dragging').forEach(c=>c.classList.remove('dragging'));$$('.kcol').forEach(c=>c.classList.remove('over','deny'))});
-    board.addEventListener('dragover',e=>{const col=e.target.closest('.kcol');if(!col||!dragId)return;e.preventDefault();const q=findQuote(dragId);const rule=q?moveRule(q,col.dataset.col):{ok:false};$$('.kcol').forEach(c=>{if(c!==col)c.classList.remove('over','deny')});col.classList.toggle('over',rule.ok);col.classList.toggle('deny',!rule.ok&&!rule.silent)});
-    board.addEventListener('dragleave',e=>{const col=e.target.closest('.kcol');if(col&&!col.contains(e.relatedTarget))col.classList.remove('over','deny')});
-    board.addEventListener('drop',e=>{const col=e.target.closest('.kcol');if(!col)return;e.preventDefault();const id=dragId||e.dataTransfer.getData('text/plain');dragId=null;$$('.kcol').forEach(c=>c.classList.remove('over','deny'));if(id)moveCard(id,col.dataset.col).catch(error=>notify(error.message))});
+    const board=$('#board');let drag=null,frame=0,blockClick=false;
+    const columnAt=(x,y)=>document.elementFromPoint(x,y)?.closest?.('#board .kcol')||null;
+    const clear=()=>$$('#board .kcol').forEach(c=>c.classList.remove('over','deny'));
+    function mark(col){
+      for(const c of $$('#board .kcol'))if(c!==col)c.classList.remove('over','deny');
+      drag.target=col;if(!col)return;const q=findQuote(drag.id),rule=q?moveRule(q,col.dataset.col):{ok:false};
+      col.classList.toggle('over',rule.ok);col.classList.toggle('deny',!rule.ok&&!rule.silent);
+    }
+    function start(){
+      const r=drag.card.getBoundingClientRect(),ghost=drag.card.cloneNode(true);
+      ghost.className='proposal-card kc-ghost';ghost.removeAttribute('tabindex');ghost.setAttribute('aria-hidden','true');ghost.style.width=r.width+'px';
+      drag.dx=drag.x-r.left;drag.dy=drag.y-r.top;drag.ghost=ghost;drag.active=true;document.body.append(ghost);place();
+      drag.card.classList.add('dragging');document.body.classList.add('kanban-dragging');navigator.vibrate?.(8);frame=requestAnimationFrame(tick);
+    }
+    function place(){drag.ghost.style.left=(drag.x-drag.dx)+'px';drag.ghost.style.top=(drag.y-drag.dy)+'px'}
+    function tick(){
+      if(!drag?.active)return;const b=board.getBoundingClientRect(),edge=48;
+      if(drag.x<b.left+edge)board.scrollLeft-=14;else if(drag.x>b.right-edge)board.scrollLeft+=14;
+      const body=drag.target?.querySelector('.kcol-body');if(body){const r=body.getBoundingClientRect();if(drag.y<r.top+edge)body.scrollTop-=10;else if(drag.y>r.bottom-edge)body.scrollTop+=10}
+      frame=requestAnimationFrame(tick);
+    }
+    function finish(drop){
+      if(!drag)return;const d=drag;drag=null;clearTimeout(d.timer);cancelAnimationFrame(frame);
+      if(!d.active)return;blockClick=true;setTimeout(()=>blockClick=false);
+      d.ghost.remove();d.card.classList.remove('dragging');document.body.classList.remove('kanban-dragging');clear();
+      if(drop&&d.target){settled=d.id;moveCard(d.id,d.target.dataset.col).catch(error=>notify(error.message))}
+    }
+    board.addEventListener('pointerdown',e=>{
+      const c=e.target.closest('.proposal-card');if(!c||e.button!==0||c.classList.contains('kc-ghost'))return;
+      drag={id:c.dataset.detail,card:c,x:e.clientX,y:e.clientY,x0:e.clientX,y0:e.clientY,touch:e.pointerType!=='mouse',active:false};
+      if(drag.touch)drag.timer=setTimeout(()=>{if(drag&&!drag.active)start()},260);
+    });
+    document.addEventListener('pointermove',e=>{
+      if(!drag)return;drag.x=e.clientX;drag.y=e.clientY;const moved=Math.hypot(drag.x-drag.x0,drag.y-drag.y0);
+      if(!drag.active){if(drag.touch){if(moved>8){clearTimeout(drag.timer);drag=null}}else if(moved>6)start();return}
+      e.preventDefault();place();mark(columnAt(drag.x,drag.y));
+    });
+    document.addEventListener('touchmove',e=>{if(drag?.active)e.preventDefault()},{passive:false});
+    document.addEventListener('pointerup',()=>finish(true));
+    document.addEventListener('pointercancel',()=>finish(false));
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&drag?.active){e.preventDefault();finish(false)}});
+    board.addEventListener('contextmenu',e=>{if(e.target.closest('.proposal-card')&&e.pointerType!=='mouse')e.preventDefault()});
+    board.addEventListener('click',e=>{if(blockClick&&e.target.closest('.proposal-card')){e.stopPropagation();e.preventDefault()}},true);
+    board.addEventListener('keydown',e=>{
+      const c=e.target.closest('.proposal-card');if(!c||e.target!==c)return;
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetail(c.dataset.detail).catch(error=>notify(error.message));return}
+      if(e.altKey&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){
+        e.preventDefault();const ids=[...$$('#board .kcol')].map(col=>col.dataset.col),i=ids.indexOf(c.dataset.stage),to=ids[i+(e.key==='ArrowRight'?1:-1)];
+        if(to){settled=c.dataset.detail;moveCard(c.dataset.detail,to).then(()=>$(`#board .proposal-card[data-detail="${CSS.escape(c.dataset.detail)}"]`)?.focus()).catch(error=>notify(error.message))}
+      }
+    });
   }
   function contactLinks(contact){
     const digits=String(contact||'').replace(/\D/g,''),phone=/^[\d\s()+-]+$/.test(contact||'')&&digits.length>=10&&digits.length<=13;
@@ -255,7 +302,7 @@
   function enterDemo(){makeExamples();demo=true;selected=null;clearFilters();navigate('quotes');renderLibrary()}
   function exitDemo(){demo=false;selected=null;if($('#detail-dialog').open)$('#detail-dialog').close();clearFilters();renderLibrary()}
   async function onClick(e){
-    const button=e.target.closest('button');if(!button)return;
+    const button=e.target.closest('button,.proposal-card');if(!button)return;
     if(button.dataset.close){$('#'+button.dataset.close).close();return}
     if(button.dataset.funnel){funnel=button.dataset.funnel;syncPipelines();renderLibrary();return}
     if(button.dataset.tagFilter!==undefined){tagFilter=button.dataset.tagFilter;renderLibrary();return}
@@ -265,7 +312,7 @@
     if(button.hasAttribute('data-new'))return busy(button,'Abrindo...',async()=>{exitDemo();await EcoStudio.newQuote()});
     if(button.hasAttribute('data-demo'))return enterDemo();
     if(button.hasAttribute('data-clear-filters'))return clearFilters();
-    if(button.dataset.detail)return busy(button,'Abrindo...',()=>openDetail(button.dataset.detail));
+    if(button.dataset.detail)return openDetail(button.dataset.detail);
     if(button.hasAttribute('data-edit'))return busy(button,'Abrindo...',async()=>{if(demo)navigate('create');else await EcoStudio.openQuote(selected);$('#detail-dialog').close()});
     if(button.hasAttribute('data-delete-permanently')){
       const id=selected,q=findQuote(id);if(!q)return;
