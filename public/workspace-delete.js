@@ -398,6 +398,6 @@
     window.addEventListener('eco:quotes-changed',()=>refresh().catch(error=>notify(error.message)));
     await refresh();hydrateIcons();fromHash();document.body.dataset.workspaceReady='true';window.UniversalFinance?.initSettings();window.UniversalDre?.initSettings();window.UniversalProfit?.initSettings();window.UniversalIntegrations?.init();window.EcoSettings?.init();
   }
-  window.EcoWorkspace={navigate,refresh,openDetail,icon,money};
+  window.EcoWorkspace={navigate,refresh,openDetail,icon,money,confirm:confirmAction};
   if(window.EcoStudio)init().catch(error=>console.error(error));else window.addEventListener('eco:ready',()=>init().catch(error=>console.error(error)),{once:true});
 })();
