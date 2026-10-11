@@ -79,12 +79,17 @@ async function dashboard(host,{from,to,demo=false}){
  $('#profit-export',host)?.addEventListener('click',async()=>{try{const blob=await EcoAuth.api('/api/profitability/report.csv?'+new URLSearchParams(query),{blob:true});EcoDownloadBlob(blob,'rentabilidade-interna-'+from+'.csv');}catch(e){note(e.message)}});
  }catch(e){if(serial===reportSerial)host.innerHTML='<p class="dre-error">'+esc(e.message)+'</p>';}
 }
+// Mini gráficos de evolução em curvas suaves; com um mês só mostra o valor, sem fingir uma linha.
 function trendCharts(rows){
- return '<div class="profit-chart-grid">'+[['marginPercent','Margem de contribuição (%)'],['ticket','Ticket médio'],['averageCost','Custo médio'],['operatingResult','Resultado operacional']].map(([key,label])=>{
- const values=rows.map(r=>r[key]).filter(v=>v!=null);if(!values.length)return '<div><strong>'+label+'</strong><p class="dre-note">Sem base suficiente.</p></div>';
- const low=Math.min(0,...values),high=Math.max(1,...values),range=high-low||1,x=i=>40+i*320/Math.max(1,rows.length-1),y=v=>105-(v-low)/range*80;
- let line='',last=null;rows.forEach((r,i)=>{if(r[key]==null){last=null;return;}if(last!==null)line+='<line x1="'+x(last)+'" y1="'+y(rows[last][key])+'" x2="'+x(i)+'" y2="'+y(r[key])+'" stroke="currentColor" stroke-width="2"/>';last=i;});
- return '<div><strong>'+label+'</strong><svg class="profit-chart" viewBox="0 0 400 145" role="img" aria-label="'+label+' por mês"><line x1="35" y1="'+y(0)+'" x2="365" y2="'+y(0)+'" stroke="#cbd5e1"/>'+line+rows.map((r,i)=>r[key]==null?'':'<circle cx="'+x(i)+'" cy="'+y(r[key])+'" r="4" fill="currentColor"><title>'+r.month+': '+(key==='marginPercent'?pct(r[key]):money(r[key]))+'</title></circle>').join('')+'<text x="35" y="135">'+rows[0].month+'</text><text x="365" y="135" text-anchor="end">'+rows.at(-1).month+'</text><text x="35" y="15">'+(key==='marginPercent'?pct(high):money(high))+'</text></svg></div>';
+ const month=m=>new Intl.DateTimeFormat('pt-BR',{month:'short',timeZone:'UTC'}).format(new Date(m+'-01T12:00:00Z')).replace('.','');
+ return '<div class="profit-chart-grid">'+[['marginPercent','Margem de contribuição'],['ticket','Ticket médio'],['averageCost','Custo médio'],['operatingResult','Resultado operacional']].map(([key,label],k)=>{
+ const fmt=v=>key==='marginPercent'?pct(v):money(v),points=rows.map((r,i)=>[i,r[key]]).filter(([,v])=>v!=null);
+ if(!points.length)return '<div class="profit-trend"><strong>'+label+'</strong><p class="dre-note">Sem base suficiente.</p></div>';
+ const lastV=points.at(-1)[1];
+ if(rows.length<2)return '<div class="profit-trend"><strong>'+label+'</strong><b class="pt-value">'+fmt(lastV)+'</b><p class="dre-note">Amplie o período para ver a evolução mês a mês.</p></div>';
+ const W=320,H=120,L=8,R=8,T=12,B=22,vals=points.map(p=>p[1]),low=Math.min(0,...vals),high=Math.max(...vals,low+1),x=i=>L+(W-L-R)*i/(rows.length-1),y=v=>T+(H-T-B)*(high-v)/(high-low);
+ const P=points.map(([i,v])=>[x(i),y(v)]),d=EcoChart.smooth(P),id='pg'+k;
+ return '<div class="profit-trend"><strong>'+label+'</strong><b class="pt-value">'+fmt(lastV)+'</b><svg class="profit-chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+label+' por mês"><defs><linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--r-accent)" stop-opacity=".45"/><stop offset="1" stop-color="var(--r-accent)" stop-opacity="0"/></linearGradient></defs>'+(low<0?'<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="var(--r-line)" stroke-dasharray="3 4"/>':'')+'<path d="'+d+' L'+P.at(-1)[0]+' '+(H-B)+' L'+P[0][0]+' '+(H-B)+' Z" fill="url(#'+id+')"/><path d="'+d+'" fill="none" stroke="var(--r-primary)" stroke-width="2.5" stroke-linecap="round"/>'+points.map(([i,v])=>'<circle cx="'+x(i)+'" cy="'+y(v)+'" r="3.5" fill="#fff" stroke="var(--r-primary)" stroke-width="2"><title>'+esc(rows[i].month)+': '+fmt(v)+'</title></circle>').join('')+rows.map((r,i)=>'<text x="'+x(i)+'" y="'+(H-6)+'" text-anchor="'+(i===0?'start':i===rows.length-1?'end':'middle')+'">'+month(r.month)+'</text>').join('')+'</svg></div>';
  }).join('')+'</div>';
 }
 function table(head,rows){return '<div class="dre-table-wrap"><table class="dre-table"><thead><tr>'+head.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';}
