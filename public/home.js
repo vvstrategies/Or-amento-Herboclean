@@ -63,7 +63,7 @@
   }
   function render(){
     const d=data,c=d.current,p=d.previous,camp=c.campaign,hasSpend=camp.spendCents>0,connected=d.spend.connected.length>0;
-    const kpi=(cls,ic,label,val,cmp)=>`<section class="hcard kpi ${cls}"><span class="ic">${ic}</span><span class="body"><span class="lbl">${label}</span><span class="val">${val}</span><span class="cmp">${cmp}</span></span></section>`;
+    const kpi=(nav,ic,label,val,cmp)=>`<button type="button" class="hcard kpi" data-nav="${nav}" title="Abrir ${nav==='finance'?'Financeiro':'Orçamentos'}"><span class="ic">${ic}</span><span class="body"><span class="lbl">${label}</span><span class="val">${val}</span><span class="cmp">${cmp}</span></span></button>`;
     const svg=p=>`<svg viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
     const funnelMax=Math.max(1,c.generated);
     const stepRow=(label,n,bg)=>`<div class="fstep"><span>${label}</span><div class="bar"><b style="width:${(n/funnelMax*100).toFixed(1)}%;background:${bg}"></b></div><em>${n}</em></div>`;
@@ -72,11 +72,11 @@
     const metric=(label,value,formula,hi)=>`<div class="${hi?'hi':''}"><small>${label}</small><strong>${value}</strong><span class="formula">${formula}</span></div>`;
     const reais=v=>num(v/100,0);
     $('#home-bento').innerHTML=`
-      ${kpi('',svg('<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>'),'Receita concluída',money(c.revenueCents),`${delta(c.revenueCents,p.revenueCents)}vs ${money(p.revenueCents)}`)}
-      ${kpi('',svg('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>'),'Orçamentos gerados',c.generated,`${delta(c.generated,p.generated)}vs ${p.generated}`)}
-      ${kpi('',svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>'),'Conversão em serviço',c.conversion==null?'—':num(c.conversion*100,1)+'<small>%</small>',`${delta(c.conversion,p.conversion,'pp')}vs ${p.conversion==null?'—':num(p.conversion*100,1)+'%'}`)}
-      ${kpi('',svg('<path d="M3 9h18l-2 11H5z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/>'),'Ticket médio',c.ticketCents==null?'—':money(c.ticketCents),`${delta(c.ticketCents,p.ticketCents)}vs ${p.ticketCents==null?'—':money(p.ticketCents)}`)}
-      <section class="hcard s7 chart-card"><div class="ph"><div><h2>Receita acumulada</h2><p>Serviços concluídos, somados dia a dia</p></div><div class="legend"><span><i class="cur"></i>Este período</span><span><i class="prev"></i>Período anterior</span></div></div><div class="chartbox" id="home-chartbox"><svg id="home-chart" role="img" aria-label="Receita acumulada: ${esc(money(c.revenueCents))} neste período contra ${esc(money(p.revenueCents))} no anterior"></svg></div></section>
+      ${kpi('finance',svg('<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>'),'Receita concluída',money(c.revenueCents),`${delta(c.revenueCents,p.revenueCents)}vs ${money(p.revenueCents)}`)}
+      ${kpi('quotes',svg('<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>'),'Orçamentos gerados',c.generated,`${delta(c.generated,p.generated)}vs ${p.generated}`)}
+      ${kpi('quotes',svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>'),'Conversão em serviço',c.conversion==null?'—':num(c.conversion*100,1)+'<small>%</small>',`${delta(c.conversion,p.conversion,'pp')}vs ${p.conversion==null?'—':num(p.conversion*100,1)+'%'}`)}
+      ${kpi('finance',svg('<path d="M3 9h18l-2 11H5z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/>'),'Ticket médio',c.ticketCents==null?'—':money(c.ticketCents),`${delta(c.ticketCents,p.ticketCents)}vs ${p.ticketCents==null?'—':money(p.ticketCents)}`)}
+      <section class="hcard s7 chart-card"><div class="ph"><div><h2>Receita acumulada</h2><p class="chart-hero"><strong>${money(c.revenueCents)}</strong>${delta(c.revenueCents,p.revenueCents)}<span>vs ${money(p.revenueCents)}</span></p></div><div class="legend"><span><i class="cur"></i>Este período</span><span><i class="prev"></i>Anterior</span></div></div><div class="chartbox" id="home-chartbox"><svg id="home-chart" role="img" aria-label="Receita acumulada: ${esc(money(c.revenueCents))} neste período contra ${esc(money(p.revenueCents))} no anterior"></svg><div class="chart-tip" id="home-tip" hidden></div></div></section>
       <section class="hcard s5 camp"><div class="ph"><div><h2>Campanhas</h2><p>${state.channel==='all'?'Gasto dividido pelos resultados do período':'Só orçamentos com origem '+(state.channel==='meta'?'Meta Ads':'Google Ads')}</p></div><div class="seg on-dark" role="group" aria-label="Canal">${CHANNELS.map(([id,l])=>`<button type="button" data-channel="${id}" aria-pressed="${state.channel===id}">${l}</button>`).join('')}</div></div>
         <div class="spend"><strong>${money(camp.spendCents)}</strong><span>${hasSpend?(state.channel==='all'?'investidos · '+providers.map(([k,v])=>(k==='meta-ads'?'Meta ':'Google ')+money(v)).join(' · '):`investidos · ${c.generated} orçamentos e ${c.closed} fechamentos vieram daqui`):connected?'sem gasto registrado no período':'conecte Google Ads ou Meta Ads para medir o gasto'}</span></div>
         <div class="split" aria-hidden="true">${state.channel==='all'&&spendTotal?providers.map(([k,v])=>`<i style="width:${(v/spendTotal*100).toFixed(1)}%;background:${k==='meta-ads'?'var(--r-accent)':'var(--r-mid)'}"></i>`).join(''):`<i style="width:100%;background:${hasSpend?(state.channel==='google'?'var(--r-mid)':'var(--r-accent)'):'transparent'}"></i>`}</div>
@@ -94,22 +94,41 @@
     draw();
     if(!observer){observer=new ResizeObserver(()=>draw())}observer.disconnect();const box=$('#home-chartbox');if(box)observer.observe(box);
   }
+  // Curva monotônica: suave sem passar dos valores reais (acumulado nunca "desce" no desenho).
+  function smooth(P){
+    if(P.length<2)return P.length?`M${P[0][0]} ${P[0][1]}`:'';
+    const d=[],m=[];for(let i=0;i<P.length-1;i++)d.push((P[i+1][1]-P[i][1])/(P[i+1][0]-P[i][0]));
+    m[0]=d[0];for(let i=1;i<P.length-1;i++)m[i]=d[i-1]*d[i]<=0?0:(d[i-1]+d[i])/2;m[P.length-1]=d.at(-1);
+    for(let i=0;i<d.length;i++){if(!d[i]){m[i]=m[i+1]=0;continue}const a=m[i]/d[i],b=m[i+1]/d[i],q=a*a+b*b;if(q>9){const t=3/Math.sqrt(q);m[i]=t*a*d[i];m[i+1]=t*b*d[i]}}
+    let s=`M${P[0][0].toFixed(1)} ${P[0][1].toFixed(1)}`;
+    for(let i=0;i<P.length-1;i++){const h=(P[i+1][0]-P[i][0])/3;s+=` C${(P[i][0]+h).toFixed(1)} ${(P[i][1]+m[i]*h).toFixed(1)} ${(P[i+1][0]-h).toFixed(1)} ${(P[i+1][1]-m[i+1]*h).toFixed(1)} ${P[i+1][0].toFixed(1)} ${P[i+1][1].toFixed(1)}`}
+    return s;
+  }
+  let drawnKey='';
   function draw(){
-    const box=$('#home-chartbox'),svg=$('#home-chart');if(!box||!svg||!data)return;const W=box.clientWidth,H=box.clientHeight;if(!W||!H)return;
-    const cur=data.series.current,prev=data.series.previous,n=Math.max(1,cur.length-1),peak=Math.max(cur.at(-1)||0,prev.at(-1)||0,100);
+    const box=$('#home-chartbox'),svg=$('#home-chart'),tip=$('#home-tip');if(!box||!svg||!data)return;const W=box.clientWidth,H=box.clientHeight;if(!W||!H)return;
+    const cur=data.series.current,prev=data.series.previous,n=Math.max(1,cur.length-1),peak=Math.max(cur.at(-1)||0,prev.at(-1)||0,10000);
     const reais=peak/100,mag=Math.pow(10,Math.floor(Math.log10(reais))),max=[1,2,2.5,4,5,8,10].map(k=>k*mag).find(k=>k>=reais)*100,step=max/4;
-    const L=60,R=14,T=18,B=24,x=i=>L+(W-L-R)*i/n,y=v=>T+(H-T-B)*(1-v/max);
+    const L=58,R=16,T=16,B=26,x=i=>L+(W-L-R)*i/n,y=v=>T+(H-T-B)*(1-v/max);
     const fmt=v=>v>=100000?'R$ '+num(v/100000,v%100000?1:0)+' mil':money(v);
-    let h=`<defs><linearGradient id="home-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--r-primary)" stop-opacity=".22"/><stop offset=".7" stop-color="var(--r-accent)" stop-opacity=".06"/><stop offset="1" stop-color="var(--r-accent)" stop-opacity="0"/></linearGradient></defs>`;
+    const key=data.from+data.to+data.channel+cur.at(-1),animate=key!==drawnKey;drawnKey=key;
+    let h=`<defs><linearGradient id="home-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--r-primary)" stop-opacity=".3"/><stop offset=".55" stop-color="var(--r-accent)" stop-opacity=".12"/><stop offset="1" stop-color="var(--r-accent)" stop-opacity="0"/></linearGradient><linearGradient id="home-s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--r-mid)"/><stop offset="1" stop-color="var(--r-primary)"/></linearGradient><filter id="home-glow" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="5"/></filter></defs>`;
     for(let v=0;v<=max;v+=step)h+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--r-line)" stroke-dasharray="${v?'3 5':'0'}"/><text x="${L-10}" y="${y(v)+4}" text-anchor="end">${v?fmt(v):'0'}</text>`;
     const ticks=n<3?[0,n]:[0,Math.round(n/3),Math.round(2*n/3),n];
-    for(const i of ticks)h+=`<text x="${x(i)}" y="${H-4}" text-anchor="${i===0?'start':i===n?'end':'middle'}">${fmtDay(addDays(data.from,i))}</text>`;
-    const line=a=>a.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)).join(' ');
-    h+=`<path d="${line(cur)} L${x(n)} ${y(0)} L${x(0)} ${y(0)} Z" fill="url(#home-g)"/><path d="${line(prev)}" fill="none" stroke="var(--r-accent)" stroke-width="2.2" stroke-dasharray="6 5" stroke-linecap="round"/><path d="${line(cur)}" fill="none" stroke="var(--r-primary)" stroke-width="2.8" stroke-linejoin="round"/>`;
-    const end=cur.at(-1)||0,pend=prev.at(-1)||0;
-    h+=`<circle cx="${x(n)}" cy="${y(end)}" r="9" fill="var(--r-accent)" fill-opacity=".35"/><circle cx="${x(n)}" cy="${y(end)}" r="5" fill="var(--r-primary)" stroke="#fff" stroke-width="2"/><text x="${x(n)-14}" y="${end>=pend?(y(end)>T+18?y(end)-14:y(end)+22):y(end)+22}" text-anchor="end" class="strong">${esc(money(end))}</text>`;
-    if(Math.abs(y(end)-y(pend))>14)h+=`<text x="${x(n)-14}" y="${y(pend)+(pend>end?-6:16)}" text-anchor="end">${esc(money(pend))}</text>`;
+    for(const i of ticks)h+=`<text x="${x(i)}" y="${H-6}" text-anchor="${i===0?'start':i===n?'end':'middle'}">${fmtDay(addDays(data.from,i))}</text>`;
+    const pc=cur.map((v,i)=>[x(i),y(v)]),pp=prev.map((v,i)=>[x(i),y(v)]),line=smooth(pc),pline=smooth(pp),cls=animate?' class="draw" pathLength="1"':'';
+    h+=`<path${animate?' class="rise"':''} d="${line} L${x(n)} ${y(0)} L${x(0)} ${y(0)} Z" fill="url(#home-g)"/><path${cls} d="${pline}" fill="none" stroke="var(--r-accent)" stroke-width="2" stroke-dasharray="${animate?'':'6 6'}" stroke-linecap="round" opacity=".9"/><path d="${line}" fill="none" stroke="var(--r-accent)" stroke-width="7" opacity=".3" filter="url(#home-glow)"/><path${cls} d="${line}" fill="none" stroke="url(#home-s)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+    h+=`<g id="home-hover" hidden><line y1="${T}" y2="${y(0)}" stroke="var(--r-primary)" stroke-opacity=".25" stroke-dasharray="3 4"/><circle class="hp" r="4" fill="#fff" stroke="var(--r-accent)" stroke-width="2"/><circle class="hc" r="10" fill="var(--r-accent)" fill-opacity=".3"/><circle class="hc2" r="5.5" fill="var(--r-primary)" stroke="#fff" stroke-width="2.5"/></g><g id="home-end"><circle cx="${x(n)}" cy="${y(cur.at(-1)||0)}" r="10" fill="var(--r-accent)" fill-opacity=".3"/><circle cx="${x(n)}" cy="${y(cur.at(-1)||0)}" r="5.5" fill="var(--r-primary)" stroke="#fff" stroke-width="2.5"/></g><rect x="${L}" y="0" width="${W-L-R}" height="${H}" fill="transparent" id="home-hit"/>`;
     svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=h;
+    if(animate)setTimeout(()=>svg.querySelectorAll('.draw').forEach((el,i)=>{el.removeAttribute('pathLength');if(i===0)el.setAttribute('stroke-dasharray','6 6');el.classList.remove('draw')}),1300);
+    const hover=svg.querySelector('#home-hover'),end=svg.querySelector('#home-end');
+    const show=e=>{const r=svg.getBoundingClientRect(),i=Math.max(0,Math.min(n,Math.round((e.clientX-r.left-L)/(W-L-R)*n))),cx=x(i),cy=y(cur[i]||0);
+      hover.removeAttribute('hidden');end.setAttribute('hidden','');hover.querySelector('line').setAttribute('x1',cx);hover.querySelector('line').setAttribute('x2',cx);
+      for(const c of hover.querySelectorAll('.hc,.hc2')){c.setAttribute('cx',cx);c.setAttribute('cy',cy)}const hp=hover.querySelector('.hp');hp.setAttribute('cx',cx);hp.setAttribute('cy',y(prev[i]||0));
+      tip.hidden=false;const label=fmtDay(addDays(data.from,i),{weekday:'short',day:'numeric',month:'short'}).replace(/\.$/,'');tip.innerHTML=`<b>${esc(label.charAt(0).toUpperCase()+label.slice(1))}</b><span><strong>${esc(money(cur[i]||0))}</strong> acumulado</span><span class="m">anterior ${esc(money(prev[i]||0))}</span>`;
+      tip.style.left=Math.min(W-90,Math.max(90,cx))+'px';tip.style.top=Math.max(52,cy)+'px'};
+    const hide=()=>{hover.setAttribute('hidden','');end.removeAttribute('hidden');tip.hidden=true};
+    const hit=svg.querySelector('#home-hit');hit.addEventListener('pointermove',show);hit.addEventListener('pointerleave',hide);
   }
   function exportCSV(){
     if(!data)return;const c=data.current,p=data.previous,camp=c.campaign,row=(...v)=>v.map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(';');

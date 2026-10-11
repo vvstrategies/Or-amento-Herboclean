@@ -22,7 +22,7 @@
   function navigate(next,update=true){
     const views=['home','quotes','clients','create','settings','finance'];
     if(!views.includes(next))next='home';view=next;
-    for(const name of views)$('#'+name+'-view').hidden=name!==next;
+    for(const name of views){const el=$('#'+name+'-view'),show=name===next;if(show&&el.hidden){el.classList.remove('view-enter');void el.offsetWidth;el.classList.add('view-enter')}el.hidden=!show}
     for(const el of $$('.nav-item')){const active=el.dataset.nav===next;el.classList.toggle('active',active);if(active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current')}
     $('#page-location').textContent={home:'Início',quotes:'Orçamentos',clients:'Clientes',create:'Novo orçamento',settings:'Configurações',finance:'Financeiro'}[next];
     const hash={home:'inicio',quotes:'orcamentos',clients:'clientes',create:'criar',settings:'configuracoes',finance:'financeiro'}[next];

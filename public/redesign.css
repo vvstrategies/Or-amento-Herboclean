@@ -119,6 +119,20 @@ body.sidebar-collapsed .sidebar .sidebar-bottom{background:none;padding:6px;just
 .seg.on-dark button:hover{background:rgba(255,255,255,.08);color:#fff}
 .seg.on-dark button[aria-pressed=true]{background:var(--r-accent);color:var(--r-accent-ink)}
 
+/* Troca de telas: entrada curta com fade e deslize (Linear/Material emphasized decelerate) */
+@keyframes view-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.view-enter{animation:view-in .18s var(--r-ease) both}
+.hcard .row,.hcard .svc,.hcard .fstep{border-radius:14px;transition:background .18s}
+.hcard .row:hover,.hcard .svc:hover,.hcard .fstep:hover{background:color-mix(in srgb,var(--r-accent) 10%,#fff)}
+
+/* Indicador deslizante das pílulas (ui-kit.js) */
+.has-ind{position:relative;isolation:isolate}
+.seg-ind{position:absolute;left:0;top:0;z-index:-1;border-radius:999px;background:var(--r-primary);box-shadow:0 6px 14px -8px color-mix(in srgb,var(--r-primary) 85%,transparent);transition:transform .3s var(--r-ease),width .3s var(--r-ease),height .3s var(--r-ease),opacity .2s;pointer-events:none}
+.seg.on-dark .seg-ind{background:var(--r-accent);box-shadow:none}
+.has-ind>button{transition:color .25s var(--r-ease),background .2s}
+.has-ind>button[aria-pressed=true],.has-ind>button[aria-selected=true]{background:transparent!important}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
 /* Tags */
 .tag{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.06em;border-radius:999px;padding:3px 9px;white-space:nowrap;background:var(--r-mint);color:var(--r-primary)}
 .tag.t0{background:var(--r-ink);color:var(--r-accent)}
@@ -310,19 +324,33 @@ select.bsel-native{position:absolute!important;opacity:0!important;pointer-event
 .kpi .val{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--r-ink);line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
 .kpi .val small{font-size:14px;font-weight:700;color:var(--r-muted)}
 .kpi .cmp{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--r-muted);white-space:nowrap}
-.hcard.kpi{position:relative;isolation:isolate;transition:border-color .2s,box-shadow .2s,transform .2s}
-.hcard.kpi::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:linear-gradient(135deg,color-mix(in srgb,var(--r-accent) 12%,#fff) 0%,#fff 60%);opacity:0;transition:opacity .2s}
-.kpi .ic{transition:background .2s,color .2s}
-.hcard.kpi:hover,.hcard.kpi:focus-within{border-color:color-mix(in srgb,var(--r-accent) 35%,transparent);transform:translateY(-1px)}
-.hcard.kpi:hover::before,.hcard.kpi:focus-within::before{opacity:1}
-.hcard.kpi:hover .ic,.hcard.kpi:focus-within .ic{background:var(--r-accent);color:var(--r-accent-ink)}
-@media(prefers-reduced-motion:reduce){.hcard.kpi,.hcard.kpi::before,.kpi .ic{transition:none}.hcard.kpi:hover{transform:none}}
+/* Todos os cards respondem ao mouse e ao foco da mesma forma */
+.hcard,.dre-panel,.dre-kpi,.settings-card,.integration-card,.client-row-card{position:relative;isolation:isolate;transition:border-color .22s var(--r-ease),box-shadow .22s var(--r-ease),transform .22s var(--r-ease)}
+.hcard:not(.camp)::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:linear-gradient(135deg,color-mix(in srgb,var(--r-accent) 11%,#fff) 0%,#fff 60%);opacity:0;transition:opacity .22s}
+.hcard:hover,.hcard:focus-within,.dre-panel:hover,.dre-kpi:hover,.settings-card:hover,.integration-card:hover{border-color:color-mix(in srgb,var(--r-accent) 45%,transparent);transform:translateY(-2px);box-shadow:0 20px 40px -26px color-mix(in srgb,var(--r-primary) 55%,transparent)}
+.hcard:not(.camp):hover::before,.hcard:not(.camp):focus-within::before{opacity:1}
+.hcard.camp:hover{box-shadow:0 26px 50px -24px color-mix(in srgb,var(--r-deep) 95%,transparent)}
+.kpi .ic{transition:background .22s,color .22s}
+.hcard.kpi:hover .ic,.hcard.kpi:focus-visible .ic{background:var(--r-accent);color:var(--r-accent-ink)}
+button.hcard.kpi{font:inherit;text-align:left;cursor:pointer;color:inherit}
+button.hcard.kpi:focus-visible{outline:2px solid var(--r-primary);outline-offset:3px}
 .pill{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:1px 8px;font-weight:700;font-size:11px;background:var(--r-paper);color:var(--r-muted)}
 .pill.up{background:var(--r-up-bg);color:var(--r-up)}
 .pill.down{background:var(--r-down-bg);color:var(--r-down)}
 .legend{display:flex;gap:12px;font-size:11.5px;color:var(--r-muted);flex-wrap:wrap}
-.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
-.legend i.cur{background:var(--r-primary)}.legend i.prev{background:var(--r-accent)}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.legend i.cur{background:var(--r-primary)}.legend i.prev{height:0;border-top:2px dashed var(--r-accent);border-radius:0}
+.chart-hero{display:flex;align-items:baseline;gap:8px;margin:2px 0 0!important;flex-wrap:wrap}
+.chart-hero strong{font-size:22px;font-weight:800;letter-spacing:-.02em;color:var(--r-ink);font-variant-numeric:tabular-nums}
+.chart-hero span:last-child{font-size:12px;color:var(--r-muted)}
+.chart-tip{position:absolute;transform:translate(-50%,calc(-100% - 14px));background:var(--r-deep);color:#fff;border-radius:14px;padding:8px 12px;font-size:12px;white-space:nowrap;box-shadow:0 12px 26px -12px color-mix(in srgb,var(--r-deep) 80%,transparent);pointer-events:none;display:flex;flex-direction:column;gap:1px;transition:left .1s ease,top .1s ease;z-index:2}
+.chart-tip b{color:var(--r-accent);font-weight:700}
+.chart-tip strong{font-size:14px}.chart-tip .m{opacity:.75}
+.chartbox #home-hit{cursor:crosshair}
+@keyframes r-draw{from{stroke-dasharray:1 1;stroke-dashoffset:1}to{stroke-dasharray:1 1;stroke-dashoffset:0}}
+@keyframes r-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.chartbox .draw{animation:r-draw 1.2s var(--r-ease) both}
+.chartbox .rise{animation:r-rise .9s ease .3s both}
 .chartbox{flex:1;min-height:170px;position:relative}
 .chartbox svg{position:absolute;inset:0;width:100%;height:100%}
 .chartbox text{font:11px "Plus Jakarta Sans",Jakarta,Arial,sans-serif;fill:var(--r-muted)}
