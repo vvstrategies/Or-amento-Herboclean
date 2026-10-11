@@ -21,7 +21,7 @@ export async function gerarPDFEcoclean(q, options = {}) {
   const photos=await Promise.all(q.items.map(i=>Promise.all(i.photos.map(decodeImage))));
   const logo=q.company.logo?await decodeImage(q.company.logo):null;
   const mobile=options.format==='mobile';
-  const doc=new PDFDocument({size:mobile?globalThis.EcoMobilePageSize:'A4',margin:0,autoFirstPage:false,info:{Title:`${q.number} - ${q.client}${mobile?' (celular)':''}`,Author:q.company.name,Subject:'Proposta comercial'}});
+  const doc=new PDFDocument({size:mobile?globalThis.EcoMobilePageSize:'A4',margin:0,autoFirstPage:false,bufferPages:true,info:{Title:`${q.number} - ${q.client}${mobile?' (celular)':''}`,Author:q.company.name,Subject:'Proposta comercial'}});
   doc.registerFont('EC',asset('plus-jakarta-regular.ttf'));
   doc.registerFont('EC-Bold',asset('plus-jakarta-bold.ttf'));
   // Verificar as imagens antes de criar um arquivo de saída.

@@ -7,9 +7,9 @@ module.exports=async function({evaluate,click,set,until}){
  assert.equal(await evaluate("EcoStudio.getDraft().terms.anticipate"),'yes');
  assert.equal(await evaluate("EcoStudio.getDraft().terms.fixedFee"),.49);
  await set('#form [name=date]','2026-09-10');await set('#items [data-field=price]','200');
- assert.ok(await evaluate("document.querySelector('.investment .amount').textContent.includes('215,58')"));
- assert.ok(await evaluate("document.querySelector('.payment strong').textContent.includes('200,00')"));
- assert.ok(await evaluate("document.querySelector('.payments').textContent.includes('3x')"));
+ assert.ok(await evaluate("document.querySelector('#proposal .pp-invest').textContent.includes('215,58')"));
+ assert.ok(await evaluate("document.querySelector('#proposal .pp-card.pix strong').textContent.includes('200,00')"));
+ assert.ok(await evaluate("document.querySelector('#proposal .pp-pay').textContent.includes('3x')"));
  await click('#remember-terms');await until("EcoAuth.api('/api/settings').then(s=>s.terms.rate6===3.49 && s.terms.installments===3)");
  await set('#items [data-field=price]','');await set('#form [name=date]',await evaluate('EcoModel.today()'));
  console.log('PASS: padrão Asaas em 3x, repasse no investimento total, PIX base e salvamento das condições no navegador.');

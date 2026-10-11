@@ -1,0 +1,98 @@
+/* Prévia da proposta (A4 e celular). Espelha public/pdf-renderer.js:
+   escala de fonte 10 / 12 / 13 / 22 / 24 / 32 px; verde só na faixa e no investimento. */
+.pp{--pp-ink:#17202e;--pp-muted:#64748b;--pp-line:#e2e9e5;--pp-gray:#f3f7f4;--pp-gray2:#f7faf8;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--pp-ink);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.sheet.pp{padding:0;overflow:hidden}
+.pp *{box-sizing:border-box}
+.pp .pp-cap{display:block;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--pp-muted);line-height:1.3}
+.pp .pp-hero{position:relative;display:flex;justify-content:space-between;align-items:center;gap:24px;padding:30px 44px 34px;border-radius:0 0 34px 34px;color:#fff;
+  background:radial-gradient(circle at 88% 0,color-mix(in srgb,var(--pp-lime) 30%,transparent),transparent 45%),linear-gradient(150deg,var(--pp-light),var(--pp-green) 45%,var(--pp-deep))}
+.pp .pp-brand{display:flex;flex-direction:column;gap:12px;min-width:0}
+.pp .pp-logo{display:inline-flex;align-self:flex-start}
+.pp .pp-logo img{display:block;height:48px;max-width:220px;object-fit:contain;object-position:left center}
+.pp .pp-logo.plate{background:#fff;border-radius:12px;padding:8px}
+.pp .pp-name{font-size:20px;font-weight:800;color:#fff}
+.pp .pp-tag{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--pp-lime)}
+.pp .pp-meta{display:flex;flex-direction:column;align-items:flex-end;gap:7px;text-align:right;flex:none}
+.pp .pp-hero .pp-cap{color:rgba(255,255,255,.62)}
+.pp .pp-pill{font-size:12px;font-weight:700;padding:5px 13px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);white-space:nowrap}
+.pp .pp-date{font-size:12px;color:rgba(255,255,255,.82)}
+.pp .pp-body{padding:24px 44px}
+.pp .pp-title{margin:0;font-size:24px;font-weight:800;line-height:1.25;color:var(--pp-green)}
+.pp .pp-intro{margin:6px 0 0;max-width:640px;font-size:12px;color:#334155}
+.pp .pp-client{display:flex;margin-top:16px;padding:20px;border-radius:20px;background:var(--pp-gray)}
+.pp .pp-client>div{flex:1 1 36%;min-width:0;padding:0 20px;border-left:1px solid #d9e3dd}
+.pp .pp-client>div:first-child{padding-left:0;border-left:0}
+.pp .pp-client>div:nth-child(2){flex-basis:64%}
+.pp .pp-client>.phone{flex:0 0 auto;white-space:nowrap}
+.pp .pp-client .pp-v{display:block;margin-top:6px;font-size:12px}
+.pp .pp-client .name .pp-v{font-size:13px;font-weight:700}
+.pp .pp-scope{margin-top:20px;border:1px solid var(--pp-line);border-radius:22px;overflow:hidden}
+.pp .pp-scope-head{display:flex;justify-content:space-between;align-items:center;padding:11px 19px;background:var(--pp-gray);font-size:12px;color:var(--pp-muted)}
+.pp .pp-scope-head .pp-cap{color:var(--pp-ink)}
+.pp .pp-scope table{width:100%;border-collapse:collapse}
+.pp .pp-scope th{padding:9px 8px;font-size:10px;font-weight:700;letter-spacing:.09em;color:var(--pp-muted);text-align:left;border-bottom:1px solid var(--pp-line)}
+.pp .pp-scope th:first-child,.pp .pp-scope td:first-child{padding-left:19px;width:88px}
+.pp .pp-scope th:last-child,.pp .pp-scope td:last-child{padding-right:19px;text-align:right}
+.pp .pp-scope td{padding:15px 8px;vertical-align:top;font-size:12px;border-top:1px solid var(--pp-line)}
+.pp .pp-scope tbody tr:first-child td{border-top:0}
+.pp .pp-scope td strong{display:block;font-size:13px;color:var(--pp-green)}
+.pp .pp-scope td small{display:block;margin-top:4px;font-size:12px;color:var(--pp-muted)}
+.pp .pp-scope td b{font-size:13px;white-space:nowrap}
+.pp .pp-scope td:nth-child(3),.pp .pp-scope td:nth-child(4){white-space:nowrap}
+.pp .pp-thumb{display:block;width:64px;height:52px;border-radius:14px;object-fit:cover;background:var(--pp-gray)}
+.pp .pp-nophoto{display:grid;place-items:center;font-size:9px;color:var(--pp-muted)}
+.pp .pp-thumbs{display:grid;grid-template-columns:repeat(2,31px);gap:2px}
+.pp .pp-thumbs img{width:31px;height:25px;border-radius:7px;object-fit:cover}
+.pp .pp-invest{position:relative;display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:18px;padding:24px 28px;border-radius:24px;color:#fff;
+  background:radial-gradient(circle at 90% 0,color-mix(in srgb,var(--pp-lime) 28%,transparent),transparent 45%),linear-gradient(135deg,var(--pp-light),var(--pp-green) 50%,var(--pp-deep))}
+.pp .pp-invest .pp-cap{color:rgba(255,255,255,.66)}
+.pp .pp-invest span:not(.pp-cap){display:block;margin-top:4px;font-size:12px;color:rgba(255,255,255,.9)}
+.pp .pp-invest strong{font-size:32px;font-weight:800;line-height:1.1;white-space:nowrap}
+.pp .pp-pay{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:13px}
+.pp .pp-card{display:flex;align-items:flex-start;gap:16px;padding:20px;border-radius:20px;background:#fff;border:1px solid var(--pp-line)}
+.pp .pp-card.pix{background:linear-gradient(160deg,var(--pp-lime-soft),#fff);border-color:var(--pp-lime-border)}
+.pp .pp-ic{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:#eef2f0;color:#475569}
+.pp .pp-card.pix .pp-ic{background:#fff;border:1px solid var(--pp-lime-border)}
+.pp .pp-ic img,.pp .pp-ic svg{width:24px;height:24px}
+.pp .pp-card strong{display:block;margin-top:3px;font-size:22px;font-weight:800;line-height:1.2}
+.pp .pp-card small{display:block;margin-top:4px;font-size:12px;color:var(--pp-muted)}
+.pp .pp-card.pix strong,.pp .pp-card.pix small{color:var(--pp-green)}
+.pp .pp-why{margin:24px 0 10px;font-size:13px;font-weight:700;color:var(--pp-green)}
+.pp .pp-benefits{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.pp .pp-benefits li{padding:6px 14px;border-radius:999px;background:var(--pp-gray);font-size:12px}
+.pp .pp-terms{display:grid;grid-template-columns:38fr 62fr;gap:13px;margin-top:20px}
+.pp .pp-terms.single{grid-template-columns:1fr}
+.pp .pp-terms>div{padding:17px;border-radius:20px;background:var(--pp-gray2)}
+.pp .pp-terms b{display:block;margin-top:8px;font-size:13px}
+.pp .pp-terms small{display:block;margin-top:4px;font-size:12px;color:var(--pp-muted)}
+.pp .pp-terms p{margin:8px 0 0;font-size:12px;white-space:pre-line}
+.pp .pp-foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:28px;padding-top:12px;border-top:1px solid var(--pp-line);font-size:10px;color:var(--pp-muted)}
+/* Celular */
+.pp-m .pp-hero{flex-direction:column;justify-content:center;gap:8px;padding:26px 20px;border-radius:0 0 28px 28px;text-align:center}
+.pp-m .pp-logo{align-self:center}
+.pp-m .pp-logo img{height:40px;max-width:200px;object-position:center}
+.pp-m .pp-tag{margin-bottom:6px}
+.pp-m .pp-body{padding:20px 18px}
+.pp-m .pp-intro{margin-top:6px}
+.pp-m .pp-client{flex-direction:column;gap:0;padding:16px}
+.pp-m .pp-client>div{padding:10px 0;border-left:0;border-top:1px solid #d9e3dd}
+.pp-m .pp-client>div:first-child{padding-top:0;border-top:0}
+.pp-m .pp-client>div:last-child{padding-bottom:0}
+.pp-m .pp-mscope{display:flex;justify-content:space-between;align-items:center;margin:20px 0 10px;color:var(--pp-muted)}
+.pp-m .pp-mscope .pp-cap{color:var(--pp-ink)}
+.pp-m .pp-item{margin-bottom:12px;border:1px solid var(--pp-line);border-radius:18px;overflow:hidden;background:#fff}
+.pp-m .pp-hero-photo{display:block;width:100%;height:150px;object-fit:cover}
+.pp-m .pp-mthumbs{display:flex;gap:8px;padding:12px 16px 0}
+.pp-m .pp-mthumbs img{width:52px;height:50px;border-radius:10px;object-fit:cover}
+.pp-m .pp-item-body{padding:16px}
+.pp-m .pp-item-body strong{display:block;font-size:13px;color:var(--pp-green)}
+.pp-m .pp-item-body small{display:block;margin-top:4px;font-size:12px;color:var(--pp-muted)}
+.pp-m .pp-item-foot{display:flex;justify-content:space-between;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--pp-line);color:var(--pp-muted)}
+.pp-m .pp-item-foot b{font-size:13px;color:var(--pp-ink);white-space:nowrap}
+.pp-m .pp-invest{flex-direction:column;align-items:flex-start;gap:4px;margin-top:8px;padding:22px;border-radius:22px}
+.pp-m .pp-card{margin-top:12px;align-items:center}
+.pp-m .pp-benefits{flex-direction:column;align-items:flex-start;gap:7px}
+.pp-m .pp-terms{margin-top:12px}
+.pp-m .pp-foot{flex-direction:column;gap:2px}
+@media(max-width:830px){.pp .pp-hero{padding:24px 20px 28px;flex-wrap:wrap}.pp .pp-body{padding:20px 16px}.pp .pp-client,.pp .pp-pay,.pp .pp-terms{display:flex;flex-direction:column}.pp .pp-client>div{padding:10px 0;border-left:0}.pp .pp-invest strong{font-size:26px}}
+@media print{.pp .pp-invest,.pp .pp-pay,.pp .pp-terms{break-inside:avoid}}

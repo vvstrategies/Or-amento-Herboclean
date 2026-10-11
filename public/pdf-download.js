@@ -16,7 +16,7 @@
     }
     q.company.logo=await compatible(q.company.logo);
     for(const item of q.items)item.photos=await Promise.all(item.photos.map(compatible));
-    const doc=new PDFDocument({size:mobile?root.EcoMobilePageSize:'A4',margin:0,autoFirstPage:false,info:{Title:`${q.number} - ${q.client}`,Author:q.company.name,Subject:'Proposta comercial'}});
+    const doc=new PDFDocument({size:mobile?root.EcoMobilePageSize:'A4',margin:0,autoFirstPage:false,bufferPages:true,info:{Title:`${q.number} - ${q.client}`,Author:q.company.name,Subject:'Proposta comercial'}});
     doc.registerFont('EC',font(ECO_PDF_FONTS.regular));doc.registerFont('EC-Bold',font(ECO_PDF_FONTS.bold));
     const chunks=[];
     const completed=new Promise((resolve,reject)=>{doc.on('data',chunk=>chunks.push(chunk));doc.on('end',()=>resolve(new Blob(chunks,{type:'application/pdf'})));doc.on('error',reject)});
