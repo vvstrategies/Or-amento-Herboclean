@@ -22,7 +22,7 @@
   const get=EcoStore.get;
   async function refreshSaved(){saved=(await EcoStore.all('quotes')).sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));$('#saved-count').textContent=saved.length;renderLibrary()}
   async function saveDraft(){const current=version;try{await put('draft',{id:'current',quote:structuredClone(q)});if(current===version)$('#draft-status').textContent='Rascunho salvo automaticamente'}catch{$('#draft-status').textContent='Não foi possível salvar. Exporte um backup.'}}
-  function changed(){q.updatedAt=new Date().toISOString();version++;$('#draft-status').textContent='Salvando rascunho...';clearTimeout(timer);timer=setTimeout(saveDraft,500);render()}
+  function changed(){q.updatedAt=new Date().toISOString();version++;$('#draft-status').textContent='Salvando rascunho...';clearTimeout(timer);timer=setTimeout(saveDraft,500);renderSoon()}
   function fill(){
     for(const input of $$('#form [name]'))input.value=input.name==='postalCode'?M.formatPostalCode(q.postalCode):input.name==='clientBirthday'?bdayText(q.clientBirthday):Object.hasOwn(q.terms,input.name)?q.terms[input.name]:q[input.name]??'';
     renderChoices();clientMatch();$('#editor-number').textContent=q.number?`${q.number} · rascunho salvo automaticamente`:'';
@@ -34,7 +34,9 @@
     $('#items-count').textContent=q.items.length===1?'1 item':q.items.length+' itens';
     $('#items').innerHTML=q.items.map((it,i)=>`<article class="service-card" data-id="${esc(it.id)}"><div class="item-head"><strong>ITEM ${String(i+1).padStart(2,'0')}</strong><button type="button" class="icon-button" data-action="remove" aria-label="Excluir item ${i+1}">×</button></div><label>Serviço<select data-field="service" required>${!M.services.some(s=>s.name===it.service)?`<option value="${esc(it.service)}">${esc(it.service)} (anterior)</option>`:''}${M.services.map(s=>`<option ${s.name===it.service?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label><div class="item-values"><label>Quantidade<input type="number" data-field="quantity" min="0.01" max="100000" step="0.01" value="${it.quantity}" required></label><div class="unit-field"><span>Unidade</span><div class="seg unit-seg" role="group" aria-label="Unidade do item ${i+1}"><button type="button" data-unit="un." aria-pressed="${it.unit==='un.'}">un.</button><button type="button" data-unit="m²" aria-pressed="${it.unit==='m²'}">m²</button></div></div><label>Preço PIX por ${esc(it.unit)} (R$)<input type="number" data-field="price" min="0" max="1000000" step="0.01" value="${it.price}" placeholder="0,00" required></label></div><label class="photo-upload" data-drop tabindex="-1"><span class="pu-ic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="9" cy="11" r="2"/><path d="m21 17-5-5-8 8"/></svg></span><span><b>Arraste, clique ou cole as fotos</b><br>Copiou uma imagem? Use <span class="kbd">Ctrl</span> + <span class="kbd">V</span> · até 6 fotos</span><input type="file" data-photo accept="image/png,image/jpeg,image/webp" multiple aria-label="Adicionar fotos ao item ${i+1}"></label><div class="photos">${it.photos.map((p,n)=>`<div class="photo-thumb"><img src="${p}" alt="${esc(it.service)}, foto ${n+1}"><button type="button" data-action="remove-photo" data-photo-index="${n}" aria-label="Remover foto ${n+1}">×</button></div>`).join('')}</div><details class="optional"><summary>Ajustar descrição do serviço</summary><label><textarea data-field="description" maxlength="1500" rows="3">${esc(it.description)}</textarea></label></details><div class="item-total"><span>Total do item no PIX</span><strong data-item-total>${money(Math.round(Math.round(Number(it.price)*100)*Number(it.quantity)))}</strong></div></article>`).join('');
   }
-  function render(){
+  // Junta várias teclas num só redesenho da prévia por quadro, em vez de redesenhar a cada tecla.
+  let renderFrame=0;function renderSoon(){if(!renderFrame)renderFrame=requestAnimationFrame(()=>{renderFrame=0;render()})}
+  function render(){cancelAnimationFrame(renderFrame);renderFrame=0;
     let t;
     try{t=M.totals(q)}catch(error){$('#fee-summary').textContent=error.message;$('#proposal').innerHTML=`<div class="sheet doc-body">${esc(error.message)}</div>`;return}
     // Mesmo layout do PDF (public/pdf-renderer.js); cores vêm de EcoProposalPalette.
@@ -121,7 +123,7 @@
   });
   function renderChoices(){
     const tags=q.tags||[];$('#quote-tags').innerHTML=tagOptions.map(t=>`<button type="button" data-quote-tag="${esc(t.id)}" aria-pressed="${tags.includes(t.id)}">${esc(t.label)}</button>`).join('');
-    $('#quote-origin').innerHTML=Object.entries(M.origins).map(([id,label])=>`<button type="button" data-origin="${id}" aria-pressed="${q.origin===id}">${esc(label.toUpperCase())}</button>`).join('');
+    $('#quote-origin').innerHTML=Object.entries(M.origins).map(([id,label])=>`<button type="button" data-origin="${id}" aria-pressed="${q.origin===id}">${EcoIcons.brandIcon(id,'sm')}${esc(label)}</button>`).join('');
   }
   function clientMatch(){
     const box=$('#client-match'),name=fold(q.client);if(!box)return;
@@ -254,7 +256,7 @@
     await database;
     if(!EcoAuth.online&&!localStorage.getItem('orcamento-universal-migrated-v1')){const old=JSON.parse(localStorage.getItem('orcamento-universal-legacy-propostas')||'[]');if(Array.isArray(old))for(const p of old){try{await put('quotes',M.normalize(p))}catch{}}localStorage.setItem('orcamento-universal-migrated-v1','1')}
     const draft=await get('draft','current');if(draft?.quote){q=normalize(draft.quote);fill()}
-    await refreshSaved();$('#draft-status').textContent=draft?'Rascunho anterior recuperado':'Identidade da empresa carregada';
+    await refreshSaved();$('#draft-status').textContent=draft?'Continuando o rascunho '+(q.number||'')+' · salvo automaticamente':'Identidade da empresa carregada';
   }catch(error){$('#draft-status').textContent='Armazenamento indisponível. Use o backup.';toast(error.message||'Use o backup para guardar os dados.')}
   window.EcoStudio={openQuote,newQuote,generatePDF,refresh:refreshSaved,notify:toast,getDraft:()=>structuredClone(q)};
   window.dispatchEvent(new CustomEvent('eco:ready'));

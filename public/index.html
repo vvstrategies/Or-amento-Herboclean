@@ -12,7 +12,7 @@
 <main class="workspace" id="create-view" hidden>
   <section class="editor" aria-label="Criar orçamento">
     <div class="editor-head"><span class="crumb">Orçamentos / Novo</span><h1>Novo orçamento</h1><p class="lead" id="editor-number">Os dados da empresa já estão preenchidos.</p></div>
-    <div class="top-actions"><button type="button" id="new" class="secondary">＋ Novo orçamento</button><button type="button" id="library" class="text-button">Meus orçamentos <span id="saved-count">0</span></button></div>
+    <div class="top-actions"><button type="button" id="new" class="secondary" title="Descarta o rascunho atual e começa um orçamento em branco">Começar do zero</button><button type="button" id="library" class="text-button">Meus orçamentos <span id="saved-count">0</span></button></div>
     <form id="form">
       <section class="form-section"><div class="section-heading"><span class="step">01</span><h2>Cliente</h2></div>
         <label>Nome do cliente ou empresa<input name="client" required maxlength="240" placeholder="Para quem vamos preparar a proposta?" autocomplete="organization" list="client-suggestions"></label><datalist id="client-suggestions"></datalist><p id="client-match" class="client-match" hidden></p>
