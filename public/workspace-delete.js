@@ -36,7 +36,7 @@
   function fromHash(){navigate({'#orcamentos':'quotes','#clientes':'clients','#criar':'create','#configuracoes':'settings','#financeiro':'finance'}[location.hash]||'home',false)}
   async function refresh(){
     const serial=++refreshSerial;
-    const [list,ops,pdfs,tags,clients]=await Promise.all([S.all('quotes'),S.all('operations'),S.all('pdfs'),EcoAuth.online?EcoAuth.api('/api/tags').catch(()=>null):null,EcoAuth.online?EcoAuth.api('/api/clients').catch(()=>[]):[]]);
+    const [list,ops,pdfs,tags,clients]=await Promise.all([S.summaries?S.summaries():S.all('quotes'),S.all('operations'),S.all('pdfs'),EcoAuth.online?EcoCache.get('/api/tags').catch(()=>null):null,EcoAuth.online?EcoCache.get('/api/clients').catch(()=>[]):[]]);
     if(serial!==refreshSerial)return;
     tagList=tags||[{id:'corporativo',label:'CORPORATIVO'},{id:'residencial',label:'RESIDENCIAL'}];clientIndex=new Map();for(const c of clients||[])for(const id of c.proposalIds||[])clientIndex.set(id,c);if($('#nav-clients'))$('#nav-clients').textContent=(clients||[]).length;
     quotes=list.sort((a,b)=>(b.updatedAt||b.date).localeCompare(a.updatedAt||a.date));operations=new Map(ops.map(x=>[x.id,x]));documents=pdfs;
@@ -74,17 +74,18 @@
     if(funnel==='follow'&&stage!=='lost'){const age=daysSince(q.date);if(age>=2)return `<span class="kc-alert">Sem resposta há ${age} dias</span>`}
     if(funnel==='pos'&&stage==='p4'){const bd=upcomingBirthday(clientIndex.get(q.id));if(bd)return `<span class="kc-alert">${bd.days===0?'Aniversário hoje':'Aniversário em '+bd.days+' dia'+(bd.days>1?'s':'')}</span>`;const done=op.serviceCompletedAt;if(done&&daysSince(done)>=180)return `<span class="kc-alert">${Math.floor(daysSince(done)/30)} meses desde o serviço</span>`}
     if(funnel==='comercial'&&op.pendingAction)return `<span class="kc-alert">Agendamento pendente</span>`;
+    if(funnel==='comercial'&&op.status==='scheduled'&&op.schedule&&Date.parse(op.schedule.end)<Date.now())return `<span class="kc-alert due">Horário passou · arraste para Concluídos</span>`;
     return '';
   }
   function card(q,stage){
-    const op=getOp(q.id),t=totals(q),photos=q.items.reduce((n,i)=>n+i.photos.length,0),place=q.addressNeighborhood||q.addressCity||q.address||'Endereço não informado';
+    const op=getOp(q.id),t=totals(q),photos=q.items.reduce((n,i)=>n+(i.photoCount??i.photos?.length??0),0),place=q.addressNeighborhood||q.addressCity||q.address||'Endereço não informado';
     return `<article class="proposal-card${q.id===settled?' settle':''}" tabindex="0" role="button" data-detail="${esc(q.id)}" data-stage="${esc(stage)}" aria-label="Abrir orçamento de ${esc(q.client||'cliente não informado')}. Alt e setas movem de etapa."><span class="kc-h"><span class="kc-av">${esc(initials(q.client||'?'))}</span><span class="kc-nm"><b>${esc(q.client||'Cliente não informado')}</b><span>${esc(place)}</span></span></span>${(q.tags||[]).length?`<span class="kc-tags">${q.tags.map(id=>`<span class="tag ${tagClass(id)}">${esc(tagLabel(id))}</span>`).join('')}</span>`:''}<span class="kc-svc">${esc(O.summary(q))}${photos?`<small>${photos} foto${photos>1?'s':''}</small>`:''}</span>${cardAlert(q,op,stage)}<span class="kc-f"><span class="kc-v"><small>VALOR NO PIX</small>${t?money(t.pix):'Revisar valores'}</span>${cardMeta(q,op,stage)}</span></article>`;
   }
   function visible(){
     const all=getQuotes(),f=filters(),invalid=f.from&&f.to&&f.from>f.to;
     $('#filter-error').hidden=!invalid;$('#filter-error').textContent=invalid?'A data inicial deve ser anterior ou igual à data final.':'';
     if(invalid)return [];
-    return all.filter(q=>{const op=getOp(q.id);return O.matches(q,op,{...f,status:op.status})&&(!tagFilter||(q.tags||[]).includes(tagFilter))});
+    return all.filter(q=>{const op=getOp(q.id);return O.matches(q,op,{...f,status:op.status})&&(!tagFilter||(tagFilter==='__none'?!(q.tags||[]).length:(q.tags||[]).includes(tagFilter)))});
   }
   function renderLibrary(){
     const all=getQuotes(),list=visible();
@@ -92,14 +93,14 @@
     const counts={comercial:list.filter(q=>getOp(q.id).status!=='cancelled').length,follow:0,pos:0},saved=funnel;
     for(const name of ['follow','pos']){funnel=name;counts[name]=list.filter(q=>stageOf(q,getOp(q.id))).length}funnel=saved;
     for(const name of ['comercial','follow','pos'])$('#count-'+name).textContent=counts[name];
-    $('#tag-filter').innerHTML=[['','Todas'],...tagList.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()])].map(([id,label])=>`<button type="button" data-tag-filter="${esc(id)}" aria-pressed="${tagFilter===id}">${esc(label)}</button>`).join('');
+    $('#tag-filter').innerHTML=[['','Todas'],...tagList.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()]),...(all.some(q=>!(q.tags||[]).length)?[['__none','Sem tag']]:[])].map(([id,label])=>`<button type="button" data-tag-filter="${esc(id)}" aria-pressed="${tagFilter===id}">${esc(label)}</button>`).join('');
     $('#show-cancelled').hidden=funnel!=='comercial';$('#show-cancelled').setAttribute('aria-pressed',String(showCancelled));
     const cols=FUNNELS[funnel].filter(([id])=>id!=='cancelled'||showCancelled);
     if(!all.length){$('#board').innerHTML=`<div class="empty-library"><span class="feature-icon">${icon('folder')}</span><h3>Seu próximo atendimento começa aqui.</h3><p>Crie sua primeira proposta com a identidade da empresa. Depois, acompanhe a aprovação e prepare o atendimento por aqui.</p><div class="empty-actions"><button class="primary" data-new>＋ Criar orçamento</button><button class="secondary" data-demo>Explorar exemplos</button></div></div>`;$('#library-count-note').textContent='';return}
     $('#board').innerHTML=cols.map(([id,label])=>{const cards=list.filter(q=>stageOf(q,getOp(q.id))===id),sum=cards.reduce((n,q)=>n+(totals(q)?.pix||0),0);
       return `<section class="kcol" data-col="${id}" aria-label="${esc(label)}"><div class="kcol-head"><div class="t"><i class="dot" style="background:${COLORS[id]}"></i>${esc(label)}<span class="c${lastCounts[funnel+id]!==undefined&&lastCounts[funnel+id]!==cards.length?' bump':''}">${cards.length}</span></div><div class="sum">${money(sum)}<small>no PIX</small></div></div><div class="kcol-body">${cards.map(q=>card(q,id)).join('')||'<p class="kcol-empty">Nenhum orçamento nesta etapa</p>'}</div></section>`}).join('');
     for(const [id] of cols)lastCounts[funnel+id]=list.filter(q=>stageOf(q,getOp(q.id))===id).length;settled=null;
-    $('#library-count-note').textContent=`${list.length} de ${all.length} orçamento${all.length===1?'':'s'}${demo?' de demonstração':''}`;
+    const shown=list.filter(q=>cols.some(([id])=>stageOf(q,getOp(q.id))===id)).length;$('#library-count-note').textContent=`${shown} orçamento${shown===1?'':'s'} neste funil · ${all.length} no total${demo?' (demonstração)':''}`;
   }
   // Regras de movimentação entre colunas do funil comercial seguem o fluxo operacional.
   function moveRule(q,to){
@@ -114,7 +115,7 @@
     return {ok:false,message:'Esse movimento não é permitido.'};
   }
   async function moveCard(id,to){
-    const q=findQuote(id);if(!q)return;const rule=moveRule(q,to);
+    const q=await hydrate(id);if(!q)return;const rule=moveRule(q,to);
     if(!rule.ok){if(!rule.silent)notify(rule.message);return}
     selected=id;
     if(funnel!=='comercial'){
@@ -187,7 +188,13 @@
     const email=/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(contact||'');
     return `${phone?`<a class="quick-link" href="tel:${digits}">${icon('phone')}Ligar</a><a class="quick-link" href="https://wa.me/${digits.length<=11?'55':''}${digits}" target="_blank" rel="noopener">WhatsApp</a>`:''}${email?`<a class="quick-link" href="mailto:${encodeURIComponent(contact)}">Enviar e-mail</a>`:''}${contact?`<button class="quick-link" data-copy-contact>${icon('copy')}Copiar contato</button>`:''}`;
   }
-  async function openDetail(id){selected=id;await renderDetail();if(!$('#detail-dialog').open)$('#detail-dialog').showModal()}
+  // A lista do kanban vem sem fotos; antes de abrir o detalhe ou agir no orçamento, troca pelo orçamento completo.
+  async function hydrate(id){
+    const q=findQuote(id);if(!q||demo||!EcoAuth.online||q.items.every(i=>Array.isArray(i.photos)))return q;
+    const full=await S.get('quotes',id),i=quotes.findIndex(x=>x.id===id);if(i>=0)quotes[i]=full;return full;
+  }
+  let detailOpener=null;
+  async function openDetail(id){selected=id;detailOpener=document.activeElement;await hydrate(id);await renderDetail();if(!$('#detail-dialog').open)$('#detail-dialog').showModal()}
   async function renderDetail(){
     const id=selected,q=findQuote(id);if(!q){$('#detail-content').innerHTML='<p class="drawer-empty">Orçamento não encontrado.</p>';$('#detail-actions').innerHTML='';return}
     const op=getOp(id),t=totals(q),schedule=op.schedule;let pdfs=getDocs(id),latest=pdfs[0],hash=latest?await S.fingerprint(q):'';const proposalVersions=demo?[]:await EcoAuth.api('/api/proposals/'+encodeURIComponent(id)+'/versions').catch(()=>[]);if(id!==selected)return;
@@ -366,7 +373,7 @@
     const photo=document.createElement('dialog');photo.id='photo-dialog';photo.innerHTML='<div class="dialog-head"><h2>Foto do serviço</h2><button class="icon-button" data-close="photo-dialog" aria-label="Fechar foto">×</button></div><img id="photo-preview" class="photo-dialog-image" alt="Foto do item orçado">';document.body.appendChild(photo);
     document.addEventListener('click',e=>onClick(e).catch(error=>notify(error.message)));
     $('.skip-link').onclick=e=>{e.preventDefault();$('#content-start').focus();$('#content-start').scrollIntoView()};
-    for(const id of ['search','date-from','date-to'])$('#'+id).addEventListener('input',renderLibrary);bindBoard();bindSidebar();
+    let typing=0;$('#search').addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(renderLibrary,120)});for(const id of ['date-from','date-to'])$('#'+id).addEventListener('input',renderLibrary);bindBoard();bindSidebar();
     $('#period-toggle').onclick=()=>{const expanded=$('#period-toggle').getAttribute('aria-expanded')==='true';$('#period-toggle').setAttribute('aria-expanded',String(!expanded));$('#period-fields').hidden=expanded};
     $('#clear-filters').onclick=clearFilters;$('#show-demo').onclick=enterDemo;$('#exit-demo').onclick=exitDemo;
     await refreshGoogle();
@@ -383,13 +390,13 @@
     $('#schedule-form').onsubmit=reviewSchedule;$('#schedule-duration').onchange=()=>{$('#custom-duration-label').hidden=$('#schedule-duration').value!=='custom'};
     $('#schedule-dialog').addEventListener('close',()=>{review=null});
     $('#pdf-dialog').addEventListener('close',()=>{$('#pdf-frame').src='about:blank';if(viewerURL){URL.revokeObjectURL(viewerURL);viewerURL=null}});
-    $('#detail-dialog').addEventListener('close',()=>{selected=null});
+    $('#detail-dialog').addEventListener('close',()=>{const id=selected;selected=null;const back=detailOpener?.isConnected?detailOpener:id&&$(`#board [data-detail="${CSS.escape(id)}"]`);detailOpener=null;back?.focus?.({preventScroll:true})});
     // Backup por teclado, sem precisar focar o input file oculto.
     $('#import').parentElement.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#import').click()}});
     window.addEventListener('hashchange',fromHash);
     window.addEventListener('eco:data-changed',()=>refresh().catch(error=>notify(error.message)));
     window.addEventListener('eco:quotes-changed',()=>refresh().catch(error=>notify(error.message)));
-    await refresh();hydrateIcons();fromHash();document.body.dataset.workspaceReady='true';window.UniversalFinance?.initSettings();window.UniversalDre?.initSettings();window.UniversalProfit?.initSettings();window.UniversalIntegrations?.init();
+    await refresh();hydrateIcons();fromHash();document.body.dataset.workspaceReady='true';window.UniversalFinance?.initSettings();window.UniversalDre?.initSettings();window.UniversalProfit?.initSettings();window.UniversalIntegrations?.init();window.EcoSettings?.init();
   }
   window.EcoWorkspace={navigate,refresh,openDetail,icon,money};
   if(window.EcoStudio)init().catch(error=>console.error(error));else window.addEventListener('eco:ready',()=>init().catch(error=>console.error(error)),{once:true});

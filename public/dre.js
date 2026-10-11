@@ -37,7 +37,7 @@ function shell(){
  host.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;shell();load();});
  host.querySelectorAll('[data-dre-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.dreTab;page=1;shell();load();});
  $('#dre-new-expense').onclick=()=>expenseForm();$('#dre-categories').onclick=categoryDialog;$('#dre-rules').onclick=ruleList;
- $('#dre-preferences').onclick=()=>{EcoWorkspace.navigate('settings');setTimeout(()=>$('#dre-settings-slot')?.scrollIntoView({behavior:'smooth'}),50);};
+ $('#dre-preferences').onclick=()=>{EcoWorkspace.navigate('settings');EcoSettings.reveal('#dre-settings-slot');};
  $('#dre-demo').onclick=()=>{demo=!demo;if(demo){from=shift(current(),-2);to=current();}shell();load();};
  for(const ext of ['csv','pdf'])$('#dre-'+ext).onclick=async()=>{try{const blob=await EcoAuth.api('/api/finance/report.'+ext+'?'+new URLSearchParams({from,to,mode}),{blob:true});EcoDownloadBlob(blob,'DRE-gerencial-interna-'+from+'-'+to+'.'+ext);}catch(e){notice(e.message)}};
  if(demo)for(const id of ['new-expense','categories','rules','csv','pdf'])$('#dre-'+id).disabled=true;

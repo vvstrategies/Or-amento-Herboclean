@@ -3,7 +3,7 @@
   // Clientes: criados a cada orçamento; a ficha guarda dados para reabordagem.
   const $=s=>document.querySelector(s);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const money=c=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format((c||0)/100);
+  const money=c=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format((c||0)/100);
   const initials=n=>String(n||'?').trim().split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase();
   const tz='America/Sao_Paulo',today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const br=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'—';
@@ -22,15 +22,15 @@
     const icon=root.EcoWorkspace?.icon;if(icon)for(const el of $('#clients-view').querySelectorAll('[data-icon]'))el.innerHTML=icon(el.dataset.icon);
     $('#client-search').addEventListener('input',e=>{query=e.target.value.trim().toLowerCase();renderList()});
     $('#client-filter').addEventListener('click',e=>{const b=e.target.closest('button');if(b){filter=b.dataset.f;renderList()}});
-    $('#client-rows').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr)select(tr.dataset.id)});
+    $('#client-rows').addEventListener('click',e=>{if(e.target.closest('[data-retry-clients]'))return load().catch(()=>null);const tr=e.target.closest('tr[data-id]');if(tr)select(tr.dataset.id)});
     $('#client-rows').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr[data-id]')){e.preventDefault();select(e.target.dataset.id)}});
     $('#client-new').addEventListener('click',()=>{selected=null;detail=null;editing=true;renderProfile()});
     $('#client-profile').addEventListener('click',onProfileClick);
     $('#client-profile').addEventListener('submit',onSave);
   }
   async function load(){
-    if(!root.EcoAuth?.online){$('#client-rows').innerHTML='<tr><td colspan="6" class="hint">Abra pelo servidor (http://localhost:3000) para ver os clientes.</td></tr>';return}
-    const id=++serial;const [list,t]=await Promise.all([EcoAuth.api('/api/clients'),EcoAuth.api('/api/tags').catch(()=>[])]);if(id!==serial)return;
+    if(!root.EcoAuth?.online){$('#client-rows').innerHTML='<tr><td colspan="6" class="hint">Abra o sistema pelo endereço do servidor para ver os clientes.</td></tr>';return}
+    const id=++serial;let list,t;try{[list,t]=await Promise.all([EcoCache.get('/api/clients'),EcoCache.get('/api/tags').catch(()=>[])])}catch(error){if(id===serial)$('#client-rows').innerHTML=`<tr><td colspan="6" class="hint">Não foi possível carregar os clientes: ${esc(error.message)} <button type="button" class="text-button" data-retry-clients>Tentar de novo</button></td></tr>`;return}if(id!==serial)return;
     clients=list;tags=t||[];if($('#nav-clients'))$('#nav-clients').textContent=clients.length;
     if(!selected&&clients.length&&!editing)selected=clients[0].id;
     renderList();if(selected)await select(selected,true);else renderProfile();
@@ -44,7 +44,7 @@
     const counts={all:clients.length,birthday:clients.filter(c=>{const n=daysToBirthday(c.birthday);return n!==null&&n<=30}).length};for(const t of tags)counts[t.id]=clients.filter(c=>(c.tags||[]).includes(t.id)).length;
     $('#client-filter').innerHTML=[['all','Todos'],...tags.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()]),['birthday','Aniversariantes']].map(([id,l])=>`<button type="button" data-f="${esc(id)}" aria-pressed="${filter===id}">${esc(l)} <span class="n">${counts[id]||0}</span></button>`).join('');
     const list=clients.filter(matches);
-    $('#client-rows').innerHTML=list.length?list.map(c=>{const n=daysToBirthday(c.birthday);return `<tr data-id="${esc(c.id)}" tabindex="0" class="${c.id===selected?'sel':''}" aria-selected="${c.id===selected}"><td><div class="who2"><span class="av">${esc(initials(c.name))}</span><div><b>${esc(c.name)}</b><small>${esc(c.neighborhood||c.city||c.phone||'')}</small></div></div></td><td>${tagChips(c.tags)||'<span class="muted">—</span>'}</td><td>${c.quoteCount}</td><td><b>${c.closedCents?money(c.closedCents):'—'}</b></td><td>${c.lastService?br(c.lastService.date)+(c.lastService.status==='scheduled'?' <small class="muted">(agendado)</small>':''):'—'}</td><td>${n!==null&&n<=30?'🎂 ':''}${bday(c.birthday)}</td></tr>`}).join(''):`<tr><td colspan="6" class="hint">${clients.length?'Nenhum cliente encontrado.':'Os clientes aparecem aqui assim que você salvar o primeiro orçamento.'}</td></tr>`;
+    $('#client-rows').innerHTML=list.length?list.map(c=>{const n=daysToBirthday(c.birthday);return `<tr data-id="${esc(c.id)}" tabindex="0" class="${c.id===selected?'sel':''}" aria-selected="${c.id===selected}"><td><div class="who2"><span class="av">${esc(initials(c.name))}</span><div><b>${esc(c.name)}</b><small>${esc(c.neighborhood||c.city||c.phone||'')}</small></div></div></td><td>${tagChips(c.tags)||'<span class="muted">—</span>'}</td><td>${c.quoteCount}</td><td><b>${c.closedCents?money(c.closedCents):'—'}</b></td><td>${c.lastServiceDate?br(c.lastServiceDate):'—'}${c.nextServiceDate?`<small class="muted next">próximo ${br(c.nextServiceDate)}</small>`:''}</td><td>${n!==null&&n<=30?'<span class="bday" title="Aniversário em breve" aria-label="Aniversário em breve">🎂</span> ':''}${bday(c.birthday)}</td></tr>`}).join(''):`<tr><td colspan="6" class="hint">${clients.length?'Nenhum cliente encontrado.':'Os clientes aparecem aqui assim que você salvar o primeiro orçamento.'}</td></tr>`;
   }
   async function select(id,quiet){
     selected=id;editing=false;if(!quiet)renderList();
