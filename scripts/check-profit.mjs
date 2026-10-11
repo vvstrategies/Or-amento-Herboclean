@@ -82,5 +82,10 @@ try{
  const previous=profit.recognition(q.id);assert.equal(previous.competence,m);assert.equal(profit.latest(q.id).version,2);
  assert.ok(repo.db.prepare("SELECT COUNT(*) n FROM finance_audit WHERE entity='actual'").get().n>=3);
  assert.equal((await request(p+'/report?from=2025-01&to=2027-12')).status,400);
- console.log('PASS: Fase 3 — cálculos, precisão, mínimo de amostra, agrupamentos, histórico, fallback, DRE, fluxo completo, metas, preços explícitos, exportações, auth/CSRF e privacidade PDF/Calendar.');
+ // Contexto gravado sem cidade (orçamentos antigos): a cidade vem do endereço livre do orçamento.
+ repo.db.prepare("UPDATE proposals SET snapshot=json_set(snapshot,'$.address','Rua das Flores, 10, Centro, São Bernardo do Campo - SP, 09750-000, Brasil') WHERE id=?").run(missing.id);
+ assert.equal(profit.context(missing.id).city,'');
+ analytic=await data(p+'/report?from='+m+'&to='+m);assert.deepEqual(analytic.records.find(r=>r.proposalId===missing.id).city,'São Bernardo do Campo / SP');assert.equal(analytic.byCity.length,3);
+ assert.equal(analytic.records.find(r=>r.proposalId===q.id).city,'Santo André / SP');
+ console.log('PASS: Fase 3 — cálculos, precisão, mínimo de amostra, agrupamentos, histórico, fallback, DRE, fluxo completo, metas, preços explícitos, exportações, auth/CSRF, privacidade PDF/Calendar e cidade lida do endereço.');
 }finally{server.close();repo.close();}

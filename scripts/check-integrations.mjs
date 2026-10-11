@@ -113,6 +113,12 @@ try{
  g.fail=false;g.spend=100000;m.spend=50000;await data(api('google-ads','sync'),range);await data(api('meta-ads','sync'),range);
  let r=await report();assert.equal(r.total.opex,150000);assert.equal(r.total.result,-150000);assert.equal(r.expenses.length,2);assert.ok(r.expenses.every(e=>e.automatic));
  assert.equal(repo.db.prepare('SELECT COUNT(*) n FROM finance_expenses').get().n,0);
+ // A listagem de despesas mostra a mídia paga como linhas automáticas, somente leitura, por provedor e mês.
+ const listed=await data('/api/finance/expenses?from=2026-09&to=2026-09'),auto=listed.items.filter(e=>e.automatic);assert.equal(listed.total,2);
+ assert.deepEqual(auto.map(e=>[e.source,e.description,e.amountCents,e.competence,e.categoryName]).sort(),[['google-ads','Mídia paga · Google Ads',100000,'2026-09','Marketing · Mídia paga'],['meta-ads','Mídia paga · Meta Ads',50000,'2026-09','Marketing · Mídia paga']]);
+ assert.equal((await data('/api/finance/expenses?from=2026-09&to=2026-09&search=google')).items.length,1);assert.equal((await data('/api/finance/expenses?from=2026-09&to=2026-09&status=planned')).total,0);
+ assert.equal((await data('/api/finance/expenses?from=2026-08&to=2026-08')).total,0);
+ const locked=await request('/api/finance/expenses/'+encodeURIComponent(auto[0].id),{...auto[0],reason:'Editar mídia'},'PUT');assert.equal(locked.status,409);assert.match((await locked.json()).error,/integração/);
  const market=await data('/api/finance/marketing?from=2026-09&to=2026-09');assert.equal(market.spendCents,150000);assert.equal(market.campaigns.length,2);
  assert.equal((await request(api('google-ads','sync'),{days:1.5})).status,400);
  const category=dre.categories()[0],manual=await data('/api/finance/expenses',{description:'Marketing Google Ads manual',categoryId:category.id,amountCents:200000,competence:'2026-09',status:'confirmed',nature:'operating',costType:'variable'});

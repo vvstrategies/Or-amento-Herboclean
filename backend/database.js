@@ -18,11 +18,14 @@ export function documentHash(q){
 }
 export function cleanQuote(raw,strict=false){
   if(!raw||!validId(raw.id))throw fail(400,'Identificador do orçamento inválido.');
-  if(strict)modelo.validate(raw);
   if(raw.company?.logo&&!modelo.image(raw.company.logo))throw fail(400,'Logotipo inválido.');
-  if(!Array.isArray(raw.items)||raw.items.some(i=>!Array.isArray(i.photos)||i.photos.length>6||i.photos.some(p=>!modelo.image(p))))throw fail(400,'As fotos do orçamento são inválidas.');
-  const q=modelo.toPublicProposal(raw);if(strict)modelo.validate(q);return q;
+  if(!Array.isArray(raw.items)||raw.items.some(i=>!Array.isArray(i?.photos)||i.photos.length>6||i.photos.some(p=>!modelo.image(p))))throw fail(400,'As fotos do orçamento são inválidas.');
+  // O modelo compartilhado com o navegador lança Error simples com mensagem para o usuário: aqui vira 400.
+  try{if(strict)modelo.validate(raw);const q=modelo.toPublicProposal(raw);if(strict)modelo.validate(q);return q}catch(error){throw error.status?error:fail(400,error.message)}
 }
+// Resumo sem imagens: cada item troca photos por photoCount e o logo da empresa sai do snapshot.
+const summaryColumns=col=>`json_remove(${col},'$.items','$.company.logo') base,(SELECT json_group_array(json(json_set(json_remove(i.value,'$.photos'),'$.photoCount',COALESCE(json_array_length(i.value,'$.photos'),0))) ORDER BY i.key) FROM json_each(${col},'$.items') i) items`;
+const summaryOf=r=>({...JSON.parse(r.base),items:JSON.parse(r.items)});
 export class Repository{
   constructor(dir){
     this.dir=path.resolve(dir);fs.mkdirSync(this.dir,{recursive:true});this.files=path.join(this.dir,'pdfs');fs.mkdirSync(this.files,{recursive:true});
@@ -69,7 +72,7 @@ export class Repository{
   transaction(fn){this.db.exec('BEGIN IMMEDIATE');try{const r=fn();this.db.exec('COMMIT');return r}catch(e){this.db.exec('ROLLBACK');throw e}}
   config(key){const r=this.db.prepare('SELECT value FROM config WHERE key=?').get(key);return r?JSON.parse(r.value):null}
   setConfig(key,value){this.db.prepare('INSERT INTO config VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,JSON.stringify(value))}
-  list(){return this.db.prepare('SELECT * FROM proposals WHERE archived_at IS NULL ORDER BY updated_at DESC').all().map(r=>({...JSON.parse(r.snapshot),revision:r.revision}))}
+  list({summary=false}={}){return this.db.prepare(`SELECT ${summary?'revision,'+summaryColumns('snapshot'):'*'} FROM proposals WHERE archived_at IS NULL ORDER BY updated_at DESC`).all().map(r=>({...(summary?summaryOf(r):JSON.parse(r.snapshot)),revision:r.revision}))}
   proposal(id,{includeArchived=false}={}){const r=this.db.prepare(`SELECT * FROM proposals WHERE id=?${includeArchived?'':' AND archived_at IS NULL'}`).get(id);return r?{...JSON.parse(r.snapshot),revision:r.revision}:null}
   requireProposal(id){const q=this.proposal(id);if(!q)throw fail(404,'Orçamento não encontrado.');return q}
   saveProposal(raw,{force=false}={}){
@@ -96,9 +99,10 @@ export class Repository{
   listOperations(){return this.db.prepare('SELECT data FROM operations').all().map(r=>JSON.parse(r.data))}
   setOperation(op){op={...op,updatedAt:new Date().toISOString()};this.db.prepare('INSERT INTO operations VALUES (?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(op.id,JSON.stringify(op));return op}
   pdf(id){const r=this.db.prepare('SELECT * FROM pdfs WHERE id=?').get(id);return r?this.pdfRecord(r):null}
-  pdfRecord(r){return {id:r.id,proposalId:r.proposal_id,proposalVersionId:r.proposal_version_id||null,version:r.version,filename:r.filename,snapshot:JSON.parse(r.snapshot),fingerprint:r.fingerprint,generatedAt:r.generated_at,url:'/api/pdfs/'+r.id,storageKey:r.storage_key}}
-  listPDFs(id,{includeDeleted=false}={}){
-    const sql=id?'SELECT p.* FROM pdfs p LEFT JOIN proposal_versions v ON v.id=p.proposal_version_id WHERE p.proposal_id=?'+(includeDeleted?'':' AND (p.proposal_version_id IS NULL OR v.deleted_at IS NULL)')+' ORDER BY p.version DESC':'SELECT p.* FROM pdfs p LEFT JOIN proposal_versions v ON v.id=p.proposal_version_id WHERE p.proposal_version_id IS NULL OR v.deleted_at IS NULL ORDER BY p.generated_at DESC';
+  pdfRecord(r){return {id:r.id,proposalId:r.proposal_id,proposalVersionId:r.proposal_version_id||null,version:r.version,filename:r.filename,snapshot:r.base?summaryOf(r):JSON.parse(r.snapshot),fingerprint:r.fingerprint,generatedAt:r.generated_at,url:'/api/pdfs/'+r.id,storageKey:r.storage_key}}
+  listPDFs(id,{includeDeleted=false,summary=false}={}){
+    const cols=summary?'p.id,p.proposal_id,p.version,p.filename,p.storage_key,p.fingerprint,p.generated_at,p.proposal_version_id,'+summaryColumns('p.snapshot'):'p.*';
+    const sql=id?'SELECT '+cols+' FROM pdfs p LEFT JOIN proposal_versions v ON v.id=p.proposal_version_id WHERE p.proposal_id=?'+(includeDeleted?'':' AND (p.proposal_version_id IS NULL OR v.deleted_at IS NULL)')+' ORDER BY p.version DESC':'SELECT '+cols+' FROM pdfs p LEFT JOIN proposal_versions v ON v.id=p.proposal_version_id WHERE p.proposal_version_id IS NULL OR v.deleted_at IS NULL ORDER BY p.generated_at DESC';
     return (id?this.db.prepare(sql).all(id):this.db.prepare(sql).all()).map(r=>this.pdfRecord(r));
   }
   savePDF(q,file,fingerprint,extra={}){

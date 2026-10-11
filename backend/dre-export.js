@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
-const money=v=>v==null?'Pendente':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v/100);
+import {money as format} from './format.js';
+const money=v=>v==null?'Pendente':format(v);
 export const csvCell=v=>'"'+String(v??'').replace(/^[\s]*[=+@-]/,m=>"'"+m).replace(/"/g,'""')+'"';
 export function reportCSV(report){
  const rows=[['DRE GERENCIAL - USO INTERNO',report.mode==='actual'?'Realizado':'Projetado'],['Competência','Receita bruta','Deduções','Receita líquida','Custos diretos','Contribuição','Despesas operacionais','Resultado operacional','Margem operacional (%)','Investimentos separados','Custos pendentes']];

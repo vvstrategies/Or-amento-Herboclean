@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import {fail} from './database.js';
-import {modelo} from '../utils/proposta.js';
 import {date,localDate,text} from './dre-domain.js';
+import {placeOf} from './address.js';
 
 // Clientes, funis de follow-up/pós-venda, painel comercial e distribuição de lucros.
 const now=()=>new Date().toISOString();
@@ -9,10 +9,20 @@ const read=row=>JSON.parse(row.data);
 const norm=v=>String(v||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 const phoneOf=v=>{const d=String(v||'').replace(/\D/g,'');return d.length>=10&&d.length<=13?d.replace(/^55(?=\d{10,11}$)/,''):''};
 const emailOf=v=>{const m=String(v||'').match(/[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+/);return m?m[0].toLowerCase():''};
-const pix=q=>{try{return modelo.totals(q).pix}catch{return 0}};
+// Chaves vindas da requisição nunca podem cair em propriedades do protótipo ('constructor', '__proto__'...).
+const has=(map,key)=>typeof key==='string'&&Object.hasOwn(map,key);
+const itemCents=i=>Math.round(Math.round(Number(i.price)*100)*Number(i.quantity))||0;
+const total=rows=>rows.reduce((s,r)=>s+r.pix,0);
+const day=v=>{if(!v)return null;if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;const t=Date.parse(v);return Number.isFinite(t)?localDate(t):null};
 const addDays=(day,n)=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
 const between=(day,from,to)=>!!day&&day>=from&&day<=to;
 const spanDays=(from,to)=>Math.round((Date.parse(to+'T12:00:00Z')-Date.parse(from+'T12:00:00Z'))/86400000)+1;
+const TAG_ID=/^[a-z0-9-]{1,40}$/;
+// Linhas leves dos orçamentos: só os campos usados pelo painel e pelos clientes, sem fotos nem logo.
+const QUOTES=`SELECT p.id,json_extract(p.snapshot,'$.number') number,json_extract(p.snapshot,'$.date') date,json_extract(p.snapshot,'$.client') client,json_extract(p.snapshot,'$.origin') origin,json_extract(p.snapshot,'$.tags') tags,
+  json_extract(p.snapshot,'$.address') address,json_extract(p.snapshot,'$.addressNeighborhood') addressNeighborhood,json_extract(p.snapshot,'$.addressCity') addressCity,json_extract(p.snapshot,'$.addressState') addressState,
+  (SELECT json_group_array(json_object('service',json_extract(i.value,'$.service'),'unit',json_extract(i.value,'$.unit'),'quantity',json_extract(i.value,'$.quantity'),'price',json_extract(i.value,'$.price')) ORDER BY i.key) FROM json_each(p.snapshot,'$.items') i) items,
+  o.data op,l.client_id clientId FROM proposals p LEFT JOIN operations o ON o.id=p.id LEFT JOIN client_links l ON l.proposal_id=p.id WHERE p.archived_at IS NULL`;
 
 export const ORIGINS={meta:'Meta Ads',google:'Google Ads',indicacao:'Indicação',organico:'Orgânico',cliente:'Cliente antigo'};
 export const CHANNEL_PROVIDER={meta:'meta-ads',google:'google-ads'};
@@ -23,13 +33,16 @@ export const FUNNELS={
 };
 
 // Custo por orçamento, por fechamento, ROAS e ROI recalculados a cada consulta.
-export function campaignMetrics({spendCents=0,quotes=0,closed=0,revenueCents=0}){
+// ROAS/ROI usam a receita das origens pagas (paidRevenueCents); roasTotal/roiTotal usam toda a receita.
+export function campaignMetrics({spendCents=0,quotes=0,closed=0,revenueCents=0,paidRevenueCents=revenueCents}){
   const spend=Number(spendCents)||0;
-  return {spendCents:spend,quotes,closed,revenueCents,
+  return {spendCents:spend,quotes,closed,revenueCents,paidRevenueCents,
     costPerQuoteCents:spend&&quotes?Math.round(spend/quotes):null,
     costPerCloseCents:spend&&closed?Math.round(spend/closed):null,
-    roas:spend?revenueCents/spend:null,
-    roi:spend?(revenueCents-spend)/spend:null};
+    roas:spend?paidRevenueCents/spend:null,
+    roi:spend?(paidRevenueCents-spend)/spend:null,
+    roasTotal:spend?revenueCents/spend:null,
+    roiTotal:spend?(revenueCents-spend)/spend:null};
 }
 
 export function birthday(value){
@@ -39,6 +52,7 @@ export function birthday(value){
   const max=[31,29,31,30,31,30,31,31,30,31,30,31][month-1];if(!max||day<1||day>max)throw fail(400,'Aniversário inválido.');
   return String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
 }
+const quoteBirthday=v=>{try{return birthday(v)}catch{return ''}};
 
 export class CommercialService{
   constructor(repo,{dre,finance}={}){
@@ -48,30 +62,53 @@ export class CommercialService{
       CREATE INDEX IF NOT EXISTS client_links_client ON client_links(client_id);
       CREATE TABLE IF NOT EXISTS partners (id TEXT PRIMARY KEY,data TEXT NOT NULL,position INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS profit_distributions (id TEXT PRIMARY KEY,period_from TEXT NOT NULL,period_to TEXT NOT NULL,data TEXT NOT NULL,created_at TEXT NOT NULL);`);
-    this.seedPartners();this.syncAll();
+    this.seedPartners();
+  }
+  quotes(where='',...params){
+    return this.repo.db.prepare(QUOTES+where).all(...params).map(r=>{
+      const items=JSON.parse(r.items),op=r.op?JSON.parse(r.op):{id:r.id,status:'generated',schedule:null};
+      return {id:r.id,number:r.number||'',date:r.date||'',client:r.client||'',origin:r.origin||'',tags:r.tags?JSON.parse(r.tags):[],address:r.address||'',addressNeighborhood:r.addressNeighborhood||'',addressCity:r.addressCity||'',addressState:r.addressState||'',
+        items,op,clientId:r.clientId,pix:items.reduce((s,i)=>s+itemCents(i),0),start:day(op.schedule?.start),completedAt:op.status==='completed'?day(op.serviceCompletedAt||op.schedule?.end):null};
+    });
   }
 
   /* ---------- Tags ---------- */
   tags(){return this.repo.config('quote-tags')||DEFAULT_TAGS}
   saveTags(raw){
     if(!Array.isArray(raw)||raw.length>30)throw fail(400,'Envie até 30 tags.');
-    const seen=new Set(),list=raw.map(t=>{const label=text(t?.label,24).trim().toUpperCase();if(!label)throw fail(400,'Tag sem nome.');const id=(text(t?.id,40).trim()||norm(label).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''))||crypto.randomUUID().slice(0,8);if(seen.has(id))throw fail(400,'Tag repetida.');seen.add(id);return {id,label}});
+    const seen=new Set(),list=raw.map(t=>{
+      if(!t||typeof t!=='object')throw fail(400,'Tag inválida.');
+      const label=text(t.label,24).toUpperCase();if(!label)throw fail(400,'Tag sem nome.');
+      const given=text(t.id,60);if(given&&!TAG_ID.test(given))throw fail(400,'Identificador de tag inválido: use letras minúsculas, números e hífen (até 40 caracteres).');
+      const id=given||norm(label).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||crypto.randomUUID().slice(0,8);
+      if(seen.has(id))throw fail(400,'Tag repetida.');seen.add(id);return {id,label};
+    });
     this.repo.setConfig('quote-tags',list);return list;
+  }
+  // Tags novas precisam estar cadastradas; as que o registro já tinha continuam válidas mesmo se a tag saiu da lista.
+  checkTags(tags,previous=[]){
+    if(tags==null)return [];if(!Array.isArray(tags))throw fail(400,'Tags inválidas.');
+    const known=new Set(this.tags().map(t=>t.id)),kept=new Set(Array.isArray(previous)?previous:[]);
+    for(const t of tags){if(kept.has(t))continue;if(typeof t!=='string'||!TAG_ID.test(t))throw fail(400,'Tag inválida.');if(!known.has(t))throw fail(400,`A tag "${t}" não está cadastrada.`)}
+    return [...new Set(tags)];
   }
 
   /* ---------- Clientes ---------- */
   clientRows(){return this.repo.db.prepare('SELECT * FROM clients ORDER BY updated_at DESC').all().map(r=>({...read(r),id:r.id,createdAt:r.created_at,updatedAt:r.updated_at}))}
   client(id){const r=this.repo.db.prepare('SELECT * FROM clients WHERE id=?').get(id);return r?{...read(r),id:r.id,createdAt:r.created_at,updatedAt:r.updated_at}:null}
   writeClient(id,data,created){const t=now();this.repo.db.prepare('INSERT INTO clients VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data,updated_at=excluded.updated_at').run(id,JSON.stringify(data),created||t,t);return this.client(id)}
+  // Só telefone ou e-mail identificam o mesmo cliente; nome igual é apenas sugestão.
   match(q){
-    const phone=phoneOf(q.clientContact),email=emailOf(q.clientContact),name=norm(q.client),rows=this.clientRows();
-    return (phone&&rows.find(c=>phoneOf(c.phone)===phone))||(email&&rows.find(c=>c.email&&c.email.toLowerCase()===email))||(name&&rows.find(c=>norm(c.name)===name))||null;
+    const phone=phoneOf(q.clientContact),email=emailOf(q.clientContact),rows=this.clientRows();
+    return (phone&&rows.find(c=>phoneOf(c.phone)===phone))||(email&&rows.find(c=>c.email&&c.email.toLowerCase()===email))||null;
   }
+  sameName(name,exceptId){const key=norm(name);return key?this.clientRows().filter(c=>c.id!==exceptId&&norm(c.name)===key).map(c=>({id:c.id,name:c.name})):[]}
+  // O orçamento só preenche campos vazios: o que foi editado no cadastro do cliente prevalece.
   clientFromQuote(q,base={}){
     const phone=base.phone||(phoneOf(q.clientContact)?q.clientContact:''),email=base.email||emailOf(q.clientContact);
     const tags=[...new Set([...(base.tags||[]),...(Array.isArray(q.tags)?q.tags:[])])].slice(0,10);
-    return {name:base.name||q.client.trim(),phone,email,contactName:base.contactName||'',address:base.address||q.address||'',city:base.city||q.addressCity||'',neighborhood:base.neighborhood||q.addressNeighborhood||'',
-      birthday:base.birthday||(q.clientBirthday?birthday(q.clientBirthday):''),notes:base.notes||'',custom:base.custom||[],tags,origin:base.origin||q.origin||''};
+    return {name:base.name||q.client.trim(),phone,email,contactName:base.contactName||'',address:base.address||q.address||'',city:base.city||placeOf(q).city,neighborhood:base.neighborhood||q.addressNeighborhood||'',
+      birthday:base.birthday||quoteBirthday(q.clientBirthday),notes:base.notes||'',custom:base.custom||[],tags,origin:base.origin||q.origin||''};
   }
   // Cada orçamento salvo cria ou atualiza o cadastro do cliente.
   sync(q){
@@ -79,40 +116,58 @@ export class CommercialService{
     const link=this.repo.db.prepare('SELECT client_id FROM client_links WHERE proposal_id=?').get(q.id);
     let current=link?this.client(link.client_id):null;if(!current)current=this.match(q);
     const id=current?.id||crypto.randomUUID(),data=this.clientFromQuote(q,current||{});
-    if(q.clientBirthday)data.birthday=birthday(q.clientBirthday);
-    if(current&&JSON.stringify({...current,id:undefined,createdAt:undefined,updatedAt:undefined})===JSON.stringify({...data,id:undefined,createdAt:undefined,updatedAt:undefined})&&link)return current;
+    if(current&&JSON.stringify({...current,id:undefined,createdAt:undefined,updatedAt:undefined})===JSON.stringify(data)&&link)return current;
     this.repo.transaction(()=>{this.writeClient(id,data,current?.createdAt);this.repo.db.prepare('INSERT INTO client_links VALUES (?,?) ON CONFLICT(proposal_id) DO UPDATE SET client_id=excluded.client_id').run(q.id,id)});
-    return this.client(id);
+    const saved=this.client(id),suggestion=current?null:this.sameName(saved.name,id)[0];
+    return suggestion?{...saved,suggestion}:saved;
   }
-  syncAll(){for(const q of this.repo.list()){try{this.sync(q)}catch{}}}
+  // Uma falha no cadastro do cliente nunca impede salvar o orçamento, mas fica registrada no log.
+  safeSync(q){try{return this.sync(q)}catch(error){console.error('Falha ao sincronizar o cliente do orçamento',q?.id,error);return null}}
+  // Incremental: só orçamentos ainda sem vínculo. Roda depois que o servidor começa a atender.
+  syncAll(){for(const {id} of this.repo.db.prepare('SELECT p.id FROM proposals p WHERE p.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM client_links l WHERE l.proposal_id=p.id)').all())this.safeSync(this.repo.proposal(id))}
   unlink(proposalId){this.repo.db.prepare('DELETE FROM client_links WHERE proposal_id=?').run(proposalId)}
+  customFields(raw,old=[]){
+    if(raw==null)return old;
+    if(!Array.isArray(raw)||raw.length>20)throw fail(400,'Envie até 20 campos personalizados.');
+    const seen=new Set(),list=[];
+    for(const c of raw){
+      if(!c||typeof c!=='object'||typeof c.label!=='string'||(c.value!=null&&typeof c.value!=='string'))throw fail(400,'Campos personalizados aceitam apenas texto.');
+      const label=c.label.trim(),value=(c.value||'').trim(),key=norm(label);
+      if(label.length>60)throw fail(400,'O nome do campo personalizado deve ter até 60 caracteres.');
+      if(value.length>500)throw fail(400,'O valor do campo personalizado deve ter até 500 caracteres.');
+      if(!label||seen.has(key))continue;seen.add(key);list.push({label,value});
+    }
+    return list;
+  }
   clientInput(raw,old={}){
-    const name=text(raw.name??old.name,240).trim();if(!name)throw fail(400,'Informe o nome do cliente.');
-    const tags=Array.isArray(raw.tags)?raw.tags.map(t=>text(t,40)).filter(Boolean).slice(0,10):old.tags||[];
-    const custom=Array.isArray(raw.custom)?raw.custom.slice(0,20).map(c=>({label:text(c?.label,60).trim(),value:text(c?.value,500).trim()})).filter(c=>c.label):old.custom||[];
-    const email=text(raw.email??old.email,240).trim();if(email&&!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email))throw fail(400,'E-mail inválido.');
-    const origin=raw.origin??old.origin??'';if(origin&&!ORIGINS[origin])throw fail(400,'Origem inválida.');
-    return {name,phone:text(raw.phone??old.phone,60).trim(),email,contactName:text(raw.contactName??old.contactName,240).trim(),address:text(raw.address??old.address,800).trim(),city:text(raw.city??old.city,160).trim(),neighborhood:text(raw.neighborhood??old.neighborhood,160).trim(),birthday:birthday(raw.birthday??old.birthday),notes:text(raw.notes??old.notes,3000),custom,tags,origin};
+    if(!raw||typeof raw!=='object')throw fail(400,'Dados do cliente inválidos.');
+    const name=text(raw.name??old.name,240);if(!name)throw fail(400,'Informe o nome do cliente.');
+    const tags=Array.isArray(raw.tags)?this.checkTags(raw.tags,old.tags).slice(0,10):old.tags||[];
+    const email=text(raw.email??old.email,240);if(email&&!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email))throw fail(400,'E-mail inválido.');
+    const origin=raw.origin??old.origin??'';if(origin&&!has(ORIGINS,origin))throw fail(400,'Origem inválida.');
+    return {name,phone:text(raw.phone??old.phone,60),email,contactName:text(raw.contactName??old.contactName,240),address:text(raw.address??old.address,800),city:text(raw.city??old.city,160),neighborhood:text(raw.neighborhood??old.neighborhood,160),birthday:birthday(raw.birthday??old.birthday),notes:text(raw.notes??old.notes,3000),custom:this.customFields(raw.custom,old.custom),tags,origin};
   }
   createClient(raw){const id=crypto.randomUUID();return this.writeClient(id,this.clientInput(raw))}
   updateClient(id,raw){const old=this.client(id);if(!old)throw fail(404,'Cliente não encontrado.');return this.writeClient(id,this.clientInput(raw,old),old.createdAt)}
-  history(clientId){
-    const ids=this.repo.db.prepare('SELECT proposal_id FROM client_links WHERE client_id=?').all(clientId).map(r=>r.proposal_id);
-    return ids.map(id=>this.repo.proposal(id)).filter(Boolean).map(q=>{const op=this.repo.operation(q.id);return {id:q.id,number:q.number,date:q.date,status:op.status,serviceDate:op.serviceCompletedAt||(op.schedule?localDate(op.schedule.start):null),pixCents:pix(q),services:q.items.map(i=>i.service)}}).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  history(list){return list.map(x=>({id:x.id,number:x.number,date:x.date,status:x.op.status,serviceDate:x.op.status==='completed'?x.completedAt:x.start,pixCents:x.pix,services:x.items.map(i=>i.service)})).sort((a,b)=>b.date.localeCompare(a.date))}
+  // Último serviço = atendimento concluído; próximo = agendamento a partir de hoje.
+  summary(c,list){
+    const today=localDate(),done=list.filter(x=>x.completedAt),dates=list.map(x=>x.date).filter(Boolean).sort();
+    const lastServiceDate=done.map(x=>x.completedAt).sort().at(-1)||null,nextServiceDate=list.filter(x=>x.op.status==='scheduled'&&x.start>=today).map(x=>x.start).sort()[0]||null;
+    return {...c,proposalIds:this.history(list).map(x=>x.id),quoteCount:list.length,closedCount:done.length,closedCents:total(done),
+      lastServiceDate,nextServiceDate,lastService:lastServiceDate?{date:lastServiceDate,status:'completed'}:null,nextService:nextServiceDate?{date:nextServiceDate,status:'scheduled'}:null,firstDate:dates[0]||null};
   }
-  summary(c){
-    const h=this.history(c.id),done=h.filter(x=>x.status==='completed');
-    const last=[...h].filter(x=>x.serviceDate&&['completed','scheduled'].includes(x.status)).sort((a,b)=>b.serviceDate.localeCompare(a.serviceDate))[0];
-    return {...c,proposalIds:h.map(x=>x.id),quoteCount:h.length,closedCount:done.length,closedCents:done.reduce((s,x)=>s+x.pixCents,0),lastService:last?{date:last.serviceDate,status:last.status}:null,firstDate:h.length?h[h.length-1].date:null};
+  clients(){
+    const groups=new Map();for(const q of this.quotes(' AND l.client_id IS NOT NULL')){if(!groups.has(q.clientId))groups.set(q.clientId,[]);groups.get(q.clientId).push(q)}
+    return this.clientRows().map(c=>this.summary(c,groups.get(c.id)||[]));
   }
-  clients(){return this.clientRows().map(c=>this.summary(c))}
-  clientDetail(id){const c=this.client(id);if(!c)throw fail(404,'Cliente não encontrado.');return {...this.summary(c),history:this.history(id)}}
+  clientDetail(id){const c=this.client(id);if(!c)throw fail(404,'Cliente não encontrado.');const list=this.quotes(' AND l.client_id=?',id);return {...this.summary(c,list),history:this.history(list),possibleDuplicates:this.sameName(c.name,id)}}
   clientOf(proposalId){const r=this.repo.db.prepare('SELECT client_id FROM client_links WHERE proposal_id=?').get(proposalId);return r?this.client(r.client_id):null}
 
   /* ---------- Funis de follow-up e pós-venda ---------- */
   setStage(id,raw){
     this.repo.requireProposal(id);const op=this.repo.operation(id),funnel=raw?.funnel,stage=raw?.stage;
-    if(!FUNNELS[funnel]||!FUNNELS[funnel].some(s=>s.id===stage))throw fail(400,'Etapa inválida.');
+    if(!has(FUNNELS,funnel)||!FUNNELS[funnel].some(s=>s.id===stage))throw fail(400,'Etapa inválida.');
     if(funnel==='follow'&&op.status!=='generated')throw fail(409,'O follow-up vale para orçamentos ainda não agendados.');
     if(funnel==='pos'&&op.status!=='completed')throw fail(409,'O pós-venda começa depois do atendimento concluído.');
     const note=text(raw.note,500);if(stage==='lost'&&!note)throw fail(400,'Informe o motivo da perda.');
@@ -121,38 +176,43 @@ export class CommercialService{
   }
 
   /* ---------- Painel comercial ---------- */
-  spendRows(from,to){try{return this.repo.db.prepare('SELECT data FROM ad_spend_daily WHERE day>=? AND day<=?').all(from,to).map(read).filter(r=>r.currency==='BRL')}catch{return []}}
-  dataset(channel){
-    const ops=new Map(this.repo.listOperations().map(o=>[o.id,o]));
-    return this.repo.list().filter(q=>channel==='all'||q.origin===channel).map(q=>{const op=ops.get(q.id)||{status:'generated'};return {q,op,pix:pix(q),completedAt:op.status==='completed'?op.serviceCompletedAt||(op.schedule?localDate(op.schedule.end):null):null}});
+  // Gasto em mídia por provedor, somado direto da coluna spend_cents (só BRL).
+  spendTotals(from,to){
+    if(!this.repo.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ad_spend_daily'").get())return {};
+    return Object.fromEntries(this.repo.db.prepare("SELECT provider,SUM(spend_cents) cents FROM ad_spend_daily WHERE day>=? AND day<=? AND currency='BRL' GROUP BY provider").all(from,to).map(r=>[r.provider,Number(r.cents)]));
   }
-  period(rows,from,to,spend){
-    const created=rows.filter(r=>between(r.q.date,from,to)),done=rows.filter(r=>between(r.completedAt,from,to));
-    const revenue=done.reduce((s,r)=>s+r.pix,0);
-    return {generated:created.length,scheduled:created.filter(r=>['scheduled','completed'].includes(r.op.status)).length,completedFromCreated:created.filter(r=>r.op.status==='completed').length,cancelled:created.filter(r=>r.op.status==='cancelled').length,
-      closed:done.length,revenueCents:revenue,ticketCents:done.length?Math.round(revenue/done.length):null,conversion:created.length?done.length/created.length:null,
-      campaign:campaignMetrics({spendCents:spend,quotes:created.length,closed:done.length,revenueCents:revenue})};
+  spendFor(totals,channel){return channel==='all'?Object.values(totals).reduce((a,b)=>a+b,0):totals[CHANNEL_PROVIDER[channel]]||0}
+  // Funil por coorte: orçamentos criados no período e o estágio que cada um alcançou (conversão nunca passa de 100%).
+  // Receita concluída (revenueCents/closed) segue a data de conclusão: visão financeira do período.
+  period(rows,from,to,spend,channel){
+    const cohort=rows.filter(r=>between(r.date,from,to)),done=rows.filter(r=>between(r.completedAt,from,to));
+    const completed=cohort.filter(r=>r.op.status==='completed'),reached=cohort.filter(r=>['scheduled','completed'].includes(r.op.status)).length;
+    const revenue=total(done),paidRevenue=channel==='all'?total(done.filter(r=>has(CHANNEL_PROVIDER,r.origin))):revenue;
+    return {generated:cohort.length,reachedSchedule:reached,scheduled:reached,completed:completed.length,completedFromCreated:completed.length,cancelled:cohort.filter(r=>r.op.status==='cancelled').length,
+      conversion:cohort.length?completed.length/cohort.length:null,cohortRevenueCents:total(completed),
+      closed:done.length,revenueCents:revenue,ticketCents:done.length?Math.round(revenue/done.length):null,
+      campaign:campaignMetrics({spendCents:spend,quotes:cohort.length,closed:done.length,revenueCents:revenue,paidRevenueCents:paidRevenue})};
   }
-  spendFor(rows,channel){return rows.filter(r=>channel==='all'||r.provider===CHANNEL_PROVIDER[channel]).reduce((s,r)=>s+r.spendCents,0)}
   dashboard({from,to,channel='all'}={}){
     from=date(from,false);to=date(to,false);if(from>to)throw fail(400,'A data inicial deve ser anterior à final.');
     if(spanDays(from,to)>731)throw fail(400,'Escolha um período de até 2 anos.');
-    if(channel!=='all'&&!CHANNEL_PROVIDER[channel])throw fail(400,'Canal inválido.');
+    if(channel!=='all'&&!has(CHANNEL_PROVIDER,channel))throw fail(400,'Canal inválido.');
     const days=spanDays(from,to),prevTo=addDays(from,-1),prevFrom=addDays(from,-days);
-    const rows=this.dataset(channel),spendNow=this.spendRows(from,to),spendPrev=this.spendRows(prevFrom,prevTo);
-    const current=this.period(rows,from,to,this.spendFor(spendNow,channel)),previous=this.period(rows,prevFrom,prevTo,this.spendFor(spendPrev,channel));
-    const series=(f,n)=>{let acc=0;return Array.from({length:n},(_,i)=>{const d=addDays(f,i);acc+=rows.filter(r=>r.completedAt===d).reduce((s,r)=>s+r.pix,0);return acc})};
-    const services=new Map();for(const r of rows.filter(r=>between(r.completedAt,from,to))){let t;try{t=modelo.totals(r.q)}catch{continue}r.q.items.forEach((it,i)=>{const s=services.get(it.service)||{service:it.service,revenueCents:0,count:0};s.revenueCents+=t.rows[i];s.count+=1;services.set(it.service,s)})}
-    const today=localDate(),week=addDays(today,7);
-    const upcoming=rows.filter(r=>r.op.status==='scheduled'&&r.op.schedule&&localDate(r.op.schedule.start)>=today&&localDate(r.op.schedule.start)<=week).sort((a,b)=>a.op.schedule.start.localeCompare(b.op.schedule.start)).slice(0,8)
-      .map(r=>({id:r.q.id,client:r.q.client,start:r.op.schedule.start,end:r.op.schedule.end,services:r.q.items.map(i=>`${i.service}${i.quantity>1||i.unit==='m²'?' ('+Number(i.quantity).toLocaleString('pt-BR')+(i.unit==='m²'?' m²':'')+')':''}`),place:r.q.addressNeighborhood||r.q.addressCity||'',pixCents:r.pix,tags:r.q.tags||[]}));
-    const forecastCents=rows.filter(r=>r.op.status==='scheduled').reduce((s,r)=>s+r.pix,0);
-    const providers={};for(const r of spendNow)providers[r.provider]=(providers[r.provider]||0)+r.spendCents;
-    const all=channel==='all'?rows:this.dataset('all'),channels=[...Object.keys(ORIGINS),''].map(origin=>{const sub=all.filter(r=>(r.q.origin||'')===origin),p=this.period(sub,from,to,CHANNEL_PROVIDER[origin]?this.spendFor(spendNow,origin):0);return {origin,label:ORIGINS[origin]||'Sem origem',paid:!!CHANNEL_PROVIDER[origin],...p.campaign}}).filter(c=>c.paid||c.quotes||c.closed);
+    const all=this.quotes(),rows=channel==='all'?all:all.filter(r=>r.origin===channel),spendNow=this.spendTotals(from,to),spendPrev=this.spendTotals(prevFrom,prevTo);
+    const current=this.period(rows,from,to,this.spendFor(spendNow,channel),channel),previous=this.period(rows,prevFrom,prevTo,this.spendFor(spendPrev,channel),channel);
+    const byDay=new Map();for(const r of rows)if(r.completedAt)byDay.set(r.completedAt,(byDay.get(r.completedAt)||0)+r.pix);
+    const series=f=>{let acc=0;return Array.from({length:days},(_,i)=>acc+=byDay.get(addDays(f,i))||0)};
+    const services=new Map();for(const r of rows)if(between(r.completedAt,from,to))for(const it of r.items){const s=services.get(it.service)||{service:it.service,revenueCents:0,count:0};s.revenueCents+=itemCents(it);s.count+=1;services.set(it.service,s)}
+    const today=localDate(),week=addDays(today,7),scheduled=rows.filter(r=>r.op.status==='scheduled'&&r.start>=today);
+    const upcoming=scheduled.filter(r=>r.start<=week).sort((a,b)=>a.op.schedule.start.localeCompare(b.op.schedule.start)).slice(0,8)
+      .map(r=>({id:r.id,client:r.client,start:r.op.schedule.start,end:r.op.schedule.end,services:r.items.map(i=>`${i.service}${i.quantity>1||i.unit==='m²'?' ('+Number(i.quantity).toLocaleString('pt-BR')+(i.unit==='m²'?' m²':'')+')':''}`),place:r.addressNeighborhood||placeOf(r).city,pixCents:r.pix,tags:r.tags}));
+    // A receber: agendados a partir de hoje, independentemente de quando o orçamento foi criado.
+    const toReceiveCents=total(scheduled);
+    const channels=[...Object.keys(ORIGINS),''].map(origin=>{const paid=has(CHANNEL_PROVIDER,origin),p=this.period(all.filter(r=>r.origin===origin),from,to,paid?this.spendFor(spendNow,origin):0,origin);return {origin,label:has(ORIGINS,origin)?ORIGINS[origin]:'Sem origem',paid,...p.campaign}}).filter(c=>c.paid||c.quotes||c.closed);
     return {from,to,channel,previous:{from:prevFrom,to:prevTo,...previous},current,
-      series:{current:series(from,days),previous:series(prevFrom,days)},
+      series:{current:series(from),previous:series(prevFrom)},
       services:[...services.values()].sort((a,b)=>b.revenueCents-a.revenueCents),
-      upcoming,forecastCents,spend:{totalCents:Object.values(providers).reduce((a,b)=>a+b,0),providers,connected:this.connectedProviders()},channels};
+      upcoming,toReceiveCents,forecastCents:toReceiveCents,spend:{totalCents:this.spendFor(spendNow,'all'),providers:spendNow,connected:this.connectedProviders()},channels};
   }
   connectedProviders(){try{return this.repo.db.prepare('SELECT provider FROM integration_connections').all().map(r=>r.provider)}catch{return []}}
 
@@ -166,13 +226,20 @@ export class CommercialService{
   }
   savePartners(raw){
     if(!Array.isArray(raw)||raw.length>20)throw fail(400,'Envie até 20 sócios.');
-    const list=raw.map(p=>{const name=text(p?.name,160).trim();if(!name)throw fail(400,'Informe o nome do sócio.');const shareBps=Math.round(Number(p.shareBps));if(!Number.isInteger(shareBps)||shareBps<0||shareBps>10000)throw fail(400,'Participação inválida.');return {id:validPartnerId(p.id)||crypto.randomUUID(),name,shareBps,active:p.active!==false}});
+    const names=new Set(),ids=new Set();
+    const list=raw.map((p,i)=>{
+      if(!p||typeof p!=='object'||Array.isArray(p))throw fail(400,`Sócio ${i+1} inválido: preencha nome e participação.`);
+      const name=text(p.name,160);if(!name)throw fail(400,'Informe o nome do sócio.');
+      const shareBps=Math.round(Number(p.shareBps));if(!Number.isInteger(shareBps)||shareBps<0||shareBps>10000)throw fail(400,'Participação inválida.');
+      const id=validPartnerId(p.id)||crypto.randomUUID();if(names.has(norm(name))||ids.has(id))throw fail(400,`Sócio repetido: ${name}. Cada sócio deve aparecer uma única vez.`);names.add(norm(name));ids.add(id);
+      return {id,name,shareBps,active:p.active!==false};
+    });
     const total=list.filter(p=>p.active).reduce((s,p)=>s+p.shareBps,0);if(list.some(p=>p.active)&&total!==10000)throw fail(400,'As participações dos sócios ativos precisam somar 100%.');
     this.repo.transaction(()=>{this.repo.db.prepare('DELETE FROM partners').run();list.forEach((p,i)=>this.repo.db.prepare('INSERT INTO partners VALUES (?,?,?)').run(p.id,JSON.stringify({name:p.name,shareBps:p.shareBps,active:p.active}),i))});
     return this.partners();
   }
   distributionSettings(){return {reserveBps:1000,...(this.repo.config('distribution-settings')||{})}}
-  saveDistributionSettings(raw){const reserveBps=Math.round(Number(raw?.reserveBps));if(!Number.isInteger(reserveBps)||reserveBps<0||reserveBps>9000)throw fail(400,'Reserva inválida.');const value={reserveBps};this.repo.setConfig('distribution-settings',value);return value}
+  saveDistributionSettings(raw){const reserveBps=Math.round(Number(raw?.reserveBps));if(!Number.isInteger(reserveBps)||reserveBps<0||reserveBps>5000)throw fail(400,'Reserva inválida: use de 0% a 50%.');const value={reserveBps};this.repo.setConfig('distribution-settings',value);return value}
   // Cascata: receita → impostos/taxas → custos diretos → despesas → lucro → reserva → distribuível.
   distribution(from,to){
     if(!this.dre)throw fail(500,'DRE indisponível.');
@@ -200,7 +267,8 @@ export class CommercialService{
   }
   markPaid(id,raw){
     const row=this.repo.db.prepare('SELECT * FROM profit_distributions WHERE id=?').get(id);if(!row)throw fail(404,'Distribuição não encontrada.');
-    const data=read(row),paidAt=date(raw?.paidAt||localDate(),false);data.status='paid';data.paidAt=paidAt;
+    const data=read(row);if(data.status==='paid')return this.distributions().find(x=>x.id===id);
+    data.status='paid';data.paidAt=date(raw?.paidAt||localDate(),false);
     this.repo.db.prepare('UPDATE profit_distributions SET data=? WHERE id=?').run(JSON.stringify(data),id);return this.distributions().find(x=>x.id===id);
   }
   deleteDistribution(id){const row=this.repo.db.prepare('SELECT * FROM profit_distributions WHERE id=?').get(id);if(!row)throw fail(404,'Distribuição não encontrada.');if(read(row).status==='paid')throw fail(409,'Distribuições pagas ficam no histórico.');this.repo.db.prepare('DELETE FROM profit_distributions WHERE id=?').run(id);return {deleted:true}}

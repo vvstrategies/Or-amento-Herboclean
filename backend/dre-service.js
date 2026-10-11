@@ -27,6 +27,7 @@ export class DreService{
  getExpense(id){const e=read(this.repo.db.prepare('SELECT data FROM finance_expenses WHERE id=?').get(id));if(!e)throw fail(404,'Despesa não encontrada.');return e;}
  writeExpense(value){this.repo.db.prepare('INSERT INTO finance_expenses VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET competence=excluded.competence,category_id=excluded.category_id,status=excluded.status,nature=excluded.nature,data=excluded.data,revision=excluded.revision').run(value.id,value.competence,value.categoryId,value.status,value.nature,value.ruleId||null,JSON.stringify(value),value.revision);}
  saveExpense(id,raw){
+  if(String(id).startsWith('ad-spend:'))throw fail(409,'A mídia paga vem da integração com Meta/Google Ads e não pode ser editada aqui.');
   const old=id?this.getExpense(id):null;if(old&&raw.revision!==old.revision)throw fail(409,'Esta despesa mudou em outra aba. Reabra-a.');
   if(old?.status==='cancelled')throw fail(409,'Despesas canceladas ficam preservadas no histórico. Cadastre um novo lançamento.');
   const input=expenseInput(raw),cat=this.category(input.categoryId);
@@ -40,14 +41,15 @@ export class DreService{
  }
  warnings(e){const s=this.settings(),warnings=[];if(e.vehicleComponent&&s.vehicleComponents.includes(e.vehicleComponent))warnings.push('Este componente já está no custo por km. Confira se há duplicidade com custos dos atendimentos.');if(e.nature==='operating'&&/imposto|tributo|das\b/i.test(e.description)&&s.taxRateBps>0)warnings.push('Há imposto gerencial configurado. Confira se este lançamento repetiria a mesma dedução.');return [...warnings,...(this.externalWarnings?.(e)||[])];}
  listExpenses(query){
-  const from=month(query.from),to=month(query.to);months(from,to);let rows=this.expenses(from,to),search=text(query.search).toLocaleLowerCase('pt-BR'),cats=new Map(this.categories().map(c=>[c.id,c.name]));
+  // Mídia paga das integrações entra como linhas automáticas, somente leitura, por provedor e mês.
+  const from=month(query.from),to=month(query.to);months(from,to);let rows=[...this.expenses(from,to),...(this.externalExpenses?.(from,to)||[])].sort((a,b)=>b.competence.localeCompare(a.competence)||(a.automatic?0:1)-(b.automatic?0:1)),search=text(query.search).toLocaleLowerCase('pt-BR'),cats=new Map([...this.categories().map(c=>[c.id,c.name]),['integration-marketing','Marketing · Mídia paga']]);
   if(query.category)rows=rows.filter(e=>e.categoryId===query.category);
   if(query.status)rows=rows.filter(e=>e.status===query.status);
   if(query.mode==='actual')rows=rows.filter(e=>['confirmed','paid'].includes(e.status));
   if(query.mode==='projected')rows=rows.filter(e=>e.status!=='cancelled');
-  if(search)rows=rows.filter(e=>[e.description,e.supplier,cats.get(e.categoryId)].some(v=>String(v).toLocaleLowerCase('pt-BR').includes(search)));
+  if(search)rows=rows.filter(e=>[e.description,e.supplier,cats.get(e.categoryId)].some(v=>String(v??'').toLocaleLowerCase('pt-BR').includes(search)));
   const page=Math.max(1,Math.min(100000,parseInt(query.page)||1)),size=20;
-  return {total:rows.length,page,pageSize:size,items:rows.slice((page-1)*size,page*size).map(e=>({...e,categoryName:cats.get(e.categoryId),warnings:this.warnings(e)}))};
+  return {total:rows.length,page,pageSize:size,items:rows.slice((page-1)*size,page*size).map(e=>({...e,categoryName:cats.get(e.categoryId),warnings:e.automatic?[]:this.warnings(e)}))};
  }
  rules(){return this.repo.db.prepare('SELECT data FROM finance_recurrences ORDER BY id').all().map(read);}
  saveRule(id,raw){

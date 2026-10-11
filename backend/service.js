@@ -4,9 +4,9 @@ import crypto from 'node:crypto';
 import { fail, documentHash, cleanQuote } from './database.js';
 import { modelo } from '../utils/proposta.js';
 import { gerarPDFEcoclean } from '../utils/ecocleanPdf.js';
+import { money } from './format.js';
 import '../public/operations-model.js';
 const O=globalThis.EcoOperations;
-const money=value=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(value/100);
 const aborted=signal=>{if(signal?.aborted)throw fail(503,'A operação com o Google demorou mais que o esperado. Tente novamente; nenhum orçamento foi alterado.');};
 export class Service{
   constructor(repo,google,{lockTimeoutMs=90000}={}){this.repo=repo;this.google=google;this.locks=new Map();this.owner=crypto.randomUUID();this.lockTimeoutMs=Math.max(1000,Math.min(Number(lockTimeoutMs)||90000,300000))}

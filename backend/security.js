@@ -19,6 +19,7 @@ export function security(repo,{origin,production=false}){
   const read=req=>{const t=token(req);if(!t||!/^[a-f0-9]{64}$/.test(t))return null;return repo.db.prepare('SELECT * FROM sessions WHERE id=? AND expires>?').get(hash(t),Date.now())};
   function headers(req,res,next){
     res.set({'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'SAMEORIGIN','Permissions-Policy':'camera=(), microphone=(), geolocation=()'});
+    if(production)res.set('Strict-Transport-Security','max-age=15552000');
     res.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self' blob:; object-src 'self' blob:; base-uri 'self'; frame-ancestors 'self'; form-action 'self'");
     if(req.headers.host!==originURL.host)return res.status(421).json({error:'Acesse pelo endereço configurado: '+origin});
     if(req.path.startsWith('/api/')||req.path.startsWith('/orcamentos/'))res.set('Cache-Control','no-store');
@@ -32,8 +33,11 @@ export function security(repo,{origin,production=false}){
     if(!req.session||req.headers['x-csrf-token']!==req.session.csrf)return res.status(403).json({error:'Sua sessão mudou. Atualize a página para continuar.'});next();
   };
   function createSession(res){const id=crypto.randomBytes(32).toString('hex'),csrf=crypto.randomBytes(32).toString('hex'),expires=Date.now()+12*3600000;repo.db.prepare('INSERT INTO sessions VALUES (?,?,?)').run(hash(id),csrf,expires);res.cookie(cookieName,id,{httpOnly:true,sameSite:'lax',secure:production,path:'/',maxAge:12*3600000});return {authenticated:true,csrf}}
-  function rate(req){const key=hash(req.socket.remoteAddress||'local'),now=Date.now(),r=repo.db.prepare('SELECT * FROM rate_limits WHERE key=?').get(key);if(r&&r.expires>now&&r.count>=8)throw fail(429,'Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.');repo.db.prepare('INSERT OR REPLACE INTO rate_limits VALUES (?,?,?)').run(key,r&&r.expires>now?r.count+1:1,r&&r.expires>now?r.expires:now+900000)}
-  function resetRate(req){repo.db.prepare('DELETE FROM rate_limits WHERE key=?').run(hash(req.socket.remoteAddress||'local'))}
+  // Atrás do proxy da Hostinger o socket é sempre 127.0.0.1: em produção vale o IP do cliente (trust proxy 1).
+  const client=req=>hash((production?req.ip:req.socket.remoteAddress)||'local');
+  function rate(req){const key=client(req),now=Date.now(),r=repo.db.prepare('SELECT * FROM rate_limits WHERE key=?').get(key);if(r&&r.expires>now&&r.count>=8)throw fail(429,'Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.');repo.db.prepare('INSERT OR REPLACE INTO rate_limits VALUES (?,?,?)').run(key,r&&r.expires>now?r.count+1:1,r&&r.expires>now?r.expires:now+900000)}
+  function resetRate(req){repo.db.prepare('DELETE FROM rate_limits WHERE key=?').run(client(req))}
+  function sweep(){const now=Date.now();repo.db.prepare('DELETE FROM sessions WHERE expires<=?').run(now);repo.db.prepare('DELETE FROM rate_limits WHERE expires<=?').run(now)}
   async function setup(req,res){
     rate(req);if(repo.config('adminPassword'))throw fail(409,'O acesso já foi configurado.');
     if(production||!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress))throw fail(403,'Configure o primeiro acesso no computador do servidor.');
@@ -42,5 +46,5 @@ export function security(repo,{origin,production=false}){
   }
   async function login(req,res){rate(req);const password=String(req.body.password||'');if(password.length>200||!await checkPassword(password,repo.config('adminPassword')||''))throw fail(401,'Senha incorreta.');if(req.session)repo.db.prepare('DELETE FROM sessions WHERE id=?').run(req.session.id);resetRate(req);res.json(createSession(res))}
   function logout(req,res){repo.db.prepare('DELETE FROM sessions WHERE id=?').run(req.session.id);res.clearCookie(cookieName,{path:'/',secure:production,httpOnly:true,sameSite:'lax'});res.json({ok:true})}
-  return {headers,requireAuth,sameOrigin,csrf,setup,login,logout,status:req=>({authenticated:!!req.session,needsSetup:!repo.config('adminPassword'),csrf:req.session?.csrf||null})};
+  return {headers,requireAuth,sameOrigin,csrf,setup,login,logout,sweep,status:req=>({authenticated:!!req.session,needsSetup:!repo.config('adminPassword'),csrf:req.session?.csrf||null})};
 }

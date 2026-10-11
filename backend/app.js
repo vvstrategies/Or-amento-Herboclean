@@ -48,15 +48,25 @@ export function createApp(options={}){
   const ads=options.adProviders||{'google-ads':new GoogleAdsProvider(options.integrationConfig?.googleAds,options.integrationFetcher),'meta-ads':new MetaAdsProvider(options.integrationConfig?.metaAds,options.integrationFetcher)};
   const integrations=new IntegrationService(repo,tokenVault,ads,finance,dre,google);
   const commercial=new CommercialService(repo,{dre,finance});
-  app.disable('x-powered-by');app.use(sec.headers);app.use(express.json({limit:'100mb'}));
+  app.disable('x-powered-by');if(production)app.set('trust proxy',1);app.use(sec.headers);
+  // Corpo grande (fotos e logos em base64) só nas rotas autenticadas que precisam; login, setup e webhooks ficam no limite pequeno.
+  const largeBodies=[['PUT',/^\/api\/proposals\/[^/]+$/],['PUT',/^\/api\/draft$/],['PUT',/^\/api\/settings$/],['POST',/^\/api\/onboarding$/],['POST',/^\/api\/import$/],['POST',/^\/api\/preview-pdf$/]];
+  const smallJson=express.json({limit:'256kb'}),largeJson=express.json({limit:'100mb'});
+  app.use((req,res,next)=>largeBodies.some(([method,pattern])=>req.method===method&&pattern.test(req.path))?next():smallJson(req,res,next));
   // A Asaas chama esta rota sem sessão do navegador. O token próprio do webhook é validado no serviço.
   app.post('/api/webhooks/asaas',wrap(async(req,res)=>{await asaas.webhook(req.headers['asaas-access-token'],req.body);res.status(204).end();}));
   app.get('/api/health',(req,res)=>res.json({status:'ok',product:'herboclean'}));
   app.get('/api/session',(req,res)=>res.json({...sec.status(req),needsCompanySetup:!!req.session&&!completed(repo)}));
   app.post('/api/setup',sec.sameOrigin,wrap(sec.setup));app.post('/api/login',sec.sameOrigin,wrap(sec.login));
-  app.use('/api',sec.requireAuth,sec.csrf);app.post('/api/logout',sec.logout);
-  app.get('/api/onboarding',(req,res)=>res.json({required:!completed(repo),settings:completed(repo)?repo.config('settings'):repo.config('companySetupDraft'),reviewExisting:!!repo.config('universal-before-onboarding')?.settings}));
-  app.post('/api/onboarding',wrap(async(req,res)=>{const value=await finishSetup(repo,req.body);await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
+  app.use('/api',sec.requireAuth,sec.csrf,largeJson);app.post('/api/logout',sec.logout);
+  const settings=()=>repo.config('settings')||{company:modelo.company(),terms:modelo.terms()},companySource=()=>completed(repo)?settings():repo.config('companySetupDraft');
+  // ?lite=1 tira o logo (data URL) da resposta e aponta para /api/settings/logo.
+  const lite=(req,value)=>{if(req.query.lite!=='1'||!value?.company)return value;const {logo,...company}=value.company;return {...value,company,logoUrl:logo?'/api/settings/logo':null}};
+  // Quem usa a versão leve não recebe o logo: company.logo ausente mantém o atual; '' remove.
+  const keepLogo=(body,current)=>body?.company&&typeof body.company==='object'&&body.company.logo===undefined?{...body,company:{...body.company,logo:current?.company?.logo||''}}:body;
+  app.get('/api/settings/logo',(req,res)=>{const m=/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(companySource()?.company?.logo||'');if(!m)throw fail(404,'Logotipo não cadastrado.');const etag='"'+hash(m[2]).slice(0,32)+'"';res.set({'Cache-Control':'private, max-age=300',ETag:etag});if(req.headers['if-none-match']===etag)return res.status(304).end();res.type(m[1]).send(Buffer.from(m[2],'base64'))});
+  app.get('/api/onboarding',(req,res)=>res.json({required:!completed(repo),settings:lite(req,companySource()),reviewExisting:!!repo.config('universal-before-onboarding')?.settings}));
+  app.post('/api/onboarding',wrap(async(req,res)=>{const value=await finishSetup(repo,keepLogo(req.body,repo.config('companySetupDraft')));await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
   app.use('/api',(req,res,next)=>completed(repo)?next():res.status(428).json({code:'COMPANY_SETUP_REQUIRED',error:'Configure a empresa para continuar.'}));
   registerAsaas(app,asaas,wrap);
   registerDre(app,dre,wrap);
@@ -71,20 +81,21 @@ export function createApp(options={}){
   app.post('/api/proposals/:id/finance/refresh',wrap(async(req,res)=>res.json(await finance.refreshAutomatically(req.params.id))));
   app.post('/api/proposals/:id/finance/route',wrap(async(req,res)=>res.json(await finance.route(req.params.id,req.body))));
   app.get('/api/financial-export',(req,res)=>{res.set('Cache-Control','no-store');res.json({...profit.export(),integrations:integrations.export()});});
-  const settings=()=>repo.config('settings')||{company:modelo.company(),terms:modelo.terms()};
-  app.get('/api/settings',(req,res)=>res.json(settings()));
+  app.get('/api/settings',(req,res)=>res.json(lite(req,settings())));
   app.get('/api/cep/:postalCode',wrap(async(req,res)=>res.json(await cepLookup.lookup(req.params.postalCode))));
-  app.put('/api/settings',wrap(async(req,res)=>{const value=await validateSettings({...settings(),...req.body});repo.transaction(()=>{const old=settings(),draft=repo.config('draft');if(draft?.quote){if(JSON.stringify(draft.quote.company)===JSON.stringify(old.company))draft.quote.company=value.company;if(JSON.stringify(draft.quote.terms)===JSON.stringify(old.terms))draft.quote.terms=value.terms;repo.setConfig('draft',draft)}repo.setConfig('settings',value)});await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
+  app.put('/api/settings',wrap(async(req,res)=>{const value=await validateSettings({...settings(),...keepLogo(req.body,settings())});repo.transaction(()=>{const old=settings(),draft=repo.config('draft');if(draft?.quote){if(JSON.stringify(draft.quote.company)===JSON.stringify(old.company))draft.quote.company=value.company;if(JSON.stringify(draft.quote.terms)===JSON.stringify(old.terms))draft.quote.terms=value.terms;repo.setConfig('draft',draft)}repo.setConfig('settings',value)});await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
   app.get('/api/draft',(req,res)=>res.json(repo.config('draft')));
   app.put('/api/draft',(req,res)=>{const quote=cleanQuote(req.body.quote);quote.revision=req.body.quote.revision;repo.setConfig('draft',{id:'current',quote});res.json({id:'current',quote})});
-  app.get('/api/proposals',(req,res)=>res.json(repo.list()));
+  // ?summary=1: mesmo formato, sem imagens. Em cada item, photos vira photoCount (número); company.logo é omitido.
+  app.get('/api/proposals',(req,res)=>res.json(repo.list({summary:req.query.summary==='1'})));
   app.get('/api/proposals/:id',(req,res)=>res.json(repo.requireProposal(req.params.id)));
   app.get('/api/proposals/:id/versions',(req,res)=>res.json(repo.listVersions(req.params.id)));
-  app.put('/api/proposals/:id',wrap(async(req,res)=>{if(req.params.id!==req.body.id)throw fail(400,'Identificador divergente.');if(service.locks.has(req.params.id))throw fail(409,'Aguarde o agendamento terminar antes de editar.');const current=repo.proposal(req.params.id),changed=!!current&&documentHash(current)!==documentHash(cleanQuote(req.body));if(changed&&Number(req.body.revision)===current.revision)await asaas.cancelActiveForRevision(current.id,current.revision);const saved=repo.saveProposal(req.body);try{commercial.sync(saved)}catch{}await finance.refreshAutomatically(saved.id).catch(()=>null);const latest=repo.listPDFs(saved.id)[0];if(repo.operation(saved.id).status==='generated'&&(latest?.proposalVersionId!==saved.versionId||latest?.fingerprint!==documentHash(saved)))await service.pdf(saved).catch(()=>null);res.json(saved)}));
+  app.put('/api/proposals/:id',wrap(async(req,res)=>{if(req.params.id!==req.body.id)throw fail(400,'Identificador divergente.');if(service.locks.has(req.params.id))throw fail(409,'Aguarde o agendamento terminar antes de editar.');const current=repo.proposal(req.params.id);commercial.checkTags(req.body.tags,current?.tags);const changed=!!current&&documentHash(current)!==documentHash(cleanQuote(req.body));if(changed&&Number(req.body.revision)===current.revision)await asaas.cancelActiveForRevision(current.id,current.revision);const saved=repo.saveProposal(req.body);commercial.safeSync(saved);await finance.refreshAutomatically(saved.id).catch(()=>null);const latest=repo.listPDFs(saved.id)[0];if(repo.operation(saved.id).status==='generated'&&(latest?.proposalVersionId!==saved.versionId||latest?.fingerprint!==documentHash(saved)))await service.pdf(saved).catch(()=>null);res.json(saved)}));
   app.delete('/api/proposals/:id',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir.');res.json(await service.purge(req.params.id));}));
   app.delete('/api/proposals/:id/versions/:versionId',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir a versão.');res.json(repo.deleteVersion(req.params.id,req.params.versionId));}));
   app.get('/api/operations',(req,res)=>res.json(repo.list().map(q=>{const job=repo.job(q.id);return {...repo.operation(q.id),pendingAction:job?{kind:job.kind,values:job.values,error:job.error}:null}})));
-  app.get('/api/documents',(req,res)=>res.json(repo.listPDFs(req.query.proposalId).map(publicPDF)));
+  // ?summary=1: o snapshot de cada PDF vem sem imagens, no mesmo formato de /api/proposals?summary=1.
+  app.get('/api/documents',(req,res)=>res.json(repo.listPDFs(req.query.proposalId,{summary:req.query.summary==='1'}).map(publicPDF)));
   app.get('/api/pdfs/:id',(req,res)=>{const pdf=repo.pdf(req.params.id);if(!pdf)throw fail(404,'PDF não encontrado.');res.type('pdf');res.set('Content-Disposition',`inline; filename="${pdf.filename.replace(/["\r\n]/g,'_')}"`);res.sendFile(repo.file(pdf))});
   app.post('/api/proposals/:id/pdf',wrap(async(req,res)=>res.json(publicPDF(await service.generate(req.params.id,req.body)))));
   app.post('/api/proposals/:id/document/refresh',wrap(async(req,res)=>{const id=req.params.id;if(service.locks.has(id))throw fail(409,'Aguarde a operação em andamento antes de atualizar o documento.');const quote=repo.requireProposal(id);if(repo.operation(id).status!=='generated')throw fail(409,'O documento é preservado após o agendamento.');const latest=repo.listPDFs(id)[0],pdf=latest?.fingerprint===documentHash(quote)?latest:await service.pdf(quote);res.json(publicPDF(pdf));}));
@@ -107,7 +118,7 @@ export function createApp(options={}){
       for(const p of data.documents||[]){if(!idMap.has(p.proposalId))throw fail(400,'PDF sem proposta no backup.');const id=idMap.get(p.proposalId);if(!id)continue;const unique=id+':'+p.version;if(!Number.isInteger(p.version)||p.version<1||versions.has(unique)||!/^data:application\/pdf;base64,[A-Za-z0-9+/]+={0,2}$/.test(p.data||''))throw fail(400,'PDF inválido no backup.');versions.add(unique);const bytes=Buffer.from(p.data.split(',')[1],'base64');if(bytes.subarray(0,5).toString()!=='%PDF-')throw fail(400,'Conteúdo do PDF inválido.');const snapshot=cleanQuote({...p.snapshot,id});staged.push({id:crypto.randomUUID(),proposalId:id,version:p.version,snapshot,storage:crypto.randomUUID()+'.pdf',bytes,generatedAt:Number.isFinite(Date.parse(p.generatedAt))?p.generatedAt:new Date().toISOString()})}
       for(const p of staged)fs.writeFileSync(path.join(repo.files,p.storage),p.bytes,{flag:'wx'});
       repo.transaction(()=>{const now=new Date().toISOString(),versionIds=new Map();for(const {q,source} of proposals){q.versionId=crypto.randomUUID();versionIds.set(q.id,q.versionId);repo.db.prepare('INSERT INTO proposals (id,snapshot,revision,created_at,updated_at,archived_at) VALUES (?,?,?,?,?,NULL)').run(q.id,JSON.stringify(q),1,now,q.updatedAt||now);repo.db.prepare('INSERT INTO proposal_versions (id,proposal_id,sequence,snapshot,financial_snapshot,created_at,deleted_at,deleted_by) VALUES (?,?,?,?,?,?,NULL,NULL)').run(q.versionId,q.id,1,JSON.stringify(q),null,now);if(migration)repo.db.prepare('INSERT OR IGNORE INTO migrations VALUES (?,?)').run(source,q.id)}for(const o of ops)repo.setOperation(o);for(const p of staged){const versionId=versionIds.get(p.proposalId)||null;p.snapshot.versionId=versionId;repo.db.prepare('INSERT INTO pdfs (id,proposal_id,version,filename,storage_key,snapshot,fingerprint,generated_at,proposal_version_id) VALUES (?,?,?,?,?,?,?,?,?)').run(p.id,p.proposalId,p.version,proposalFilename(p.snapshot),p.storage,JSON.stringify(p.snapshot),documentHash(p.snapshot),p.generatedAt,versionId);}});
-      for(const {q} of proposals){try{commercial.sync(repo.proposal(q.id))}catch{}}res.json({imported:proposals.length,proposals:proposals.map(({q})=>repo.proposal(q.id))});
+      for(const {q} of proposals)commercial.safeSync(repo.proposal(q.id));res.json({imported:proposals.length,proposals:proposals.map(({q})=>repo.proposal(q.id))});
     }catch(error){for(const p of staged){const file=path.join(repo.files,p.storage);if(fs.existsSync(file))fs.unlinkSync(file)}throw error}
   }));
   app.use('/api',(req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
@@ -118,11 +129,20 @@ export function createApp(options={}){
   app.get('/',(req,res)=>res.set('Cache-Control','no-cache').type('html').send(indexHtml));
   app.get('/guia-integracoes',sec.requireAuth,(req,res)=>res.type('text/plain; charset=utf-8').sendFile(path.join(root,'INTEGRATIONS_SETUP.md')));
   app.get('/guia-google',sec.requireAuth,(req,res)=>res.type('text/plain').sendFile(path.join(root,'docs/CONEXAO-GOOGLE.md')));
-  app.use((req,res,next)=>{const m=/^\/v\/[a-f0-9]{10}(\/.+)$/.exec(req.path);if(m)req.url=m[1];next()});
+  // Só a versão atual existe: o conteúdo de /v/<hash>/ nunca muda e pode ficar em cache por um ano.
+  app.use((req,res,next)=>{const m=/^\/v\/([a-f0-9]{10})(\/.+)$/.exec(req.path);if(!m)return next();if(m[1]!==assetVersion)return res.status(404).json({error:'Recurso não encontrado.'});req.url=m[2];req.versioned=true;next()});
   app.use((req,res,next)=>{let name;try{name=decodeURIComponent(req.path).slice(1)}catch{return next()}
-    if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name),{headers:{'Cache-Control':'no-cache'}});next()});
+    if(allowed.has(name)||/^(assets|vendor)\/[a-zA-Z0-9_.-]+$/.test(name))return res.sendFile(path.join(root,'public',name),{headers:{'Cache-Control':req.versioned?'public, max-age=31536000, immutable':'no-cache'}});next()});
   app.use((req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
-  app.use((error,req,res,next)=>{if(res.headersSent)return next(error);res.status(error.status||400).json({error:error.status?error.message:'Não foi possível concluir. Confira os dados e tente novamente.'})});
-  return {app,repo,google,service,finance,dre,profit,integrations,asaas,commercial};
+  const bodyErrors={'entity.too.large':'O conteúdo enviado é grande demais.','entity.parse.failed':'Conteúdo enviado inválido.'};
+  app.use((error,req,res,next)=>{
+    if(res.headersSent)return next(error);
+    if(!error.status){console.error(`Erro em ${req.method} ${req.path}:`,error.stack||error);return res.status(500).json({error:'Erro interno. Tente novamente em instantes.'})}
+    res.status(error.status).json({error:bodyErrors[error.type]||error.message});
+  });
+  // Tarefas de manutenção: chamadas pelo servidor depois de começar a atender, sem atrasar createApp.
+  const sweep=()=>{try{sec.sweep()}catch(error){console.error('Falha ao limpar sessões expiradas:',error)}};
+  const start=()=>{sweep();setInterval(sweep,6*3600000).unref();setImmediate(()=>commercial.syncAll())};
+  return {app,repo,google,service,finance,dre,profit,integrations,asaas,commercial,start};
 }
 

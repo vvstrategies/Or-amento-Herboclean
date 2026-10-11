@@ -3,6 +3,7 @@ import {fail,hash} from './database.js';
 import {financialQuoteKey,quotedRevenue,integer} from './finance-domain.js';
 import {month,months,addMonths,text,sum,ratio,localDate} from './dre-domain.js';
 import {migrateProfit} from './profit-migration.js';
+import {proposalPlace} from './address.js';
 import {actualInput,resolveActual,nullable,signed,simulate,allocate,metrics,groups,accuracy,breakEven} from './profit-domain.js';
 const read=r=>r?JSON.parse(r.data):null,now=()=>new Date().toISOString();
 const norm=s=>text(s,240).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -29,10 +30,10 @@ export class ProfitService {
   const stored=read(this.repo.db.prepare('SELECT data FROM finance_contexts WHERE proposal_id=?').get(id));if(stored)return stored;
   const q=this.repo.requireProposal(id),contact=text(q.clientContact).toLowerCase(),email=contact.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i)?.[0],phone=contact.replace(/\D/g,'').replace(/^55(?=\d{11}$)/,'');
   const key=email?'email:'+email:/^\d{10,13}$/.test(phone)?'phone:'+phone:'proposal:'+id;
-  const duration=this.repo.operation(id).schedule;
-  return {proposalId:id,revision:0,city:'',state:'',neighborhood:'',customerId:'',customerKey:hash(key),estimatedMinutes:duration?Math.max(0,Math.round((Date.parse(duration.end)-Date.parse(duration.start))/60000))||null:null};
+  const duration=this.repo.operation(id).schedule,{city,state,neighborhood}=proposalPlace(this.repo.db,id);
+  return {proposalId:id,revision:0,city,state,neighborhood,customerId:'',customerKey:hash(key),estimatedMinutes:duration?Math.max(0,Math.round((Date.parse(duration.end)-Date.parse(duration.start))/60000))||null:null};
  }
- captureContext(id){const c=this.context(id);if(c.revision)return c;const value={...c,revision:1};this.repo.db.prepare('INSERT OR IGNORE INTO finance_contexts VALUES (?,?,?,?,?)').run(id,'',value.customerKey,JSON.stringify(value),1);return value;}
+ captureContext(id){const c=this.context(id);if(c.revision)return c;const value={...c,revision:1};this.repo.db.prepare('INSERT OR IGNORE INTO finance_contexts VALUES (?,?,?,?,?)').run(id,norm(value.city),value.customerKey,JSON.stringify(value),1);return value;}
  saveContext(id,raw){
   this.repo.requireProposal(id);const old=this.context(id);if(raw.revision!==old.revision)throw fail(409,'Os dados internos mudaram. Reabra o atendimento.');
   if(old.revision&&!text(raw.reason))throw fail(400,'Informe o motivo da atualização.');
@@ -67,8 +68,9 @@ export class ProfitService {
   if(!['completed','scheduled','all'].includes(status))throw fail(400,'Status analítico inválido.');
   const report=this.dre.report(from,to,status==='completed'?'actual':'projected');
   return report.services.filter(r=>status==='all'||(status==='scheduled'?r.projected:!r.projected)).map(r=>{
-   const context=this.context(r.proposalId),city=context.city?context.city+(context.state?' / '+context.state:''):'Cidade não informada';
-   return {...r,...(Object.hasOwn(r,'estimatedRevenue')?{}:this.resolve(r)),city,cityKey:norm(city),neighborhood:context.neighborhood,neighborhoodKey:context.neighborhood?norm(city+' / '+context.neighborhood):null,neighborhoodLabel:context.neighborhood?city+' / '+context.neighborhood:null,customerKey:context.customerKey,clientLabel:r.client||'Cliente não informado',items:this.items(r),status:r.projected?'scheduled':'completed'};
+   // Contextos antigos foram gravados sem cidade: o endereço do orçamento completa a informação.
+   const context=this.context(r.proposalId),place=context.city?context:proposalPlace(this.repo.db,r.proposalId),city=place.city?place.city+(place.state?' / '+place.state:''):'Cidade não informada',neighborhood=context.neighborhood||place.neighborhood||'';
+   return {...r,...(Object.hasOwn(r,'estimatedRevenue')?{}:this.resolve(r)),city,cityKey:norm(city),neighborhood,neighborhoodKey:neighborhood?norm(city+' / '+neighborhood):null,neighborhoodLabel:neighborhood?city+' / '+neighborhood:null,customerKey:context.customerKey,clientLabel:r.client||'Cliente não informado',items:this.items(r),status:r.projected?'scheduled':'completed'};
   });
  }
  analyze(query){
