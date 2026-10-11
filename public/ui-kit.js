@@ -19,9 +19,10 @@
   new MutationObserver(list=>{for(const m of list){const t=m.target;if(m.attributeName==='hidden'||(m.type==='attributes'?t.parentElement?.matches?.(GROUPS):t.matches?.(GROUPS)||t.querySelector?.(GROUPS)))return schedule()}}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['aria-pressed','aria-selected','hidden']});
   addEventListener('resize',schedule);document.fonts?.ready.then(schedule);
   root.EcoSegment={sync:schedule};
-  // Cache curto (30 s) com deduplicação: telas que pedem a mesma lista ao mesmo tempo fazem uma requisição só.
+  // Cache curto (3 s) com deduplicação: telas que pedem a mesma lista ao mesmo tempo fazem uma requisição só.
   const cache=new Map();
-  function cached(url,ttl=30000){const hit=cache.get(url);if(hit&&Date.now()-hit.at<ttl)return hit.promise;const promise=root.EcoAuth.api(url).catch(error=>{cache.delete(url);throw error});cache.set(url,{at:Date.now(),promise});return promise}
+  // ttl 0: só junta pedidos simultâneos; o resultado não é reaproveitado depois que chega.
+  function cached(url,ttl=3000){const hit=cache.get(url);if(hit&&(hit.pending||Date.now()-hit.at<ttl))return hit.promise;const entry={at:Date.now(),pending:true};entry.promise=root.EcoAuth.api(url).then(v=>{entry.pending=false;entry.at=Date.now();if(!ttl)cache.delete(url);return v},error=>{cache.delete(url);throw error});cache.set(url,entry);return entry.promise}
   const clearCache=()=>cache.clear();
   for(const name of ['eco:data-changed','eco:quotes-changed'])addEventListener(name,clearCache);
   root.EcoCache={get:cached,clear:clearCache};

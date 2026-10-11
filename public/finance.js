@@ -12,7 +12,7 @@ async function initSettings(){
  const slot=$('#financial-settings-slot');if(!slot)return;
  try{
   const data=await EcoAuth.api('/api/financial-settings'),s=data.settings,v=s.vehicle;
-  slot.innerHTML=`<div class="finance-heading"><div><h2>Custos e rentabilidade</h2><p class="hint">Premissas para estimar o resultado de cada atendimento.</p></div><span class="finance-private">Uso interno</span></div>
+  slot.innerHTML=`<div class="finance-heading"><div><h2>Custos dos atendimentos</h2><p class="hint">Premissas para estimar o resultado de cada atendimento.</p></div><span class="finance-private">Uso interno</span></div>
   <p class="finance-note">Custos e margem não aparecem na proposta nem no PDF do cliente. Alterar os padrões não modifica estimativas já salvas.</p>
   <form id="financial-settings-form"><div class="finance-config-grid">
   <section><h3>Materiais</h3>${field('materialRate','Custo médio de materiais (%)',s.defaultMaterialBps,'Ex.: 20% significa R$ 20 de materiais a cada R$ 100 vendidos.')}
@@ -22,7 +22,7 @@ async function initSettings(){
   <label class="finance-check"><input name="roundTrip" type="checkbox" ${s.roundTrip?'checked':''}> Considerar ida e volta automaticamente</label><p class="hint">Cada atendimento parte da base. Use um endereço completo para uma rota mais precisa.</p></section>
   <section><h3>Veículo operacional</h3><div class="fields"><label>Nome do veículo<input name="vehicleName" maxlength="120" value="${esc(v.name)}" placeholder="Ex.: Fiat Mobi"></label><label>Combustível<select name="fuelType"><option value="gasoline">Gasolina</option><option value="ethanol">Etanol</option><option value="diesel">Diesel</option><option value="flex">Flex</option></select></label>
   ${field('consumption','Consumo médio (km/L)',v.consumptionCentiKmL,'Use o consumo observado no uso real do veículo.')}${field('fuelPrice','Preço do combustível (R$/L)',v.fuelPriceCents)}${field('operatingCost','Custo adicional do veículo (R$/km)',v.additionalCostPerKmCents,'Manutenção, pneus, desgaste e depreciação estimados.')}</div></section>
-  <section><h3>Custos adicionais e margem</h3><p class="hint">Pedágio, estacionamento, material manual e outros custos diretos são ajustados no detalhe de cada orçamento.</p><p class="hint">A margem de contribuição é o valor base da venda menos os custos diretos. Despesas fixas, impostos e recebimentos não fazem parte desta estimativa.</p><p class="finance-route-status">${data.routes.configured?'Rotas automáticas disponíveis · openrouteservice / HeiGIT.':'Rotas automáticas não configuradas. A distância manual funciona normalmente.'}</p><button id="finance-demo" class="secondary" type="button">Ver exemplo BlueCare</button></section>
+  <section><h3>Custos adicionais e margem</h3><p class="hint">Pedágio, estacionamento, material manual e outros custos diretos são ajustados no detalhe de cada orçamento.</p><p class="hint">A margem de contribuição é o valor base da venda menos os custos diretos. Despesas fixas, impostos e recebimentos não fazem parte desta estimativa.</p><p class="finance-route-status">${data.routes.configured?'Rotas automáticas disponíveis · openrouteservice / HeiGIT.':'Rotas automáticas não configuradas. A distância manual funciona normalmente.'}</p><button id="finance-demo" class="secondary" type="button">Ver demonstração</button></section>
   </div><div class="finance-actions"><p id="financial-settings-message" role="status"></p><button class="primary" type="submit">Salvar premissas</button><button id="financial-export" class="text-button" type="button">Exportar histórico financeiro</button></div><p class="hint">A exportação financeira é privada, para consulta e guarda. Não envie esse arquivo ao cliente.</p></form>`;
   const form=$('form',slot);form.elements.originMode.value=s.originMode;form.elements.fuelType.value=v.fuelType;
   const origin=()=>{$('#finance-origin-field',form).hidden=form.elements.originMode.value==='company';};form.elements.originMode.onchange=origin;origin();
@@ -38,7 +38,7 @@ async function initSettings(){
   };
   $('#financial-export',form).onclick=async()=>{try{const data=await EcoAuth.api('/api/financial-export');EcoDownloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'financeiro-interno-'+EcoModel.today()+'.json')}catch(e){notify(e.message)}};
   $('#finance-demo',form).onclick=showDemo;
- }catch(error){slot.innerHTML='<h2>Custos e rentabilidade</h2><p class="hint">'+esc(error.message)+'</p>';}
+ }catch(error){slot.innerHTML='<h2>Custos dos atendimentos</h2><p class="hint">'+esc(error.message)+'</p>';}
 }
 function metrics(view){
  const r=view.latest?.result,invalid=view.stale&&view.editable,display=invalid?null:r;
@@ -70,7 +70,7 @@ function distance(e){
 }
 async function mount(slot,q,{demo=false}={}){
  slot.innerHTML='<h3>Rentabilidade estimada <span class="finance-private">Uso interno</span></h3><p class="hint">Atualizando custos e rentabilidade...</p>';
- if(demo){slot.innerHTML='<h3>Rentabilidade estimada</h3><p class="hint">Este card é fictício. Em Configurações, use “Ver exemplo BlueCare” para explorar o cálculo completo.</p>';return;}
+ if(demo){slot.innerHTML='<h3>Rentabilidade estimada</h3><p class="hint">Este card é fictício. Em Configurações, use “Ver demonstração” para explorar o cálculo completo.</p>';return;}
  try{
   let view=await EcoAuth.api('/api/proposals/'+encodeURIComponent(q.id)+'/finance');
   if(view.editable&&(!view.latest||view.stale||view.routeNeedsRefresh)){slot.innerHTML='<h3>Rentabilidade estimada <span class="finance-private">Uso interno</span></h3><p class="hint">Calculando automaticamente com as premissas, rota e valores atuais...</p>';view=await EcoAuth.api('/api/proposals/'+encodeURIComponent(q.id)+'/finance/refresh',{method:'POST'});}
@@ -143,7 +143,7 @@ async function showDemo(){
  try{
   const view=await EcoAuth.api('/api/financial-demo');let dialog=$('#finance-demo-dialog');
   if(!dialog){dialog=document.createElement('dialog');dialog.id='finance-demo-dialog';dialog.className='finance-demo-dialog';document.body.appendChild(dialog);}
-  dialog.innerHTML=`<div class="dialog-head"><div><span class="finance-private">Demonstração · dados fictícios</span><h2>BlueCare · atendimento em Osasco</h2></div><button type="button" class="icon-button" aria-label="Fechar exemplo">×</button></div><p class="hint">Origem em Carapicuíba. Distância simulada de 18 km por trecho; nenhuma API externa é consultada.</p>${metrics(view)}${distance(view.latest)}${composition(view.latest)}<p class="finance-note">Este exemplo não cria orçamento, não altera suas configurações e não entra no seu histórico.</p>`;
+  dialog.innerHTML=`<div class="dialog-head"><div><span class="finance-private">Demonstração · dados fictícios</span><h2>demonstração · atendimento em Osasco</h2></div><button type="button" class="icon-button" aria-label="Fechar exemplo">×</button></div><p class="hint">Origem em Carapicuíba. Distância simulada de 18 km por trecho; nenhuma API externa é consultada.</p>${metrics(view)}${distance(view.latest)}${composition(view.latest)}<p class="finance-note">Este exemplo não cria orçamento, não altera suas configurações e não entra no seu histórico.</p>`;
   $('button',dialog).onclick=()=>dialog.close();dialog.showModal();
  }catch(error){notify(error.message)}
 }

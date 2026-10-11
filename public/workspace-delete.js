@@ -96,7 +96,7 @@
     $('#tag-filter').innerHTML=[['','Todas'],...tagList.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()]),...(all.some(q=>!(q.tags||[]).length)?[['__none','Sem tag']]:[])].map(([id,label])=>`<button type="button" data-tag-filter="${esc(id)}" aria-pressed="${tagFilter===id}">${esc(label)}</button>`).join('');
     $('#show-cancelled').hidden=funnel!=='comercial';$('#show-cancelled').setAttribute('aria-pressed',String(showCancelled));
     const cols=FUNNELS[funnel].filter(([id])=>id!=='cancelled'||showCancelled);
-    if(!all.length){$('#board').innerHTML=`<div class="empty-library"><span class="feature-icon">${icon('folder')}</span><h3>Seu próximo atendimento começa aqui.</h3><p>Crie sua primeira proposta com a identidade da empresa. Depois, acompanhe a aprovação e prepare o atendimento por aqui.</p><div class="empty-actions"><button class="primary" data-new>＋ Criar orçamento</button><button class="secondary" data-demo>Explorar exemplos</button></div></div>`;$('#library-count-note').textContent='';return}
+    if(!all.length){$('#board').innerHTML=`<div class="empty-library"><span class="feature-icon">${icon('folder')}</span><h3>Seu próximo atendimento começa aqui.</h3><p>Crie sua primeira proposta com a identidade da empresa. Depois, acompanhe a aprovação e prepare o atendimento por aqui.</p><div class="empty-actions"><button class="primary" data-new>＋ Criar orçamento</button><button class="secondary" data-demo>Ver demonstração</button></div></div>`;$('#library-count-note').textContent='';return}
     $('#board').innerHTML=cols.map(([id,label])=>{const cards=list.filter(q=>stageOf(q,getOp(q.id))===id),sum=cards.reduce((n,q)=>n+(totals(q)?.pix||0),0);
       return `<section class="kcol" data-col="${id}" aria-label="${esc(label)}"><div class="kcol-head"><div class="t"><i class="dot" style="background:${COLORS[id]}"></i>${esc(label)}<span class="c${lastCounts[funnel+id]!==undefined&&lastCounts[funnel+id]!==cards.length?' bump':''}">${cards.length}</span></div><div class="sum">${money(sum)}<small>no PIX</small></div></div><div class="kcol-body">${cards.map(q=>card(q,id)).join('')||'<p class="kcol-empty">Nenhum orçamento nesta etapa</p>'}</div></section>`}).join('');
     for(const [id] of cols)lastCounts[funnel+id]=list.filter(q=>stageOf(q,getOp(q.id))===id).length;settled=null;
@@ -194,9 +194,9 @@
     const full=await S.get('quotes',id),i=quotes.findIndex(x=>x.id===id);if(i>=0)quotes[i]=full;return full;
   }
   let detailOpener=null;
-  async function openDetail(id){selected=id;detailOpener=document.activeElement;await hydrate(id);await renderDetail();if(!$('#detail-dialog').open)$('#detail-dialog').showModal()}
+  async function openDetail(id){selected=id;detailOpener=document.activeElement;await renderDetail();if(!$('#detail-dialog').open)$('#detail-dialog').showModal()}
   async function renderDetail(){
-    const id=selected,q=findQuote(id);if(!q){$('#detail-content').innerHTML='<p class="drawer-empty">Orçamento não encontrado.</p>';$('#detail-actions').innerHTML='';return}
+    const id=selected;await hydrate(id).catch(()=>null);if(id!==selected)return;const q=findQuote(id);if(!q){$('#detail-content').innerHTML='<p class="drawer-empty">Orçamento não encontrado.</p>';$('#detail-actions').innerHTML='';return}
     const op=getOp(id),t=totals(q),schedule=op.schedule;let pdfs=getDocs(id),latest=pdfs[0],hash=latest?await S.fingerprint(q):'';const proposalVersions=demo?[]:await EcoAuth.api('/api/proposals/'+encodeURIComponent(id)+'/versions').catch(()=>[]);if(id!==selected)return;
     if(latest&&latest.fingerprint!==hash&&!demo&&op.status==='generated'){try{const refreshed=await EcoAuth.api('/api/proposals/'+encodeURIComponent(id)+'/document/refresh',{method:'POST'});documents=[refreshed,...documents.filter(pdf=>pdf.id!==refreshed.id)];pdfs=getDocs(id);latest=pdfs[0];hash=latest?await S.fingerprint(q):'';}catch{}}
     if(id!==selected)return;const outdated=latest&&latest.fingerprint!==hash;

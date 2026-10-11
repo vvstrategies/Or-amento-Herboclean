@@ -696,3 +696,25 @@ code.asaas-hook{word-break:break-all;font-size:11.5px;background:var(--r-paper);
 
 .text-button.danger-text{color:#9a3b2c}
 .dist-actions{display:inline-flex;gap:4px}
+
+/* Cabeçalho e largura iguais em todas as telas */
+.home-top h1,.fin-top h1,.page-heading h1{font-size:26px!important;letter-spacing:-.02em;line-height:1.2}
+.dre-view{max-width:1560px!important;margin:0!important}
+.page-view{max-width:1560px}
+.funnel .fstep{grid-template-columns:128px minmax(0,1fr) 34px}
+
+/* Notebook (até 1500 px): campanhas e funil sem estourar */
+@media(max-width:1500px){
+  .camp .ph{flex-wrap:wrap;gap:8px}
+  .camp .seg.on-dark{flex-wrap:nowrap}
+  .camp .seg.on-dark button{padding:5px 10px}
+  .camp .spend strong{font-size:24px}
+  .camp .mx{gap:8px}
+  .camp .mx div{padding:8px 12px}
+  .camp .mx strong{font-size:17px}
+  .camp .formula{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .funnel{gap:4px}
+  .funnel .bar,.hcard .svc .bar{height:16px}
+  .funnel .fstep{grid-template-columns:116px minmax(0,1fr) 30px}
+  .conv div{padding:6px 10px}
+}

@@ -1,13 +1,13 @@
 module.exports=async function({evaluate,click,set,until,screenshot,send,downloadFile}){
  const assert=require('node:assert/strict'),fs=require('node:fs');
  await send('Emulation.setDeviceMetricsOverride',{width:1512,height:1100,deviceScaleFactor:1,mobile:false});
- await click('[data-nav="finance"]');await until("!!document.querySelector('.dre-kpis') && !document.querySelector('#dre-content').classList.contains('dre-updating')");
+ await click('[data-nav="finance"]');await until("!!document.querySelector('.fin-bento') && !document.querySelector('#dre-content').classList.contains('dre-updating')");
  assert.equal(await evaluate("document.querySelector('#page-location').textContent"),'Financeiro');
  await screenshot('dre-empty-desktop');
  await click('#dre-new-expense');await until("document.querySelector('#dre-dialog')?.open");
  await set('#dre-dialog [name=description]','Aluguel de teste');await set('#dre-dialog [name=amount]','500,00');await set('#dre-dialog [name=status]','confirmed');
  await evaluate("document.querySelector('#dre-dialog [name=status]').dispatchEvent(new Event('change'))");
- await evaluate("document.querySelector('#dre-dialog form').requestSubmit()");await until("!document.querySelector('#dre-dialog').open && document.querySelector('.dre-kpis')?.textContent.includes('500,00')");
+ await evaluate("document.querySelector('#dre-dialog form').requestSubmit()");await until("!document.querySelector('#dre-dialog').open && document.querySelector('.fin-bento')?.textContent.includes('500,00')");
  await click('[data-dre-tab="expenses"]');await until("document.querySelector('#dre-content')?.textContent.includes('Aluguel de teste')");
  await click('[data-edit-expense]');await until("document.querySelector('#dre-dialog')?.open");
  await set('#dre-dialog [name=status]','paid');await evaluate("document.querySelector('#dre-dialog [name=status]').dispatchEvent(new Event('change'))");await set('#dre-dialog [name=paidAt]','2026-10-03');await set('#dre-dialog [name=reason]','Pagamento em outra competência');
@@ -24,7 +24,7 @@ module.exports=async function({evaluate,click,set,until,screenshot,send,download
  await click('#dre-demo');await until("document.querySelector('#dre-content').textContent.includes('Demonstração fictícia')");
  assert.equal(await evaluate("document.querySelector('#dre-new-expense').disabled"),true);
  await screenshot('dre-statement-desktop');
- await click('[data-dre-tab="overview"]');await until("!!document.querySelector('.dre-chart')");
+ await click('[data-dre-tab="overview"]');await until("!!document.querySelector('#dre-chart path')");
  await screenshot('dre-overview-desktop');
  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('dre-overview-mobile');
  await click('[data-dre-tab="statement"]');await until("!!document.querySelector('.dre-result')");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await evaluate("document.querySelector('.dre-result').scrollIntoView({block:'center'})");await screenshot('dre-statement-mobile');

@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 module.exports=async({evaluate,click,set,until,screenshot,send})=>{
  await send('Emulation.setDeviceMetricsOverride',{width:1512,height:1100,deviceScaleFactor:1,mobile:false});
- await click('[data-nav="settings"]');await until("document.querySelectorAll('[data-integration]').length===3");
+ await click('[data-nav="settings"]');await until("document.querySelectorAll('[data-integration]:not([data-integration=asaas])').length===3");
  assert.equal(await evaluate("document.querySelector('[data-integration=google-ads] [data-action=connect]').disabled"),true);
  assert.equal(await evaluate("document.querySelector('[data-integration=meta-ads] [data-action=connect]').disabled"),true);
  await evaluate("document.querySelector('#integrations-center').scrollIntoView({block:'start'})");await screenshot('integrations-desktop');

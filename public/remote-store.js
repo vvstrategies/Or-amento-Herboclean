@@ -8,6 +8,6 @@
   async function mutateOperation(id,fn){const raw=(await all('operations')).find(o=>o.id===id)||{id,status:'generated'},next=fn(raw);const signature=o=>JSON.stringify(o.schedule?{start:o.schedule.start,end:o.schedule.end,eventId:o.schedule.eventId}:null);if(signature(next)!==signature(raw))throw Error('Use Aprovar e agendar para confirmar com o Google.');const result=await A.api('/api/proposals/'+id+'/status',{method:'POST',body:JSON.stringify({status:next.status})});emit();return result}
   const blob=p=>p.blob||A.api(p.url,{blob:true});
   // Lista sem fotos para o kanban; o orçamento completo é buscado ao abrir o detalhe.
-  const summaries=()=>EcoCache.get('/api/proposals?summary=1');
+  const summaries=()=>EcoCache.get('/api/proposals?summary=1',0);
   root.EcoStore={ready:A.ready,all,get,put,summaries,fingerprint:local.fingerprint,pdfs:id=>A.api('/api/documents?proposalId='+encodeURIComponent(id)),mutateOperation,blob};
 })(globalThis);
