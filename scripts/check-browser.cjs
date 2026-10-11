@@ -48,7 +48,7 @@ const timeout=setTimeout(()=>{browser.kill();process.exit(1)},55000);
     const rootDoc=await send('DOM.getDocument');const importInput=await send('DOM.querySelector',{nodeId:rootDoc.root.nodeId,selector:'#import'});
     await send('DOM.setFileInputFiles',{nodeId:importInput.nodeId,files:[backupFile]});
     await until("document.querySelector('#saved-count').textContent==='2'");
-    await evaluate("document.querySelector('#pdf').click();document.querySelector('[data-pdf-format="a4"]').click()");
+    await evaluate("document.querySelector('#pdf').click();document.querySelector('[data-pdf-format=a4]').click()");
     await until("document.querySelector('#toast').textContent.includes('PDF gerado com a identidade')");
     const pdfName=backup.proposals[0].number+'.pdf',pdfPath=path.join(downloads,pdfName);
     for(let i=0;i<40&&!fs.existsSync(pdfPath);i++)await pause(150);

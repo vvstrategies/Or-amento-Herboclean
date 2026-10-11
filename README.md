@@ -94,7 +94,7 @@ Nenhum deploy externo foi realizado. Para acesso por outro dispositivo, será ne
 - `npm run test:offline`: gerador pelo arquivo local.
 - `python scripts/review-pdf.py`: confere quantidade de páginas, fontes e limites dos textos; requer PyMuPDF em `.tools`. A comparação de pixels em `compare-pdfs.py` usa a marca antiga como referência histórica e não se aplica à troca autorizada de logo.
 
-Não há etapa de compilação do frontend. Após editar `templates/index.html`, execute `node scripts/sync-ui.cjs`. O código de cálculo e renderização compartilhada permanece em `public/model.js` e `public/pdf-renderer.js`.
+Não há etapa de compilação do frontend: edite diretamente os arquivos em `public/`. O código de cálculo e renderização compartilhada permanece em `public/model.js` e `public/pdf-renderer.js`.
 
 ## Identidade Herboclean
 

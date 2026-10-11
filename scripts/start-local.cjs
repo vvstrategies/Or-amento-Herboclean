@@ -32,7 +32,7 @@ async function main() {
 
   if (await ready()) console.log('Herboclean ja estava em funcionamento.');
   else {
-    if (!fs.existsSync(path.join(root, 'public/index.html'))) throw Error('A pagina public/index.html nao foi encontrada. Execute node scripts/sync-ui.cjs.');
+    if (!fs.existsSync(path.join(root, 'public/index.html'))) throw Error('A pagina public/index.html nao foi encontrada.');
     const dir = path.resolve(root, process.env.DATA_DIR || 'data');
     fs.mkdirSync(dir, { recursive: true });
     const output = path.join(dir, 'server-output.log'), errors = path.join(dir, 'server-error.log');

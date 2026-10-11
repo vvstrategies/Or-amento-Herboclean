@@ -1,5 +1,4 @@
 import '../public/company-config.js';
-import '../public/brand-assets.js';
 import '../public/model.js';
 export const modelo = globalThis.EcoModel;
 

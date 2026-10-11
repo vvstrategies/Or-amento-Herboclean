@@ -10,7 +10,7 @@ Pedido: `C:\Users\geved\Downloads\prompt-sistema-orcamentos-agendamentos-ecoclea
 
 ## Inspeção concluída
 
-- Frontend sem framework; fonte da página em `templates/index.html`, sincronizada com as entradas raiz e `public`.
+- Frontend sem framework; página em `public/index.html`, sem etapa de build.
 - Express em `server.js`, restrito a `127.0.0.1:3000`. Nenhum Git, Worker, D1, R2 ou configuração de deploy encontrado nesta pasta.
 - IndexedDB `ecoclean-propostas` v2: `quotes` e `draft`; localStorage `ecoclean-settings-v2` guarda identidade e condições. Backups JSON v1/v2.
 - Itens com serviço, quantidade, unidade, preço PIX, descrição e até seis fotos convertidas para JPEG; logo mantém transparência.
@@ -46,7 +46,7 @@ Este checkpoint é local. IndexedDB continua temporariamente como armazenamento;
 ## Entrega para avaliação
 
 - URL: http://localhost:3000/#orcamentos. Use **Explorar exemplos** para avaliar estados fictícios isolados.
-- Principais arquivos: `templates/index.html`, `public/workspace.js`, `public/workspace.css`, `public/operations-model.js`, `public/store.js`, `public/app.js` e `public/pdf-download.js`.
+- Principais arquivos: `public/workspace.js`, `public/workspace.css`, `public/operations-model.js`, `public/store.js`, `public/app.js` e `public/pdf-download.js`.
 - O núcleo `public/model.js`, `public/pdf-renderer.js` e `utils/ecocleanPdf.js` conserva os hashes da referência inicial.
 - Testes em perfis isolados: migração de IndexedDB v2, filtros, desktop/celular, fotos, PDF imutável, aprovação, revisão, duplo clique, reagendamento com mesmo ID, cancelamento, recarga e backup/importação v3. Nenhum erro relevante no console.
 - Comparação final antes/depois: quatro PDFs com textos, fontes, imagem e número de páginas idênticos, desconsiderando somente o número aleatório da proposta. PDFs curtos de um a três itens continuam com uma página; exemplo extenso com três páginas. Verificado também o PDF efetivamente baixado pela interface HTTP e offline.

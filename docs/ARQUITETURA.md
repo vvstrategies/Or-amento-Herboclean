@@ -4,7 +4,7 @@ A evolução autorizada mantém o frontend HTML/CSS/JavaScript e o gerador exist
 
 ## Componentes
 
-- `templates/index.html`: fonte da página, sincronizada para a entrada HTTP e arquivo local.
+- `public/index.html`: página servida pelo app; os scripts e estilos recebem a versão no caminho (`v/<hash>/`) a cada deploy.
 - `public/app.js`: editor, marca, fotos, valores e geração.
 - `public/workspace.js`: biblioteca, duas listas, detalhe, confirmação e configurações.
 - `public/auth.js`: entrada e sessão; CSRF somente em memória.
