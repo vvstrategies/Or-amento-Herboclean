@@ -181,3 +181,67 @@
     .m-strip,.kanban{scroll-behavior:auto}
   }
 }
+
+/* Kanban no celular como no rascunho aprovado: três colunas estreitas lado a lado, cards compactos */
+@media (max-width:760px){
+  .kanban{gap:8px!important}
+  .kanban>.kcol{flex:0 0 calc((100vw - 2 * var(--m-pad) - 16px) / 3);max-width:none;min-width:0;padding:8px 6px!important;border-radius:20px;max-height:calc(100dvh - 300px)!important;min-height:260px}
+  .kanban .kcol-head{padding:2px 4px 6px!important;gap:2px!important}
+  .kanban .kcol-head .t{font-size:10px!important;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:var(--r-muted);gap:5px!important}
+  .kanban .kcol-head .t .c{display:none}
+  .kanban .kcol-head .sum{font-size:12.5px!important}
+  .kanban .kcol-head .sum small{display:none}
+  .kanban .kcol-body{gap:6px!important}
+  .kanban .proposal-card{padding:9px 9px 8px!important;border-radius:15px!important;gap:3px!important}
+  .kanban .proposal-card :is(.kc-tags,.kc-alert,.kc-meta,.kc-av,.kc-nm span,.kc-v small,.kc-svc small){display:none!important}
+  .kanban .kc-h{padding-right:0!important}
+  .kanban .kc-nm b{font-size:11.5px!important;line-height:1.25;white-space:normal!important;display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .kanban .kc-svc{font-size:10.5px!important;color:var(--r-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block!important}
+  .kanban .kc-f{border-top:0!important;padding-top:2px!important}
+  .kanban .kc-v{font-size:11.5px!important;color:var(--r-primary)!important}
+  .kanban .proposal-card:has(.kc-alert.due){box-shadow:inset 0 -3px 0 #e0b54a}
+  .kanban .kc-pick{top:6px;right:6px;width:20px;height:20px}
+  .kanban.picking .kc-h{padding-right:18px!important}
+  .kcol-pick{font-size:10.5px}
+  body.bulk-open .m-sumbar{display:none!important}
+  .bulk-bar{position:fixed;left:12px;right:12px;bottom:calc(14px + var(--m-bar) + 10px + var(--m-safe));margin:0;border-radius:22px;padding:10px 12px;gap:8px}
+  .bulk-bar strong{flex:1 1 100%;margin:0}
+  .bulk-bar select{flex:1 1 calc(50% - 4px);min-width:0}
+  .bulk-bar .text-button{margin-left:auto}
+}
+
+/* Financeiro no celular como no rascunho: topo verde com o resultado, o mês em pílula e o mini gráfico */
+@media (max-width:760px){
+  .dre-top.fin-top{display:grid!important;grid-template-columns:auto 1fr auto auto;align-items:center!important;gap:12px 8px!important;padding-bottom:16px!important}
+  .fin-top .dre-actions,.fin-top .fin-period{display:contents!important}
+  .fin-top>div:first-child{grid-column:1 / 3;grid-row:1}
+  .fin-top>div:first-child p{display:none}
+  .fin-top .fin-field:has(#dre-preset){grid-column:3 / 5;grid-row:1;justify-self:end;color:transparent!important;font-size:0!important;gap:0}
+  .fin-top #dre-preset{background:rgba(255,255,255,.14)!important;color:#fff!important;border:1px solid rgba(255,255,255,.2)!important;font-size:12.5px!important;font-weight:700;padding:8px 12px!important}
+  .fin-top .bsel-btn{background:rgba(255,255,255,.14)!important;color:#fff!important;border:1px solid rgba(255,255,255,.2)!important}
+  .fin-top .fin-period.custom .fin-field:has(#dre-from){grid-column:1 / 3;grid-row:4;color:var(--r-on-dark-muted)!important}
+  .fin-top .fin-period.custom .fin-field:has(#dre-to){grid-column:3 / 5;grid-row:4;color:var(--r-on-dark-muted)!important}
+  .fin-mhero{display:flex;flex-direction:column;gap:2px;grid-column:1 / -1;grid-row:2}
+  .fin-mhero:empty{display:none}
+  .fin-mhero small{font-size:12.5px;color:var(--r-on-dark-muted)}
+  .fmh-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .fmh-row strong{font-size:32px;font-weight:800;letter-spacing:-.02em;color:#fff!important;font-variant-numeric:tabular-nums}
+  .fmh-pill{font-size:12px;font-weight:800;color:var(--r-accent-ink);background:var(--r-accent);border-radius:999px;padding:3px 9px}
+  #fin-mspark{width:100%;height:56px;margin-top:6px}
+  .fin-top .dre-mode{grid-column:1 / 3;grid-row:3;justify-self:start;background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.18)!important}
+  .fin-top .dre-mode button{color:var(--r-on-dark-muted)!important}
+  .fin-top .dre-mode button[aria-pressed=true]{color:var(--r-accent-ink)!important}
+  .fin-top .dre-mode .seg-ind{background:var(--r-accent)!important}
+  .fin-top #dre-demo{display:none!important}
+  .fin-top .fin-more{grid-column:3;grid-row:3}
+  .fin-top #dre-new-expense{grid-column:4;grid-row:3;padding:0 14px}
+  .fin-bento>.fin-kpi.hero{display:none!important}
+  .fin-bento>.fin-kpi:first-child{grid-column:1 / -1!important}
+  body.hide-values .fmh-row strong{filter:blur(6px)}
+}
+@media (max-width:760px){
+  .kanban .kcol-help{display:none}
+  .kanban .kcol[data-col=scheduled] .kcol-head .t{color:var(--r-primary)!important}
+  .kanban .kcol[data-col=completed] .kcol-head .t{color:#fff!important}
+}
+@media (max-width:760px){.kanban>.kcol{flex:0 0 calc((100% - 16px) / 3)!important}}

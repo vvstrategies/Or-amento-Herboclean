@@ -8,6 +8,8 @@ import {placeFromAddress,placeOf} from '../backend/address.js';
 import {money} from '../backend/format.js';
 import {localDate} from '../backend/dre-domain.js';
 import {modelo} from '../utils/proposta.js';
+import {AvatarService} from '../backend/avatars.js';
+import {Jimp} from 'jimp';
 
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'herboclean-commercial-'));
 const repo=new Repository(dir);
@@ -27,6 +29,33 @@ try{
   const today=localDate(),mk=(client,extra={})=>{const q=modelo.quote();Object.assign(q,{client,address:'Rua A, 1',date:today,...extra});q.items=[{...modelo.item('Sofá'),price:extra.price??100}];return repo.saveProposal(modelo.normalize(q))};
   const service=new CommercialService(repo);
   assert.deepEqual(service.partners().map(p=>[p.name,p.shareBps]),[['V&V Strategies',5000],['Mestres do Conforto',5000]]);
+
+  // Edição em massa: origem e tags sem nova versão do documento; origem também no cliente; ids e valores validados.
+  {const x=mk('Massa Um',{clientContact:'(11) 90000-0001',origin:'meta',tags:['residencial']}),y=mk('Massa Dois',{clientContact:'(11) 90000-0002'});service.sync(x);service.sync(y);
+   const before=repo.proposal(x.id).versionId,r1=service.bulkUpdate({ids:[x.id,y.id,'nao-existe'],origin:'google',addTags:['corporativo'],removeTags:['residencial']});
+   assert.deepEqual(r1,{updated:2,skipped:1});
+   const x2=repo.proposal(x.id),y2=repo.proposal(y.id);assert.equal(x2.origin,'google');assert.deepEqual(x2.tags,['corporativo']);assert.deepEqual(y2.tags,['corporativo']);assert.equal(x2.versionId,before);
+   assert.equal(service.clients().find(c=>c.name==='Massa Um').origin,'google');
+   assert.deepEqual(service.bulkUpdate({ids:[x.id],origin:'google'}),{updated:0,skipped:0});
+   assert.deepEqual(service.bulkUpdate({ids:[x.id],origin:'google'},()=>true),{updated:0,skipped:1});
+   assert.equal(service.bulkUpdate({ids:[x.id],origin:''}).updated,1);assert.equal(repo.proposal(x.id).origin,'');
+   for(const bad of [{ids:[],origin:'google'},{ids:['../x'],origin:'google'},{ids:[x.id],origin:'tiktok'},{ids:[x.id],origin:'__proto__'},{ids:[x.id]},{ids:[x.id],addTags:['nao-cadastrada']},{ids:[x.id],addTags:['Maiúscula']},{ids:Array(501).fill(x.id),origin:'google'}])assert.throws(()=>service.bulkUpdate(bad),e=>e.status===400,JSON.stringify(bad).slice(0,60));
+   repo.db.prepare('DELETE FROM client_links WHERE proposal_id IN (?,?)').run(x.id,y.id);repo.db.prepare("DELETE FROM clients WHERE json_extract(data,'$.name') IN ('Massa Um','Massa Dois')").run();repo.db.prepare('DELETE FROM proposal_versions WHERE proposal_id IN (?,?)').run(x.id,y.id);repo.db.prepare('DELETE FROM proposals WHERE id IN (?,?)').run(x.id,y.id);}
+
+  // Foto do cliente: primeira foto do orçamento por padrão, escolha manual vale para o cliente e a miniatura sai em JPEG quadrado.
+  {const png=async c=>'data:image/png;base64,'+(await new Jimp({width:300,height:200,color:c}).getBuffer('image/png')).toString('base64');
+   const q=modelo.quote();Object.assign(q,{client:'Foto Cliente',clientContact:'(11) 90000-0099',address:'Rua A, 1',date:today});q.items=[{...modelo.item('Sofá'),price:100,photos:[await png(0xff0000ff),await png(0x00ff00ff)]}];
+   const saved=repo.saveProposal(modelo.normalize(q));service.sync(saved);const av=new AvatarService(repo,service),cid=service.clients().find(c=>c.name==='Foto Cliente').id;
+   assert.equal(av.proposalPhoto(saved),saved.items[0].photos[0]);assert.equal(av.clientPhoto(cid),saved.items[0].photos[0]);
+   av.choose(saved.id,{item:0,photo:1});assert.equal(av.proposalPhoto(repo.proposal(saved.id)),saved.items[0].photos[1]);assert.equal(av.clientPhoto(cid),saved.items[0].photos[1]);
+   service.sync(repo.proposal(saved.id));assert.deepEqual(service.client(cid).avatar,{proposalId:saved.id});
+   for(const bad of [{item:0,photo:5},{item:3,photo:0},{item:'x',photo:0},{}])assert.throws(()=>av.choose(saved.id,bad),e=>e.status===400);
+   assert.throws(()=>av.choose('nao-existe',{item:0,photo:0}),e=>e.status===404);
+   const t=await av.thumbnail(saved.items[0].photos[1]),img=await Jimp.read(t.body);assert.deepEqual([img.bitmap.width,img.bitmap.height],[128,128]);assert.ok(t.etag.length>10);
+   await assert.rejects(()=>av.thumbnail('data:text/html;base64,PGI+'),e=>e.status===404);
+   const empty=mk('Sem Foto Cliente',{clientContact:'(11) 90000-0098'});service.sync(empty);assert.equal(av.proposalPhoto(empty),null);
+   for(const id of [saved.id,empty.id]){repo.db.prepare('DELETE FROM client_links WHERE proposal_id=?').run(id);repo.db.prepare('DELETE FROM proposal_versions WHERE proposal_id=?').run(id);repo.db.prepare('DELETE FROM proposals WHERE id=?').run(id)}
+   repo.db.prepare("DELETE FROM clients WHERE json_extract(data,'$.name') IN ('Foto Cliente','Sem Foto Cliente')").run();repo.setConfig('quote-avatars',{});}
 
   // Cada orçamento gera ou reaproveita um cadastro de cliente.
   const a=mk('Clínica Vida Plena',{clientContact:'(11) 98765-4321',origin:'meta',tags:['corporativo'],clientBirthday:'03-18',price:200});service.sync(a);

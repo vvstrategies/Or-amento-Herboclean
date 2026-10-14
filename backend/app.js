@@ -8,6 +8,7 @@ import {registerAsaas} from './asaas-routes.js';
 import {ProfitService} from './profit-service.js';
 import {registerProfit} from './profit-routes.js';
 import {CommercialService,registerCommercial} from './commercial.js';
+import {AvatarService,registerAvatars} from './avatars.js';
 import {DreService} from './dre-service.js';
 import {registerDre} from './dre-routes.js';
 import {financialDemo} from './finance-demo.js';
@@ -72,7 +73,7 @@ export function createApp(options={}){
   registerDre(app,dre,wrap);
   registerIntegrations(app,integrations,wrap);
   registerProfit(app,profit,wrap);
-  registerCommercial(app,commercial,wrap);
+  registerCommercial(app,commercial,wrap);registerAvatars(app,new AvatarService(repo,commercial),wrap);
   app.get('/api/financial-demo',(req,res)=>res.json(financialDemo()));
   app.get('/api/financial-settings',(req,res)=>res.json({settings:finance.settings(),companyLocation:finance.company().location||'',services:repo.config('settings')?.services||[],routes:finance.routeCache.status()}));
   app.put('/api/financial-settings',(req,res)=>res.json(finance.saveSettings(req.body)));
@@ -91,6 +92,7 @@ export function createApp(options={}){
   app.get('/api/proposals/:id',(req,res)=>res.json(repo.requireProposal(req.params.id)));
   app.get('/api/proposals/:id/versions',(req,res)=>res.json(repo.listVersions(req.params.id)));
   app.put('/api/proposals/:id',wrap(async(req,res)=>{if(req.params.id!==req.body.id)throw fail(400,'Identificador divergente.');if(service.locks.has(req.params.id))throw fail(409,'Aguarde o agendamento terminar antes de editar.');const current=repo.proposal(req.params.id);commercial.checkTags(req.body.tags,current?.tags);const changed=!!current&&documentHash(current)!==documentHash(cleanQuote(req.body));if(changed&&Number(req.body.revision)===current.revision)await asaas.cancelActiveForRevision(current.id,current.revision);const saved=repo.saveProposal(req.body);commercial.safeSync(saved);await finance.refreshAutomatically(saved.id).catch(()=>null);const latest=repo.listPDFs(saved.id)[0];if(repo.operation(saved.id).status==='generated'&&(latest?.proposalVersionId!==saved.versionId||latest?.fingerprint!==documentHash(saved)))await service.pdf(saved).catch(()=>null);res.json(saved)}));
+  app.post('/api/proposals/bulk',(req,res)=>res.json(commercial.bulkUpdate(req.body,id=>service.locks.has(id))));
   app.delete('/api/proposals/:id',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir.');res.json(await service.purge(req.params.id));}));
   app.delete('/api/proposals/:id/versions/:versionId',wrap(async(req,res)=>{if(service.locks.has(req.params.id))throw fail(409,'Aguarde a operação em andamento antes de excluir a versão.');res.json(repo.deleteVersion(req.params.id,req.params.versionId));}));
   app.get('/api/operations',(req,res)=>res.json(repo.list().map(q=>{const job=repo.job(q.id);return {...repo.operation(q.id),pendingAction:job?{kind:job.kind,values:job.values,error:job.error}:null}})));

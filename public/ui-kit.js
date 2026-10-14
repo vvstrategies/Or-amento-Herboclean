@@ -33,6 +33,7 @@
   // Configurações em abas: agrupa as seções existentes sem mudar seus formulários.
   const SETTINGS_TABS=[['company','Empresa'],['integrations','Integrações'],['commercial','Comercial'],['finance','Custos e financeiro'],['data','Dados']];
   function settingsPanelOf(section){
+    if(section.dataset.panel)return section.dataset.panel;
     if(section.matches('#integrations-center'))return 'integrations';
     if(section.matches('#commercial-settings'))return 'commercial';
     if(section.matches('#financial-settings-slot,#dre-settings-slot,.profit-private'))return 'finance';
@@ -54,11 +55,19 @@
     bar.addEventListener('keydown',e=>{if(!['ArrowRight','ArrowLeft'].includes(e.key))return;const ids=SETTINGS_TABS.map(t=>t[0]),i=ids.indexOf(settingsTab),next=ids[(i+(e.key==='ArrowRight'?1:ids.length-1))%ids.length];showSettings(next);bar.querySelector(`[data-settings-tab="${next}"]`).focus()});
     const wizard=document.getElementById('edit-company-profile'),identity=document.getElementById('identity-slot');
     if(wizard&&identity){const card=wizard.closest('section');wizard.className='secondary';wizard.textContent='Assistente completo: cores e catálogo de serviços';const row=document.createElement('p');row.className='identity-wizard';row.append(wizard);identity.prepend(row);if(card&&card!==identity)card.remove()}
-    new MutationObserver(()=>showSettings(settingsTab)).observe(layout,{childList:true});showSettings(settingsTab);
+    new MutationObserver(()=>showSettings(settingsTab)).observe(layout,{childList:true});showSettings(settingsTab);paintSummary();
   }
   // Abre a aba certa e rola até a seção pedida (ex.: "Premissas financeiras" no Financeiro).
   function revealSetting(selector){const el=document.querySelector(selector);if(!el)return;const sec=el.closest('.settings-layout>*')||el;showSettings(settingsPanelOf(sec));requestAnimationFrame(()=>el.scrollIntoView({behavior:'smooth',block:'start'}))}
-  root.EcoSettings={init:initSettings,show:showSettings,reveal:revealSetting};
+  // Resumo no cabeçalho: integrações ativas e o último backup exportado neste navegador.
+  function paintSummary(){
+    const rows=[...document.querySelectorAll('#integrations-center .int-row')],on=rows.filter(r=>r.querySelector('.int-pill.on')).length,i=document.querySelector('#sum-integrations b');
+    if(i&&rows.length)i.textContent=on+' de '+rows.length;
+    const b=document.querySelector('#sum-backup b');if(!b)return;let at=null;try{at=localStorage.getItem('hc-last-backup')}catch{}
+    if(!at){b.textContent='nenhum neste navegador';return}const days=Math.floor((Date.now()-Date.parse(at))/86400000);b.textContent=days<=0?'hoje':days===1?'ontem':'há '+days+' dias';
+  }
+  addEventListener('click',e=>{if(e.target.closest?.('#backup')){try{localStorage.setItem('hc-last-backup',new Date().toISOString())}catch{}setTimeout(paintSummary)}});
+  root.EcoSettings={init:initSettings,show:showSettings,reveal:revealSetting,summary:paintSummary};
 
   // Curva monotônica: suave sem passar dos valores reais (acumulado nunca "desce" no desenho).
   function smooth(P){
@@ -71,4 +80,12 @@
     return s;
   }
   root.EcoChart={smooth};
+  // Foto do cliente nas bolinhas de iniciais: some sozinha quando não há foto (204) e as iniciais aparecem.
+  let avatarRev=0;
+  root.EcoAvatar={
+    src:(kind,id)=>'/api/'+kind+'/'+encodeURIComponent(id)+'/avatar?r='+avatarRev,
+    img:(kind,id)=>'<img class="av-photo" src="'+root.EcoAvatar.src(kind,id)+'" alt="" loading="lazy" decoding="async">',
+    bump(){avatarRev++}
+  };
+  addEventListener('error',e=>{if(e.target?.classList?.contains('av-photo'))e.target.remove()},true);
 })(globalThis);

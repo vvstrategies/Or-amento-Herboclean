@@ -108,7 +108,7 @@ export class CommercialService{
     const phone=base.phone||(phoneOf(q.clientContact)?q.clientContact:''),email=base.email||emailOf(q.clientContact);
     const tags=[...new Set([...(base.tags||[]),...(Array.isArray(q.tags)?q.tags:[])])].slice(0,10);
     return {name:base.name||q.client.trim(),phone,email,contactName:base.contactName||'',address:base.address||q.address||'',city:base.city||placeOf(q).city,neighborhood:base.neighborhood||q.addressNeighborhood||'',
-      birthday:base.birthday||quoteBirthday(q.clientBirthday),notes:base.notes||'',custom:base.custom||[],tags,origin:base.origin||q.origin||''};
+      birthday:base.birthday||quoteBirthday(q.clientBirthday),notes:base.notes||'',custom:base.custom||[],tags,origin:base.origin||q.origin||'',...(base.avatar?{avatar:base.avatar}:{})};
   }
   // Cada orçamento salvo cria ou atualiza o cadastro do cliente.
   sync(q){
@@ -122,6 +122,26 @@ export class CommercialService{
     return suggestion?{...saved,suggestion}:saved;
   }
   // Uma falha no cadastro do cliente nunca impede salvar o orçamento, mas fica registrada no log.
+  // Edição em massa pelo kanban: só origem e tags, que não entram no PDF (sem nova versão do documento).
+  bulkUpdate(raw,isLocked=()=>false){
+    const ids=raw?.ids;
+    if(!Array.isArray(ids)||!ids.length||ids.length>500||ids.some(id=>typeof id!=='string'||!/^[a-zA-Z0-9._-]{1,140}$/.test(id)))throw fail(400,'Selecione de 1 a 500 orçamentos.');
+    const setOrigin=Object.hasOwn(raw,'origin');if(setOrigin&&raw.origin!==''&&!has(ORIGINS,raw.origin))throw fail(400,'Origem inválida.');
+    const list=v=>{if(v==null)return [];if(!Array.isArray(v)||v.length>10||v.some(t=>typeof t!=='string'||!TAG_ID.test(t)))throw fail(400,'Tags inválidas.');return [...new Set(v)]};
+    const add=this.checkTags(list(raw.addTags)),remove=list(raw.removeTags);
+    if(!setOrigin&&!add.length&&!remove.length)throw fail(400,'Escolha o que alterar.');
+    let updated=0,skipped=0;
+    for(const id of new Set(ids)){
+      const q=this.repo.proposal(id);if(!q||isLocked(id)){skipped++;continue}
+      const before=q.tags||[],tags=[...new Set([...before.filter(t=>!remove.includes(t)),...add])].slice(0,6),origin=setOrigin?raw.origin:q.origin||'';
+      if(origin===(q.origin||'')&&JSON.stringify(tags)===JSON.stringify(before))continue;
+      const saved=this.repo.saveProposal({...q,origin,tags});this.safeSync(saved);
+      // A origem escolhida em massa também vale para o cadastro do cliente ligado ao orçamento.
+      if(setOrigin){const link=this.repo.db.prepare('SELECT client_id FROM client_links WHERE proposal_id=?').get(id),c=link&&this.client(link.client_id);if(c&&c.origin!==origin)this.writeClient(c.id,{...this.clientInput({},c),origin},c.createdAt)}
+      updated++;
+    }
+    return {updated,skipped};
+  }
   safeSync(q){try{return this.sync(q)}catch(error){console.error('Falha ao sincronizar o cliente do orçamento',q?.id,error);return null}}
   // Incremental: só orçamentos ainda sem vínculo. Roda depois que o servidor começa a atender.
   syncAll(){for(const {id} of this.repo.db.prepare('SELECT p.id FROM proposals p WHERE p.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM client_links l WHERE l.proposal_id=p.id)').all())this.safeSync(this.repo.proposal(id))}
@@ -145,7 +165,7 @@ export class CommercialService{
     const tags=Array.isArray(raw.tags)?this.checkTags(raw.tags,old.tags).slice(0,10):old.tags||[];
     const email=text(raw.email??old.email,240);if(email&&!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email))throw fail(400,'E-mail inválido.');
     const origin=raw.origin??old.origin??'';if(origin&&!has(ORIGINS,origin))throw fail(400,'Origem inválida.');
-    return {name,phone:text(raw.phone??old.phone,60),email,contactName:text(raw.contactName??old.contactName,240),address:text(raw.address??old.address,800),city:text(raw.city??old.city,160),neighborhood:text(raw.neighborhood??old.neighborhood,160),birthday:birthday(raw.birthday??old.birthday),notes:text(raw.notes??old.notes,3000),custom:this.customFields(raw.custom,old.custom),tags,origin};
+    return {name,phone:text(raw.phone??old.phone,60),email,contactName:text(raw.contactName??old.contactName,240),address:text(raw.address??old.address,800),city:text(raw.city??old.city,160),neighborhood:text(raw.neighborhood??old.neighborhood,160),birthday:birthday(raw.birthday??old.birthday),notes:text(raw.notes??old.notes,3000),custom:this.customFields(raw.custom,old.custom),tags,origin,...(old.avatar?{avatar:old.avatar}:{})};
   }
   createClient(raw){const id=crypto.randomUUID();return this.writeClient(id,this.clientInput(raw))}
   updateClient(id,raw){const old=this.client(id);if(!old)throw fail(404,'Cliente não encontrado.');return this.writeClient(id,this.clientInput(raw,old),old.createdAt)}
