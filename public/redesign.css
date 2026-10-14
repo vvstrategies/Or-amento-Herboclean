@@ -927,3 +927,11 @@ code.asaas-hook{word-break:break-all;font-size:11.5px;background:var(--r-paper);
 .kanban .proposal-card.picked:hover{box-shadow:0 0 0 2px var(--r-primary),0 14px 24px -18px color-mix(in srgb,var(--r-primary) 75%,transparent)}
 /* Painéis grandes (formulários, tabelas) não se mexem: só a borda acende */
 .settings-card:hover,.dre-panel:hover,#integrations-center.int-panel:hover,.int-schedule:hover{transform:none!important}
+/* Recolher o menu: ícone de painel (sem círculo), lima, só a setinha vira quando recolhido */
+.sidebar-toggle{width:34px;height:34px;border:0!important;border-radius:10px;background:transparent!important;color:var(--r-accent);transition:background .2s,color .2s}
+.sidebar-toggle:hover{background:rgba(255,255,255,.1)!important;color:color-mix(in srgb,var(--r-accent) 70%,#fff)}
+.sidebar-toggle:focus-visible{outline:2px solid var(--r-accent);outline-offset:2px}
+.sidebar-toggle svg{width:22px;height:22px;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+body.sidebar-collapsed .sidebar-toggle svg{transform:none}
+.sidebar-toggle .chev{transform-box:fill-box;transform-origin:center;transition:transform .25s var(--r-ease)}
+body.sidebar-collapsed .sidebar-toggle .chev{transform:rotate(180deg)}
