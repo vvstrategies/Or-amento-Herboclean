@@ -29,7 +29,10 @@
   // Ícones oficiais das integrações (arquivos locais; a CSP só permite imagens do próprio servidor).
   const ICONS={'meta-ads':['int-meta.svg','Meta Ads'],meta:['int-meta.svg','Meta Ads'],'google-ads':['int-googleads.svg','Google Ads'],google:['int-googleads.svg','Google Ads'],'google-calendar':['int-googlecalendar.svg','Google Agenda'],'google-drive':['int-googledrive.svg','Google Drive'],'heigit-routes':['int-openstreetmap.svg','Rotas · OpenStreetMap'],asaas:['int-asaas.png','Asaas'],pix:['int-pix.svg','Pix']};
   const brandIcon=(id,size='')=>ICONS[id]?`<span class="brand-chip ${size}" aria-hidden="true"><img src="assets/${ICONS[id][0]}" alt="" loading="lazy"></span>`:'';
-  root.EcoIcons={brandIcon,label:id=>ICONS[id]?.[1]||id};
+  // Ícones das origens que não são plataformas (traço no padrão da marca) e da tag.
+  const LINE={indicacao:'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2.5 19a5.5 5.5 0 0 1 11 0M16 11a3 3 0 1 0 0-6M17.5 14c2.4.5 4 2.3 4 5',organico:'M5 19c0-8 6-13 14-14-1 8-6 14-14 14zM5 19c3-4 6-6 9-8',cliente:'M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5',none:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12h8',tag:'M3 12V4h8l10 10-8 8L3 12zM7.5 8.5h.01'};
+  const optionIcon=id=>ICONS[id]?brandIcon(id,'sm'):LINE[id]?`<svg class="opt-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${LINE[id]}"/></svg>`:'';
+  root.EcoIcons={brandIcon,optionIcon,label:id=>ICONS[id]?.[1]||id};
   // Configurações em abas: agrupa as seções existentes sem mudar seus formulários.
   const SETTINGS_TABS=[['company','Empresa'],['integrations','Integrações'],['commercial','Comercial'],['finance','Custos e financeiro'],['data','Dados']];
   function settingsPanelOf(section){

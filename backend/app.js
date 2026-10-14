@@ -1,4 +1,4 @@
-import {adoptHerboclean} from './herboclean-installation.js';
+import {adoptHerboclean,adoptHbcPrefix} from './herboclean-installation.js';
 import express from 'express';
 import {IntegrationService} from './integration-service.js';
 import {GoogleAdsProvider,MetaAdsProvider} from './ad-spend-providers.js';
@@ -35,7 +35,7 @@ export function createApp(options={}){
   const origin=options.origin||'http://localhost:3000',production=options.production||false;
   if(production&&new URL(origin).protocol!=='https:')throw Error('APP_ORIGIN deve usar HTTPS em produção.');
   const repo=options.repo||new Repository(options.dataDir||path.join(root,'data'));
-  adoptHerboclean(repo);
+  adoptHerboclean(repo);adoptHbcPrefix(repo);
   initializeInstallation(repo);
   migrateServiceCatalog(repo);
   const tokenVault=vault(repo.dir,options.encryptionKey,production);

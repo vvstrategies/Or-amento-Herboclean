@@ -8,10 +8,20 @@ export function adoptHerboclean(repo){
   if(repo.config('herboclean-product-upgrade-v1'))return;
   repo.setConfig('before-herboclean-product-upgrade-v1',{settings:prior,companySetup:repo.config('companySetup')});
   const c=prior.company;
-  const company=modelo.normalizeCompany({...c,primaryColor:c.primaryColor||'#044c3a',accentColor:c.accentColor||'#a7cf21',proposalTitle:c.proposalTitle||'Proposta Técnica de Higienização',proposalSubtitle:c.proposalSubtitle||'Higienização de Estofados e Carpetes',proposalPrefix:c.proposalPrefix||'ECO'});
+  const company=modelo.normalizeCompany({...c,primaryColor:c.primaryColor||'#044c3a',accentColor:c.accentColor||'#a7cf21',proposalTitle:c.proposalTitle||'Proposta Técnica de Higienização',proposalSubtitle:c.proposalSubtitle||'Higienização de Estofados e Carpetes',proposalPrefix:c.proposalPrefix||'HBC'});
   repo.setConfig('settings',{...prior,company,terms:prior.terms||modelo.terms(),services:prior.services||globalThis.UniversalCompany.defaultServices()});
   repo.setConfig('companySetup',{completed:true,completedAt:new Date().toISOString(),source:'existing-herboclean-installation'});
   repo.setConfig('universal-onboarding-v1',true);repo.setConfig('companySetupDraft',null);
   repo.setConfig('herboclean-product-upgrade-v1',true);
+ });
+}
+
+// Prefixo da marca nas propostas novas: ECO (herdado) vira HBC uma única vez; números já emitidos não mudam.
+export function adoptHbcPrefix(repo){
+ if(repo.config('herboclean-prefix-hbc-v1'))return;
+ const prior=repo.config('settings');
+ repo.transaction(()=>{
+  if(prior?.company?.proposalPrefix==='ECO')repo.setConfig('settings',{...prior,company:{...prior.company,proposalPrefix:'HBC'}});
+  repo.setConfig('herboclean-prefix-hbc-v1',true);
  });
 }

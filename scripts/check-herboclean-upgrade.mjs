@@ -19,7 +19,7 @@ const credentials=repo.config('adminPassword'),google=repo.config('google'),draf
 const app=createApp({repo,origin:'http://localhost:3194',fetcher:()=>{throw Error('No external calls allowed');}});
 assert.equal(repo.config('companySetup').completed,true);assert.equal(repo.config('companySetupDraft'),null);
 const settings=repo.config('settings');for(const k of Object.keys(company))assert.equal(settings.company[k],company[k],k);
-assert.equal(settings.company.primaryColor,'#044c3a');assert.equal(settings.company.accentColor,'#a7cf21');assert.equal(settings.company.proposalPrefix,'ECO');
+assert.equal(settings.company.primaryColor,'#044c3a');assert.equal(settings.company.accentColor,'#a7cf21');assert.equal(settings.company.proposalPrefix,'HBC');
 assert.deepEqual(settings.terms,fees);assert.equal(settings.services.length,10);assert.ok(settings.services.some(s=>s.name==='Poltronas'));
 assert.equal(repo.config('profit-schema-version'),3);assert.equal(repo.config('integrations-schema-version'),1);
 for(const table of ['finance_actuals','finance_contexts','finance_goals','ad_spend_daily','integration_connections','finance_geocodes','finance_route_metrics','finance_route_quota'])assert.equal(repo.db.prepare('SELECT COUNT(*) n FROM '+table).get().n,0,table);
@@ -29,4 +29,8 @@ assert.deepEqual(repo.config('adminPassword'),credentials);assert.equal(repo.con
 for(const t of tables)assert.deepEqual(repo.db.prepare('SELECT * FROM '+t).all(),before[t],t);
 assert.equal(fs.readFileSync(file,'utf8'),'%PDF-1.4 legacy immutable fixture');
 const beforeAgain=repo.config('settings');createApp({repo,origin:'http://localhost:3194'});assert.deepEqual(repo.config('settings'),beforeAgain);
+// Prefixo: ECO herdado vira HBC uma vez; prefixo escolhido pelo usuário depois disso é respeitado.
+{const {adoptHbcPrefix}=await import('../backend/herboclean-installation.js');
+ for(const [given,expected] of [['ECO','HBC'],['XYZ','XYZ']]){const d=fs.mkdtempSync(path.join(os.tmpdir(),'herboclean-prefix-')),r=new Repository(d);r.setConfig('settings',{company:{...company,proposalPrefix:given},terms:fees});adoptHbcPrefix(r);assert.equal(r.config('settings').company.proposalPrefix,expected);
+  if(given==='ECO'){r.setConfig('settings',{company:{...company,proposalPrefix:'ECO'},terms:fees});adoptHbcPrefix(r);assert.equal(r.config('settings').company.proposalPrefix,'ECO')}r.close();fs.rmSync(d,{recursive:true,force:true})}}
 repo.close();console.log('PASS: atualização da Herboclean preserva marca, logo, senha, conta Google, agenda, propostas, rascunho e PDF, com financeiro, DRE, rentabilidade e integrações habilitados.');

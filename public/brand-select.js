@@ -6,6 +6,8 @@
   const proto=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value'),protoIndex=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'selectedIndex');
   let open=null,serial=0;
   function label(select){const o=select.options[select.selectedIndex];return o?o.textContent:''}
+  // Opções com data-icon mostram o ícone da marca/origem na lista e no botão.
+  const icon=o=>o?.dataset.icon&&root.EcoIcons?.optionIcon?root.EcoIcons.optionIcon(o.dataset.icon):'';
   function close(restoreFocus=false){if(!open)return;const {list,btn}=open;list.hidden=true;btn.setAttribute('aria-expanded','false');open=null;if(restoreFocus)btn.focus()}
   function enhance(select){
     if(select.dataset.bsel||select.multiple||select.size>1||select.closest('[data-native-select]'))return;
@@ -17,13 +19,14 @@
     select.parentNode.insertBefore(wrap,select);wrap.append(select,btn,list);select.classList.add('bsel-native');select.tabIndex=-1;select.setAttribute('aria-hidden','true');
     const aria=select.getAttribute('aria-label')||select.closest('label')?.firstChild?.textContent?.trim();if(aria)btn.setAttribute('aria-label',aria+': '+label(select));
     let hl=-1,typed='',typedAt=0;
-    const sync=()=>{btn.querySelector('span').textContent=label(select)||'Selecione';btn.disabled=select.disabled;if(aria)btn.setAttribute('aria-label',aria+': '+label(select))};
+    const sync=()=>{btn.querySelector('span').innerHTML=icon(select.options[select.selectedIndex])+esc(label(select)||'Selecione');btn.disabled=select.disabled;if(aria)btn.setAttribute('aria-label',aria+': '+label(select))};
     Object.defineProperty(select,'value',{configurable:true,get(){return proto.get.call(this)},set(v){proto.set.call(this,v);sync()}});
     Object.defineProperty(select,'selectedIndex',{configurable:true,get(){return protoIndex.get.call(this)},set(v){protoIndex.set.call(this,v);sync()}});
     const items=()=>[...list.children];
     const mark=()=>items().forEach((li,i)=>{li.classList.toggle('hl',i===hl);if(i===hl)li.scrollIntoView({block:'nearest'})});
-    const build=()=>{list.innerHTML=[...select.options].map((o,i)=>`<li role="option" data-i="${i}" aria-selected="${i===select.selectedIndex}"${o.disabled?' aria-disabled="true"':''}><span class="ck">✓</span>${esc(o.textContent)}</li>`).join('')};
-    const show=()=>{if(select.disabled)return;close();build();list.hidden=false;btn.setAttribute('aria-expanded','true');open={list,btn};hl=select.selectedIndex;mark()};
+    const build=()=>{list.innerHTML=[...select.options].map((o,i)=>`<li role="option" data-i="${i}" aria-selected="${i===select.selectedIndex}"${o.disabled?' aria-disabled="true"':''}${o.hidden?' hidden':''}><span class="ck">✓</span>${icon(o)}${esc(o.textContent)}</li>`).join('')};
+    // Abre para cima quando não há espaço embaixo (ex.: barra fixa no rodapé).
+    const show=()=>{if(select.disabled)return;close();build();list.hidden=false;const r=btn.getBoundingClientRect(),below=innerHeight-r.bottom;list.classList.toggle('up',below<list.offsetHeight+12&&r.top>below);btn.setAttribute('aria-expanded','true');open={list,btn};hl=select.selectedIndex;mark()};
     const pick=i=>{const o=select.options[i];if(!o||o.disabled)return;const changed=select.selectedIndex!==i;protoIndex.set.call(select,i);sync();close(true);if(changed){select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}))}};
     btn.addEventListener('click',e=>{e.stopPropagation();list.hidden?show():close()});
     list.addEventListener('mousedown',e=>e.preventDefault());

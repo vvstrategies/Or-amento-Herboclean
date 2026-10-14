@@ -11,7 +11,7 @@
   const icon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[name]||paths.document}"></path></svg>`;
   const badge=status=>`<span class="status-badge ${status}">${esc(O.statuses[status])}</span>`;
   const initials=name=>name.trim().split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase()||'OU';
-  let picking=false;const picked=new Set();
+  let picking=false,anchor=null;const picked=new Set();
   let pipeline='generated',funnel='comercial',tagFilter='',showCancelled=false,tagList=[],clientIndex=new Map(),settled=null,lastCounts={};
   let quotes=[],operations=new Map(),documents=[],demo=false,examples=[],exampleOperations=new Map(),exampleDocs=[],selected=null,view='quotes',refreshSerial=0,viewerURL,review=null,initialized=false;
   const getQuotes=()=>demo?examples:quotes;
@@ -120,15 +120,26 @@
   // Seleção de vários orçamentos para editar origem e tags de uma vez.
   function modeButton(){const b=$('#select-mode');b.setAttribute('aria-pressed',String(picking));b.textContent=picking?'Concluir seleção':'Selecionar'}
   function setPicking(on){picking=on;if(!on)picked.clear();modeButton();renderLibrary()}
-  function togglePick(id){picking=true;modeButton();picked.has(id)?picked.delete(id):picked.add(id);renderLibrary();$(`#board .proposal-card[data-detail="${CSS.escape(id)}"]`)?.focus()}
+  function togglePick(id){picking=true;modeButton();picked.has(id)?picked.delete(id):picked.add(id);anchor=id;renderLibrary();$(`#board .proposal-card[data-detail="${CSS.escape(id)}"]`)?.focus()}
+  // Atalhos como no Windows: Shift+clique marca o intervalo desde o último card; Ctrl+A marca a coluna (de novo: o quadro todo).
+  const boardIds=()=>$$('#board .proposal-card').map(c=>c.dataset.detail);
+  const columnIds=id=>{const col=$(`#board .proposal-card[data-detail="${CSS.escape(id)}"]`)?.closest('.kcol');return col?[...col.querySelectorAll('.proposal-card')].map(c=>c.dataset.detail):[]};
+  function pickRange(id){
+    if(!anchor||!boardIds().includes(anchor))return togglePick(id);
+    const ids=boardIds(),a=ids.indexOf(anchor),b=ids.indexOf(id);for(const x of ids.slice(Math.min(a,b),Math.max(a,b)+1))picked.add(x);
+    picking=true;modeButton();renderLibrary();$(`#board .proposal-card[data-detail="${CSS.escape(id)}"]`)?.focus();
+  }
+  function pickAll(ids){const all=ids.length&&ids.every(id=>picked.has(id));for(const id of ids)all?picked.delete(id):picked.add(id);picking=true;modeButton();renderLibrary()}
   function paintBulk(){
     const bar=$('#bulk-bar');if(!bar)return;const n=picked.size;bar.hidden=!picking;document.body.classList.toggle('bulk-open',picking);if(!picking)return;
     $('#bulk-count').textContent=n?`${n} selecionado${n>1?'s':''}`:'Clique nos orçamentos para selecionar';
-    const opts=(first,list)=>`<option value="">${first}</option>`+list.map(([v,l])=>`<option value="${esc(v)}">${esc(l)}</option>`).join('');
-    $('#bulk-origin').innerHTML=opts('Definir origem…',[...Object.entries(M.origins),['__none','Sem origem']]);
-    $('#bulk-tag-add').innerHTML=opts('Adicionar tag…',tagList.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()]));
+    const total=$$('#board .proposal-card').length;$('#bulk-all').textContent=n&&n>=total?'Desmarcar todos':`Selecionar todos (${total})`;
+    const opts=(first,list)=>`<option value="" hidden>${first}</option>`+list.map(([v,l,ic])=>`<option value="${esc(v)}" data-icon="${esc(ic)}">${esc(l)}</option>`).join('');
+    const pretty=l=>l.charAt(0)+l.slice(1).toLowerCase();
+    $('#bulk-origin').innerHTML=opts('Definir origem…',[...Object.entries(M.origins).map(([id,l])=>[id,l,id]),['__none','Sem origem','none']]);
+    $('#bulk-tag-add').innerHTML=opts('Adicionar tag…',tagList.map(t=>[t.id,pretty(t.label),'tag']));
     const present=[...new Set(getQuotes().filter(q=>picked.has(q.id)).flatMap(q=>q.tags||[]))];
-    $('#bulk-tag-remove').innerHTML=opts('Remover tag…',present.map(id=>[id,tagLabel(id)]));
+    $('#bulk-tag-remove').innerHTML=opts('Remover tag…',present.map(id=>[id,pretty(tagLabel(id)),'tag']));
     for(const el of $$('#bulk-bar select'))el.disabled=!n||(el.id==='bulk-tag-remove'&&!present.length);
   }
   function applyBulk(change,description){
@@ -140,12 +151,19 @@
     });
   }
   function bindBulk(){
-    $('#select-mode').onclick=()=>setPicking(!picking);$('#bulk-clear').onclick=()=>setPicking(false);
+    $('#select-mode').onclick=()=>setPicking(!picking);$('#bulk-clear').onclick=()=>setPicking(false);$('#bulk-all').onclick=()=>pickAll(boardIds());
+    document.addEventListener('keydown',e=>{
+      if(!(e.ctrlKey||e.metaKey)||e.key.toLowerCase()!=='a'||view!=='quotes'||document.querySelector('dialog[open]'))return;
+      if(e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;
+      if(!picking&&!e.target.closest?.('#board'))return;
+      e.preventDefault();const from=e.target.closest?.('.proposal-card')?.dataset.detail||anchor,col=from?columnIds(from):[];
+      pickAll(col.length&&!col.every(id=>picked.has(id))?col:boardIds());
+    });
     const n=()=>picked.size+' orçamento'+(picked.size>1?'s':'');
     $('#bulk-origin').onchange=e=>{const v=e.target.value;e.target.value='';if(!v)return;const origin=v==='__none'?'':v;applyBulk({origin},`A origem de ${n()} passa a ser ${origin?M.origins[origin]:'nenhuma'}, também no cadastro dos clientes. O Início e o ROAS passam a usar essa origem; os PDFs não mudam.`)};
     $('#bulk-tag-add').onchange=e=>{const v=e.target.value;e.target.value='';if(v)applyBulk({addTags:[v]},`A tag ${tagLabel(v)} será adicionada a ${n()}.`)};
     $('#bulk-tag-remove').onchange=e=>{const v=e.target.value;e.target.value='';if(v)applyBulk({removeTags:[v]},`A tag ${tagLabel(v)} será removida de ${n()}.`)};
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&picking&&view==='quotes'&&!document.querySelector('dialog[open]')){e.preventDefault();setPicking(false)}});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&picking&&view==='quotes'&&!document.querySelector('dialog[open]')&&!document.querySelector('.bsel-list:not([hidden])')){e.preventDefault();setPicking(false)}});
   }
   // Regras de movimentação entre colunas do funil comercial seguem o fluxo operacional.
   function moveRule(q,to){
@@ -358,7 +376,8 @@
     const button=e.target.closest('button,.proposal-card');if(!button)return;
     if(button.dataset.pick){togglePick(button.dataset.pick);return}
     if(button.dataset.pickCol){const ids=visible().filter(q=>stageOf(q,getOp(q.id))===button.dataset.pickCol).map(q=>q.id),all=ids.every(id=>picked.has(id));for(const id of ids)all?picked.delete(id):picked.add(id);renderLibrary();return}
-    if(button.classList.contains('proposal-card')&&(picking||e.ctrlKey||e.metaKey||e.shiftKey)){togglePick(button.dataset.detail);return}
+    if(button.classList.contains('proposal-card')&&e.shiftKey){pickRange(button.dataset.detail);return}
+    if(button.classList.contains('proposal-card')&&(picking||e.ctrlKey||e.metaKey)){togglePick(button.dataset.detail);return}
     if(button.dataset.close){$('#'+button.dataset.close).close();return}
     if(button.dataset.funnel){funnel=button.dataset.funnel;syncPipelines();renderLibrary();return}
     if(button.dataset.tagFilter!==undefined){tagFilter=button.dataset.tagFilter;renderLibrary();return}
