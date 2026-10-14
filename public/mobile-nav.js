@@ -8,7 +8,7 @@
   const remember=(k,v)=>{try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch{return null}};
   const svg=p=>`<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${p}</svg>`;
   const I={
-    home:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/>',
+    home:'<path d="M4.5 10.2 12 4l7.5 6.2V18a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2z"/><path d="M9.3 14.3c1.5 1.4 3.9 1.4 5.4 0"/>',
     quotes:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>',
     clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
     finance:'<path d="M4 20V10M10 20V5M16 20v-7M21 20H3"/>',

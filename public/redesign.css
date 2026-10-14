@@ -935,3 +935,25 @@ code.asaas-hook{word-break:break-all;font-size:11.5px;background:var(--r-paper);
 body.sidebar-collapsed .sidebar-toggle svg{transform:none}
 .sidebar-toggle .chev{transform-box:fill-box;transform-origin:center;transition:transform .25s var(--r-ease)}
 body.sidebar-collapsed .sidebar-toggle .chev{transform:rotate(180deg)}
+
+/* Botão de recolher: setinha num círculo lima; aponta para a esquerda (recolher) e vira para a direita (expandir) */
+.sidebar-toggle{width:30px;height:30px;border-radius:50%}
+.sidebar-toggle:hover{background:transparent!important;filter:brightness(1.08)}
+.sidebar-toggle svg{width:28px;height:28px;filter:drop-shadow(0 4px 10px color-mix(in srgb,var(--r-accent) 45%,transparent))}
+.sidebar-toggle .disc{fill:var(--r-accent);stroke:none}
+.sidebar-toggle .chev{stroke:var(--r-accent-ink);stroke-width:2.6;fill:none}
+.sidebar-toggle:hover .disc{fill:color-mix(in srgb,var(--r-accent) 85%,#fff)}
+
+/* Teste: item ativo do menu com brilho verde saindo da esquerda, borda fina, ícone em círculo e indicador na borda */
+.sidebar .nav-item{position:relative;border:1px solid transparent}
+.sidebar .nav-item span[data-icon]{display:grid;place-items:center;width:30px;height:30px;margin:-6px 0 -6px -7px;border-radius:50%;flex:none;transition:box-shadow .25s,background .25s,border-color .25s;border:1.5px solid transparent}
+.sidebar .nav-item.active{color:#fff;font-weight:700;background:linear-gradient(90deg,color-mix(in srgb,var(--r-accent) 30%,transparent),color-mix(in srgb,var(--r-accent) 9%,transparent) 55%,rgba(255,255,255,.035));border-color:color-mix(in srgb,var(--r-accent) 36%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 10px 26px -16px color-mix(in srgb,var(--r-accent) 80%,transparent)}
+.sidebar .nav-item.active span[data-icon]{color:color-mix(in srgb,var(--r-accent) 55%,#fff);border-color:color-mix(in srgb,var(--r-accent) 75%,transparent);background:color-mix(in srgb,var(--r-accent) 14%,transparent);box-shadow:0 0 14px -2px color-mix(in srgb,var(--r-accent) 70%,transparent),inset 0 0 8px -2px color-mix(in srgb,var(--r-accent) 60%,transparent)}
+.sidebar .nav-item.active::before{content:"";position:absolute;left:-15px;top:50%;width:4px;height:22px;transform:translateY(-50%);border-radius:0 4px 4px 0;background:var(--r-accent);box-shadow:0 0 12px var(--r-accent)}
+.sidebar .nav-item.active .nav-count{background:color-mix(in srgb,var(--r-accent) 22%,transparent);color:#fff}
+.sidebar .nav-item.active:hover{color:#fff}
+body.sidebar-collapsed .sidebar .nav-item span[data-icon]{margin:0}
+body.sidebar-collapsed .sidebar .nav-item.active{background:transparent;border-color:transparent;box-shadow:none}
+body.sidebar-collapsed .sidebar .nav-item.active span[data-icon]{width:40px;height:40px}
+body.sidebar-collapsed .sidebar .nav-item.active::before{left:calc((var(--sidebar-w) - 48px) / -2)}
+@media(prefers-reduced-motion:reduce){.sidebar .nav-item span[data-icon]{transition:none}}
