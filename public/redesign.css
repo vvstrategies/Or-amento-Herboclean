@@ -920,3 +920,10 @@ code.asaas-hook{word-break:break-all;font-size:11.5px;background:var(--r-paper);
 .bsel-list li[hidden]{display:none}
 .kc-ghost{min-height:0!important;box-sizing:border-box}.kc-ghost .kc-pick{display:none}
 .kc-ghost{transform:none!important}
+
+/* Efeitos ao passar o mouse sem cortes: a lista da coluna tem folga para o card subir e para a sombra */
+.kanban .kcol-body{padding:8px 10px 22px;margin:-6px -10px -16px;scroll-padding-top:8px}
+.kanban .proposal-card:hover{transform:translateY(-2px);box-shadow:0 14px 24px -18px color-mix(in srgb,var(--r-primary) 75%,transparent)}
+.kanban .proposal-card.picked:hover{box-shadow:0 0 0 2px var(--r-primary),0 14px 24px -18px color-mix(in srgb,var(--r-primary) 75%,transparent)}
+/* Painéis grandes (formulários, tabelas) não se mexem: só a borda acende */
+.settings-card:hover,.dre-panel:hover,#integrations-center.int-panel:hover,.int-schedule:hover{transform:none!important}
