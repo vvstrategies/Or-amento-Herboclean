@@ -957,3 +957,7 @@ body.sidebar-collapsed .sidebar .nav-item.active{background:transparent;border-c
 body.sidebar-collapsed .sidebar .nav-item.active span[data-icon]{width:40px;height:40px}
 body.sidebar-collapsed .sidebar .nav-item.active::before{left:calc((var(--sidebar-w) - 48px) / -2)}
 @media(prefers-reduced-motion:reduce){.sidebar .nav-item span[data-icon]{transition:none}}
+/* Botão de recolher menor; círculo do ícone ativo só com o menu recolhido */
+.sidebar-toggle{width:24px;height:24px}
+.sidebar-toggle svg{width:20px;height:20px;filter:drop-shadow(0 3px 8px color-mix(in srgb,var(--r-accent) 40%,transparent))}
+body:not(.sidebar-collapsed) .sidebar .nav-item.active span[data-icon]{border-color:transparent;background:transparent;box-shadow:none;color:var(--r-accent)}
