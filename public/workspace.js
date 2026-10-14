@@ -204,7 +204,7 @@
     }
     function start(){
       const r=drag.card.getBoundingClientRect(),ghost=drag.card.cloneNode(true);
-      ghost.className='proposal-card kc-ghost';ghost.removeAttribute('tabindex');ghost.setAttribute('aria-hidden','true');ghost.style.width=r.width+'px';
+      ghost.className='proposal-card kc-ghost';ghost.removeAttribute('tabindex');ghost.setAttribute('aria-hidden','true');ghost.querySelector('.kc-pick')?.remove();ghost.style.width=r.width+'px';ghost.style.height=r.height+'px';
       drag.dx=drag.x-r.left;drag.dy=drag.y-r.top;drag.ghost=ghost;drag.active=true;document.body.append(ghost);place();
       drag.card.classList.add('dragging');document.body.classList.add('kanban-dragging');navigator.vibrate?.(8);frame=requestAnimationFrame(tick);
     }

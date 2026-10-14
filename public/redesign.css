@@ -918,3 +918,5 @@ code.asaas-hook{word-break:break-all;font-size:11.5px;background:var(--r-paper);
 .bulk-all:hover{background:rgba(255,255,255,.12)}
 @media(max-width:760px){.bulk-bar strong{flex:0 1 auto}.bulk-all{margin-right:0;margin-left:auto}}
 .bsel-list li[hidden]{display:none}
+.kc-ghost{min-height:0!important;box-sizing:border-box}.kc-ghost .kc-pick{display:none}
+.kc-ghost{transform:none!important}
