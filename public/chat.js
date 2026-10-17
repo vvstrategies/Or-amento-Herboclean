@@ -7,7 +7,7 @@
   const initials=v=>v.split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
   const icon=(name)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${{chat:'<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0Z"/><path d="M7 9h9M7 13h6"/>',search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',send:'<path d="m21 3-7 18-4-7-7-4 18-7ZM10 14 21 3"/>',back:'<path d="m14 5-7 7 7 7"/>',file:'<path d="M5 3h9l5 5v13H5ZM14 3v5h5M9 13h6M9 17h4"/>',close:'<path d="m6 6 12 12M18 6 6 18"/>',plus:'<path d="M12 5v14M5 12h14"/>'}[name]||''}</svg>`;
   let enabled=false,started=false,threads=[],active=null,pane=null,filter='all',query='',busy=false,serial=0;
-  const drafts=new Map(),texts=new Map();let timer,tags=[],pendingPhotos=0,selectedQuoteId=null,quoteViewToken=0;
+  const drafts=new Map(),texts=new Map();let timer,tags=[],pendingPhotos=0,selectedQuoteId=null,quoteViewToken=0,refreshVersion=0,polling=false;
   const $=s=>root.querySelector(s),base=id=>'/api/chat-pilot/conversations/'+encodeURIComponent(id),current=()=>threads.find(t=>t.id===active);
   function notice(text,error=false){const el=$('.chat-notice');if(!el)return;el.textContent=text;el.classList.toggle('error',error)}
   const guard=fn=>async e=>{try{await fn(e)}catch(error){notice(error.message,true)}};
@@ -44,14 +44,22 @@
     const rows=threads.filter(t=>(filter!=='unread'||t.unread)&&(t.client.name.toLocaleLowerCase('pt-BR').includes(search)||(digits&&t.client.phone.replace(/\D/g,'').includes(digits))||!search));
     $('.chat-count').textContent=threads.length;
     for(const b of root.querySelectorAll('[data-filter]')){b.setAttribute('aria-pressed',String(b.dataset.filter===filter));b.textContent=b.dataset.filter==='unread'?'Não lidas'+(threads.some(t=>t.unread)?' · '+threads.filter(t=>t.unread).length:''):'Todas'}
-    $('.chat-list').innerHTML=rows.map(t=>{const m=t.messages.at(-1);return `<button class="chat-contact ${active===t.id?'selected':''}" data-thread="${esc(t.id)}" ${active===t.id?'aria-current="true"':''}><span class="chat-avatar">${esc(initials(t.client.name))}</span><span class="chat-contact-main"><span class="chat-contact-line"><strong>${esc(t.client.name)}</strong><time>${m?clock(m.at):''}</time></span><span class="chat-preview">${m?.direction==='out'?'Você: ':''}${esc(m?.text||'Comece a conversa')}</span><span class="chat-contact-bottom"><span>${t.client.quoteCount?t.client.quoteCount+' orçamento'+(t.client.quoteCount>1?'s':''):'Sem orçamento'}</span>${t.unread?`<b>${t.unread}</b>`:''}</span></span></button>`}).join('')||'<p class="chat-no-results">Nenhuma conversa encontrada.</p>';
+    $('.chat-list').innerHTML=rows.map(t=>{const m=t.messages.at(-1);return `<button class="chat-contact ${active===t.id?'selected':''}" data-thread="${esc(t.id)}" ${active===t.id?'aria-current="true"':''}><span class="chat-avatar">${esc(initials(t.client.name))}</span><span class="chat-contact-main"><span class="chat-contact-line"><strong>${esc(t.client.name)}</strong><time>${m?clock(m.at):''}</time></span><span class="chat-preview">${m?.direction==='out'?esc(m.author||'Atendente')+': ':''}${esc(m?.text||'Comece a conversa')}</span><span class="chat-contact-bottom"><span>${t.client.quoteCount?t.client.quoteCount+' orçamento'+(t.client.quoteCount>1?'s':''):'Sem orçamento'}</span>${t.unread?`<b>${t.unread}</b>`:''}</span></span></button>`}).join('')||'<p class="chat-no-results">Nenhuma conversa encontrada.</p>';
   }
   async function refresh(){
-    threads=await api('/api/chat-pilot/conversations');threads.sort((a,b)=>(b.messages.at(-1)?.at||'').localeCompare(a.messages.at(-1)?.at||''));renderList();
+    const version=++refreshVersion,data=await api('/api/chat-pilot/conversations');if(version!==refreshVersion)return;
+    threads=data;threads.sort((a,b)=>(b.messages.at(-1)?.at||'').localeCompare(a.messages.at(-1)?.at||''));renderList();
+  }
+  async function markVisibleRead(){
+    const t=current(),box=$('.chat-messages');
+    if(!t?.unread||!box||root.hidden||document.hidden||(pane&&matchMedia('(max-width:760px)').matches)||box.scrollHeight-box.scrollTop-box.clientHeight>100)return;
+    const lastMessageId=box.dataset.lastMessageId;if(!lastMessageId)return;
+    const value=await api(base(t.id)+'/read',{method:'POST',body:JSON.stringify({lastMessageId})});
+    if(current()?.id===t.id&&current().messages.at(-1)?.id===lastMessageId){current().unread=value.unread;renderList()}
   }
   async function select(id){
     if(busy||pendingPhotos)return notice('Aguarde a operação terminar.',true);await flush();const token=++serial;selectedQuoteId=null;pane=null;$('.chat-pane').hidden=true;$('.chat-layout').classList.remove('has-pane');
-    active=id;await api(base(id)+'/read',{method:'POST',body:'{}'});if(token!==serial)return;await refresh();if(token!==serial)return;renderRoom();
+    active=id;await refresh();if(token!==serial)return;renderRoom();await markVisibleRead();
   }
   function renderRoom(){
     const t=current();if(!t)return;$('.chat-layout').classList.add('has-chat');
@@ -67,9 +75,11 @@
     const box=$('.chat-messages'),t=current();if(!box||!t)return;
     const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<100||!box.childElementCount;let day='';
     box.innerHTML=t.messages.map(m=>{const date=new Date(m.at).toLocaleDateString('pt-BR'),label=date!==day?`<div class="chat-day">${date}</div>`:'';day=date;return label+`<div class="chat-bubble ${m.direction==='out'?'out':'in'}">${m.pdfId?`<a class="chat-pdf" target="_blank" rel="noopener" href="/api/pdfs/${encodeURIComponent(m.pdfId)}">${icon('file')}<span>Orçamento em PDF<br><small>Abrir documento</small></span></a>`:''}<p>${esc(m.text)}</p><span class="chat-message-meta">${m.direction==='out'?esc(m.author||'Você')+' · ':''}${clock(m.at)}${m.direction==='out'?' · simulado':''}</span></div>`}).join('');
+    box.dataset.lastMessageId=t.messages.at(-1)?.id||'';
+    box.onscroll=()=>{if(box.scrollHeight-box.scrollTop-box.clientHeight<100)markVisibleRead().catch(()=>{})};
     if(nearBottom)box.scrollTop=box.scrollHeight;
   }
-  async function send(id,text,direction,pdfId){await api(base(id)+'/messages',{method:'POST',body:JSON.stringify({id:crypto.randomUUID(),text,direction,pdfId})});await refresh();if(active===id){if(direction==='in'){await api(base(id)+'/read',{method:'POST',body:'{}'});current().unread=0;renderList()}renderMessages();$('.chat-messages').scrollTop=$('.chat-messages').scrollHeight}}
+  async function send(id,text,direction,pdfId){await api(base(id)+'/messages',{method:'POST',body:JSON.stringify({id:crypto.randomUUID(),text,direction,pdfId})});await refresh();if(active===id){renderMessages();$('.chat-messages').scrollTop=$('.chat-messages').scrollHeight;await markVisibleRead()}}
   async function simulate(){
     const id=active,dialog=document.createElement('dialog');dialog.className='chat-sim-dialog';dialog.innerHTML='<form><h2>Mensagem do cliente</h2><p>Escolha o que chega nesta conversa de teste.</p><label>Mensagem<textarea required maxlength="4000" rows="4">Olá! Pode me enviar o orçamento por aqui?</textarea></label><div><button type="button">Voltar</button><button type="submit" class="chat-primary">Simular recebimento</button></div></form>';
     document.body.appendChild(dialog);dialog.querySelector('button').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());dialog.querySelector('form').onsubmit=guard(async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{await send(id,dialog.querySelector('textarea').value,'in');dialog.close()}finally{b.disabled=false}});dialog.showModal();
@@ -83,10 +93,11 @@
   async function closePane(){if(busy||pendingPhotos)return notice('Aguarde a operação terminar.',true);await flush();pane=null;$('.chat-pane').hidden=true;$('.chat-layout').classList.remove('has-pane');$('.chat-person')?.focus()}
   const field=(label,name,value,type='text',required=false)=>`<label>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${required?'required':''} ${type==='email'?'autocomplete="email"':''}></label>`;
   function renderProfile(){
-    const id=active,c=current().client;
+    const id=active,c=current().client;let clientETag=current().clientETag;
     $('.chat-pane').innerHTML=paneHead('Perfil do cliente','A mesma ficha disponível na aba Clientes.')+'<div class="chat-pane-body"></div>';
     EcoChatCustomer.render({container:$('.chat-pane-body'),client:c,tags,onError:text=>notice(text,true),onQuote:()=>openPane('quote',true),onView:showQuotes,onSave:async data=>{
-      await api(base(id)+'/client',{method:'PUT',body:JSON.stringify(data)});await refresh();renderRoom();window.dispatchEvent(new Event('eco:data-changed'));notice('Ficha do cliente atualizada.');
+      const saved=await api(base(id)+'/client',{method:'PUT',body:JSON.stringify({...data,clientETag})});clientETag=saved.clientETag;
+      await refresh();if(active===id)renderRoom();window.dispatchEvent(new Event('eco:data-changed'));notice('Ficha do cliente atualizada.');
     }});
   }
   function headerActions(t){
@@ -138,6 +149,19 @@
   async function open(){await ready;if(!enabled){root.innerHTML='<p>O atendimento está disponível somente no piloto local.</p>';return}if(!started){started=true;shell()}try{await refresh();if(active)renderMessages()}catch(e){notice(e.message,true)}}
   const ready=EcoAuth.ready.then(async()=>{const config=await api('/api/chat-pilot');enabled=config.enabled;if(!enabled)return;tags=await api('/api/tags');document.getElementById('chat-nav').hidden=false;const mobile=document.createElement('a');mobile.href='#atendimento';mobile.className='chat-mobile-entry';mobile.innerHTML=icon('chat')+'<span>Atendimento</span>';document.body.appendChild(mobile);if(location.hash==='#atendimento')open()}).catch(e=>console.error('Atendimento:',e));
   window.EcoChat={open,simulationEnabled:()=>enabled,refresh:async()=>{if(!started)return;await refresh();if(active){renderRoom();if(pane==='quotes')await showQuotes(selectedQuoteId);else if(pane==='profile')renderProfile()}}};
-  setInterval(async()=>{if(!enabled||!started||root.hidden||document.hidden||busy)return;try{const before=current()?.messages.at(-1)?.id;await refresh();if(active&&before!==current()?.messages.at(-1)?.id)renderMessages()}catch{}},5000);
+  async function poll(){
+    if(!enabled||!started||root.hidden||document.hidden||busy||polling)return;polling=true;
+    try{
+      const id=active,before=current()?.messages.at(-1)?.id,actions=current()?headerActions(current()):'';
+      await refresh();
+      if(active&&active===id){
+        if(before!==current()?.messages.at(-1)?.id)renderMessages();
+        if(current()&&actions!==headerActions(current()))$('.chat-header-actions').innerHTML=headerActions(current());
+        await markVisibleRead();
+      }
+      $('.chat-inbox-footer').textContent='Herboclean · conversas atualizadas';
+    }catch{const footer=$('.chat-inbox-footer');if(footer)footer.textContent='Sem atualização · tentando reconectar…'}finally{polling=false}
+  }
+  setInterval(poll,5000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pane&&!root.hidden)closePane().catch(error=>notice(error.message,true))});
 })();

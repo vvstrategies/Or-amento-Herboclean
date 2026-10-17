@@ -21,14 +21,18 @@ try{
   assert.equal((await req('/api/chat-pilot')).data.enabled,true);
   const threads=(await req('/api/chat-pilot/conversations')).data;assert.equal(threads.length,3);
   const t=threads[1],base='/api/chat-pilot/conversations/'+t.id,clientsBefore=commercial.clientRows().length;
-  await req(base+'/client',{birthday:'18/03',contactName:'Contato de teste',notes:'Preferência de horário',tags:['residencial'],origin:'google',custom:[{label:'Pet em casa',value:'Sim'}]},'PUT');
+  const editClient=async(data,status=200)=>req(base+'/client',{...data,clientETag:(await req(base)).data.clientETag},'PUT',status);
+  await editClient({birthday:'18/03',contactName:'Contato de teste',notes:'Preferência de horário',tags:['residencial'],origin:'google',custom:[{label:'Pet em casa',value:'Sim'}]});
   let profile=(await req(base)).data.client;
   assert.equal(profile.birthday,'03-18');assert.equal(profile.origin,'google');assert.equal(profile.custom[0].value,'Sim');assert.equal(profile.contactName,'Contato de teste');
-  await req(base+'/client',{birthday:'31/02'},'PUT',400);
-  await req(base+'/client',{origin:'invalid'},'PUT',400);
+  await editClient({birthday:'31/02'},400);
+  await editClient({origin:'invalid'},400);
+  await req(base+'/client',{notes:'stale',clientETag:t.clientETag},'PUT',409);
+  assert.equal(commercial.client(t.clientId).notes,'Preferência de horário');
   await req(base+'/messages',{id:crypto.randomUUID(),direction:'out',text:'Blocked'},'POST',403,{'X-CSRF-Token':''});
   const msg={id:crypto.randomUUID(),direction:'out',text:'Mensagem apenas local <script>alert(1)</script>'};
   await req(base+'/messages',msg);await req(base+'/messages',msg);
+  await req(base+'/messages',{...msg,text:'Changed payload'},'POST',409);
   assert.equal((await req(base)).data.messages.filter(x=>x.id===msg.id).length,1);
   let d=(await req(base+'/draft')).data;
   assert.equal(d.quote.client,t.client.name);assert.equal(d.quote.clientContact,t.client.phone);
@@ -73,13 +77,32 @@ try{
   const fresh=(await req(base+'/draft/new',{})).data;assert.notEqual(fresh.quote.id,generated.id);assert.equal(fresh.quote.clientEmail,c.email);
   // Another account has an independent draft, but sees the same conversation.
   system.team.create({name:'Second',username:'second'},await passwordHash('second-local-password'),'test');
-  const second=await req('/api/login',{username:'second',password:'second-local-password'});
+  const second=await req('/api/login',{username:'second',password:'second-local-password'},'POST',200,{Cookie:''});
   const secondHeaders={Cookie:second.r.headers.get('set-cookie').split(';')[0],'X-CSRF-Token':second.data.csrf};
   assert.notEqual((await req(base+'/draft',null,'GET',200,secondHeaders)).data.quote.id,fresh.quote.id);
+  // Each agent has their own read cursor; only messages actually observed are acknowledged.
+  const observed=(await req(base)).data.messages.at(-1).id;
+  const incoming={id:crypto.randomUUID(),direction:'in',text:'New message while the other tab was loading'};
+  await req(base+'/messages',incoming,'POST',200,secondHeaders);
+  assert.equal((await req(base+'/read',{lastMessageId:observed})).data.unread,1);
+  assert.equal((await req(base+'/read',{lastMessageId:incoming.id})).data.unread,0);
+  assert.equal((await req(base,null,'GET',200,secondHeaders)).data.unread,2);
+  await req(base+'/read',{lastMessageId:observed});
+  assert.equal((await req(base)).data.unread,0,'An older tab cannot move the read cursor backwards');
+  await req(base+'/read',{lastMessageId:crypto.randomUUID()},'POST',400);
+  await req(base+'/messages',msg,'POST',409,secondHeaders);
+  // Two agents saving the same profile revision cannot overwrite each other.
+  const version=(await req(base)).data.clientETag;
+  const edits=await Promise.all([
+    fetch(origin+base+'/client',{method:'PUT',headers,body:JSON.stringify({clientETag:version,contactName:'First agent'})}),
+    fetch(origin+base+'/client',{method:'PUT',headers:{...headers,...secondHeaders},body:JSON.stringify({clientETag:version,contactName:'Second agent'})})
+  ]);
+  assert.deepEqual(edits.map(r=>r.status).sort(),[200,409]);
   assert.equal(calls,0);
+  const messageCount=(await req(base)).data.messages.length;
   // Reopening the same database preserves conversations, and the normal app exposes no simulator.
   await new Promise(r=>server.close(r));repo.db.close();
   const normal=createApp({origin,dataDir:dir,fetcher:async()=>{throw Error('No network')}}),http=normal.app.listen(3312,'127.0.0.1');await new Promise(r=>http.once('listening',r));
-  try{const again=await req('/api/login',{password:'local-native-chat-password'});headers.Cookie=again.r.headers.get('set-cookie').split(';')[0];headers['X-CSRF-Token']=again.data.csrf;assert.equal((await req('/api/chat-pilot')).data.enabled,false);await req(base,null,'GET',404);assert.equal(normal.repo.config('native-chat-pilot-v1').threads.find(x=>x.id===t.id).messages.length,3)}finally{await new Promise(r=>http.close(r));normal.repo.db.close()}
-  console.log('PASS: native chat — auth/CSRF, simulation, persistent drafts/photos, complete client profile, PDF, scheduling/rescheduling/cancellation, account separation and production gating.');
+  try{const again=await req('/api/login',{password:'local-native-chat-password'});headers.Cookie=again.r.headers.get('set-cookie').split(';')[0];headers['X-CSRF-Token']=again.data.csrf;assert.equal((await req('/api/chat-pilot')).data.enabled,false);await req(base,null,'GET',404);assert.equal(normal.repo.config('native-chat-pilot-v1').threads.find(x=>x.id===t.id).messages.length,messageCount);assert.equal(normal.repo.config('chat-read:administrator:'+t.id),4)}finally{await new Promise(r=>http.close(r));normal.repo.db.close()}
+  console.log('PASS: native chat — auth/CSRF, simulation, persistent drafts/photos, client concurrency, per-user read cursors, idempotency, PDF, scheduling/rescheduling/cancellation, account separation and production gating.');
 }finally{if(server.listening)await new Promise(r=>server.close(r));try{repo.db.close()}catch{}fs.rmSync(dir,{recursive:true,force:true})}

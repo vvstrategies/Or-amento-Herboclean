@@ -6,18 +6,24 @@ import {modelo} from '../utils/proposta.js';
 export function registerChatPilot(app,{repo,commercial,service,wrap}){
   const key='native-chat-pilot-v1';
   function state(){
-    let data=repo.config(key);if(data)return data;
+    let data=repo.config(key);if(data){
+      let changed=false;for(const t of data.threads)if(!Number.isInteger(t.sequence)){t.messages.forEach((m,i)=>m.sequence=i+1);t.sequence=t.messages.length;changed=true}
+      if(changed)repo.setConfig(key,data);return data;
+    }
     const test=commercial.clientRows().find(c=>c.phone.replace(/\D/g,'').endsWith('11986495346'));
     const contacts=[test||commercial.createClient({name:'Contato de teste',phone:'5511986495346'}),commercial.createClient({name:'Marina · exemplo',phone:'11900000001'}),commercial.createClient({name:'Rafael · exemplo',phone:'11900000002'})];
     const texts=['Olá! Gostaria de um orçamento para higienizar meu sofá.','Bom dia! Vocês fazem limpeza de colchão de casal?','Obrigado pelo atendimento! Quero orçar as cadeiras também.'];
-    data={threads:contacts.map((c,i)=>({id:crypto.randomUUID(),clientId:c.id,unread:i===1?1:0,messages:[{id:crypto.randomUUID(),text:texts[i],direction:'in',at:new Date(Date.now()-i*3600000).toISOString()}]}))};
+    data={threads:contacts.map((c,i)=>({id:crypto.randomUUID(),clientId:c.id,sequence:1,messages:[{id:crypto.randomUUID(),sequence:1,text:texts[i],direction:'in',at:new Date(Date.now()-i*3600000).toISOString()}]}))};
     repo.setConfig(key,data);return data;
   }
   function thread(id){const data=state(),t=data.threads.find(x=>x.id===id);if(!t)throw fail(404,'Conversa não encontrada.');return {data,t}}
-  function view(t){
+  const clientETag=id=>hash(JSON.stringify(commercial.client(id)));
+  const readKey=(user,id)=>'chat-read:'+user+':'+id;
+  function unread(t,user){const seen=repo.config(readKey(user,t.id))||0;return t.messages.filter(m=>m.direction==='in'&&m.sequence>seen).length}
+  function view(t,user){
     const client=commercial.clientDetail(t.clientId);
     client.history=client.history.map(q=>({...q,pdfId:repo.listPDFs(q.id,{summary:true})[0]?.id||null,operation:repo.operation(q.id),updatedAt:repo.db.prepare('SELECT updated_at FROM proposals WHERE id=?').get(q.id)?.updated_at||''})).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
-    return {...t,client};
+    return {...t,unread:unread(t,user),clientETag:clientETag(t.clientId),client};
   }
   function save(data){repo.setConfig(key,data)}
   const draftKey=(user,id)=>'chat-draft:'+user+':'+id;
@@ -25,8 +31,8 @@ export function registerChatPilot(app,{repo,commercial,service,wrap}){
     const {t}=thread(id),k=draftKey(user,id);let d=repo.config(k);
     if(!d){const c=commercial.client(t.clientId),q=modelo.quote(repo.config('settings'));Object.assign(q,{client:c.name,clientContact:c.phone,clientEmail:c.email||'',address:c.address||'',origin:c.origin||'',tags:c.tags||[]});d={quote:q,revision:0};repo.setConfig(k,d)}return d;
   }
-  app.get('/api/chat-pilot/conversations',(req,res)=>res.json(state().threads.map(view)));
-  app.get('/api/chat-pilot/conversations/:id',(req,res)=>res.json(view(thread(req.params.id).t)));
+  app.get('/api/chat-pilot/conversations',(req,res)=>res.json(state().threads.map(t=>view(t,req.session.user.id))));
+  app.get('/api/chat-pilot/conversations/:id',(req,res)=>res.json(view(thread(req.params.id).t,req.session.user.id)));
   // Same schedule validation and operation shape as the kanban, with no Google transport.
   app.post('/api/chat-pilot/proposals/:id/schedule',wrap(async(req,res)=>{
     const id=req.params.id,input=req.body;
@@ -48,18 +54,29 @@ export function registerChatPilot(app,{repo,commercial,service,wrap}){
     const id=req.params.id;repo.requireProposal(id);
     res.json(await service.locked(id,async()=>{const op=repo.operation(id);if(op.status!=='scheduled'||!op.schedule?.simulation||op.schedule.eventId)throw fail(409,'Não há agendamento simulado para cancelar.');return repo.setOperation({...op,status:'generated',schedule:null,suggestedSchedule:null})}));
   }));
-  app.post('/api/chat-pilot/conversations/:id/read',(req,res)=>{const {data,t}=thread(req.params.id);t.unread=0;save(data);res.json({ok:true})});
+  app.post('/api/chat-pilot/conversations/:id/read',(req,res)=>{
+    const {t}=thread(req.params.id),message=t.messages.find(m=>m.id===req.body?.lastMessageId);
+    if(!message)throw fail(400,'Informe a última mensagem visualizada.');
+    const k=readKey(req.session.user.id,t.id);repo.setConfig(k,Math.max(repo.config(k)||0,message.sequence));
+    res.json({unread:unread(t,req.session.user.id)});
+  });
   app.post('/api/chat-pilot/conversations/:id/messages',(req,res)=>{
     const {data,t}=thread(req.params.id),body=req.body;
     if(!validId(body?.id)||!['in','out'].includes(body.direction))throw fail(400,'Mensagem inválida.');
-    const old=t.messages.find(m=>m.id===body.id);if(old)return res.json(old);
     const text=String(body.text||'').trim();if(!text||text.length>4000)throw fail(400,'Escreva uma mensagem de até 4.000 caracteres.');
+    const old=t.messages.find(m=>m.id===body.id);if(old){
+      if(old.text!==text||old.direction!==body.direction||(old.pdfId||null)!==(body.pdfId||null)||(old.authorId&&old.authorId!==req.session.user.id))throw fail(409,'Este identificador já pertence a outra mensagem.');
+      return res.json(old);
+    }
     let pdfId=null;
     if(body.pdfId){const pdf=repo.pdf(body.pdfId);if(!pdf||commercial.clientOf(pdf.proposalId)?.id!==t.clientId)throw fail(400,'Este PDF não pertence ao cliente.');pdfId=pdf.id}
-    const message={id:body.id,text,direction:body.direction,at:new Date().toISOString(),author:req.session.user.name,...(pdfId?{pdfId}:{})};
-    t.messages.push(message);if(t.messages.length>2000)t.messages.shift();if(body.direction==='in')t.unread++;save(data);res.json(message);
+    const message={id:body.id,sequence:++t.sequence,text,direction:body.direction,at:new Date().toISOString(),author:req.session.user.name,authorId:req.session.user.id,...(pdfId?{pdfId}:{})};
+    t.messages.push(message);if(t.messages.length>2000)t.messages.shift();save(data);res.json(message);
   });
-  app.put('/api/chat-pilot/conversations/:id/client',(req,res)=>{const {t}=thread(req.params.id);res.json(commercial.updateClient(t.clientId,req.body))});
+  app.put('/api/chat-pilot/conversations/:id/client',(req,res)=>{const {t}=thread(req.params.id);res.json(repo.transaction(()=>{
+    if(req.body.clientETag!==clientETag(t.clientId))throw fail(409,'Outro atendente atualizou esta ficha. Suas alterações continuam na tela; copie-as e reabra o perfil para conferir a versão atual.');
+    const client=commercial.updateClient(t.clientId,req.body);return {client,clientETag:clientETag(t.clientId)};
+  }))});
   app.get('/api/chat-pilot/conversations/:id/draft',(req,res)=>res.json(draft(req.session.user.id,req.params.id)));
   app.put('/api/chat-pilot/conversations/:id/draft',(req,res)=>{
     if(service.locks.has('chat-'+req.params.id))throw fail(409,'Aguarde a geração do PDF terminar.');

@@ -30,3 +30,14 @@ Interface e fluxos locais aprovados pelo responsável em 17/10/2026, com autoriz
 `npm run test:chat` valida autenticação e CSRF, mensagens idempotentes, rascunhos persistentes e separados por usuário, conflito entre abas, fotos no rascunho e PDF, limite de imagens, ficha completa, vínculo de anexos, agendamento/reagendamento/cancelamento simulados, rejeição de horários passados, ausência de chamadas externas e desativação das rotas no servidor normal. `node scripts/check-operations.mjs` verifica o modelo compartilhado de agendamento. `npm run check` verifica sintaxe.
 
 Backup anterior à implementação: `.tools/before-native-chat-20261016-104903`. O piloto apenas habilita as rotas via `chatPilot: true`; elas não são registradas com `production: true` nem no launcher normal.
+
+## Continuidade após aprovação — atendimento compartilhado
+
+- Leitura individual por atendente: abrir uma conversa não elimina os avisos dos outros usuários. O servidor confirma somente até a mensagem efetivamente exibida; uma mensagem que chegou durante a atualização continua não lida. O marcador persiste no banco local e não envia confirmação de leitura ao WhatsApp.
+- A ficha usa controle de versão. Se dois atendentes salvarem a mesma versão, o segundo recebe um aviso e mantém os campos na tela para conferir a alteração, sem sobrescrever a primeira gravação.
+- A lista e as mensagens atualizam a cada cinco segundos enquanto o atendimento estiver visível, sem recriar o campo de composição ou o formulário em edição. Falhas de conexão são indicadas no rodapé e a atualização volta a ser tentada automaticamente.
+- Repetir o mesmo identificador de mensagem com conteúdo ou autor diferente é rejeitado. Repetir a mesma solicitação não duplica a mensagem.
+
+`npm run test:chat` também verifica duas sessões independentes, gravações simultâneas, avanço monotônico dos marcadores de leitura, rejeição de mensagens desconhecidas e persistência após reabrir o banco.
+
+A versão aprovada está registrada no commit `4d2cf92`, na branch `feat/whatsapp-assistido`. Backup local adicional: `.tools/approved-native-chat-20261017-195201`. A conexão real aguarda a escolha entre um conector QR local e a API oficial; o piloto continua sem transportar mensagens reais.
