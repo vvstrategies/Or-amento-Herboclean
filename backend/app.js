@@ -1,5 +1,7 @@
+import {registerChatPilot} from './chat-pilot.js';
 import {adoptHerboclean,adoptHbcPrefix} from './herboclean-installation.js';
 import express from 'express';
+import {registerAttendance} from './attendance.js';
 import {IntegrationService} from './integration-service.js';
 import {GoogleAdsProvider,MetaAdsProvider} from './ad-spend-providers.js';
 import {registerIntegrations} from './integration-routes.js';
@@ -40,7 +42,8 @@ export function createApp(options={}){
   migrateServiceCatalog(repo);
   const tokenVault=vault(repo.dir,options.encryptionKey,production);
   const google=options.google||new GoogleIntegration(repo,tokenVault,options.googleConfig,options.fetcher);
-  const service=new Service(repo,google),sec=security(repo,{origin,production}),app=express();
+  const extensionId=JSON.parse(fs.readFileSync(path.join(root,'backend/extension-id.json'),'utf8')).id;
+  const service=new Service(repo,google),sec=security(repo,{origin,production,extensionId}),app=express();
   const cepLookup=options.cepLookup||new CepLookupService(repo,{primary:new BrasilApiCepProvider({fetcher:options.fetcher||globalThis.fetch}),fallback:new ViaCepProvider({fetcher:options.fetcher||globalThis.fetch})});
   const geocoder=options.geocoder||new HeiGITPeliasGeocoder(options.routesConfig);
   const finance=new FinanceService(repo,service,options.routeProvider||new HeiGITOpenRouteServiceProvider(options.routesConfig),{dailyLimit:options.routesConfig?.dailyLimit,directionsDailyLimit:options.routesConfig?.directionsDailyLimit,geocodingDailyLimit:options.routesConfig?.geocodingDailyLimit,routeCacheHours:options.routesConfig?.cacheHours,geocoder:options.routeProvider&&options.geocoder===undefined?null:geocoder});
@@ -51,7 +54,7 @@ export function createApp(options={}){
   const commercial=new CommercialService(repo,{dre,finance});
   app.disable('x-powered-by');if(production)app.set('trust proxy',1);app.use(sec.headers);
   // Corpo grande (fotos e logos em base64) só nas rotas autenticadas que precisam; login, setup e webhooks ficam no limite pequeno.
-  const largeBodies=[['PUT',/^\/api\/proposals\/[^/]+$/],['PUT',/^\/api\/draft$/],['PUT',/^\/api\/settings$/],['POST',/^\/api\/onboarding$/],['POST',/^\/api\/import$/],['POST',/^\/api\/preview-pdf$/]];
+  const largeBodies=[['PUT',/^\/api\/chat-pilot\/conversations\/[^/]+\/draft$/],['PUT',/^\/api\/proposals\/[^/]+$/],['PUT',/^\/api\/draft$/],['PUT',/^\/api\/settings$/],['POST',/^\/api\/onboarding$/],['POST',/^\/api\/import$/],['POST',/^\/api\/preview-pdf$/]];
   const smallJson=express.json({limit:'256kb'}),largeJson=express.json({limit:'100mb'});
   app.use((req,res,next)=>largeBodies.some(([method,pattern])=>req.method===method&&pattern.test(req.path))?next():smallJson(req,res,next));
   // A Asaas chama esta rota sem sessão do navegador. O token próprio do webhook é validado no serviço.
@@ -59,7 +62,9 @@ export function createApp(options={}){
   app.get('/api/health',(req,res)=>res.json({status:'ok',product:'herboclean'}));
   app.get('/api/session',(req,res)=>res.json({...sec.status(req),needsCompanySetup:!!req.session&&!completed(repo)}));
   app.post('/api/setup',sec.sameOrigin,wrap(sec.setup));app.post('/api/login',sec.sameOrigin,wrap(sec.login));
-  app.use('/api',sec.requireAuth,sec.csrf,largeJson);app.post('/api/logout',sec.logout);
+  registerAttendance(app,{repo,sec,commercial,asaas,origin,extensionId,wrap});
+  app.use('/api',sec.requireAuth,sec.csrf,largeJson);
+  app.use('/api',(req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)){const actor=req.session.user.id;res.on('finish',()=>{if(res.statusCode<400)sec.team.audit(actor,req.method,req.path)})}next()});app.post('/api/logout',sec.logout);
   const settings=()=>repo.config('settings')||{company:modelo.company(),terms:modelo.terms()},companySource=()=>completed(repo)?settings():repo.config('companySetupDraft');
   // ?lite=1 tira o logo (data URL) da resposta e aponta para /api/settings/logo.
   const lite=(req,value)=>{if(req.query.lite!=='1'||!value?.company)return value;const {logo,...company}=value.company;return {...value,company,logoUrl:logo?'/api/settings/logo':null}};
@@ -69,6 +74,9 @@ export function createApp(options={}){
   app.get('/api/onboarding',(req,res)=>res.json({required:!completed(repo),settings:lite(req,companySource()),reviewExisting:!!repo.config('universal-before-onboarding')?.settings}));
   app.post('/api/onboarding',wrap(async(req,res)=>{const value=await finishSetup(repo,keepLogo(req.body,repo.config('companySetupDraft')));await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
   app.use('/api',(req,res,next)=>completed(repo)?next():res.status(428).json({code:'COMPANY_SETUP_REQUIRED',error:'Configure a empresa para continuar.'}));
+  const chatPilot=options.chatPilot===true&&!production;
+  app.get('/api/chat-pilot',(req,res)=>res.json({enabled:chatPilot,simulation:true}));
+  if(chatPilot)registerChatPilot(app,{repo,commercial,service,wrap});
   registerAsaas(app,asaas,wrap);
   registerDre(app,dre,wrap);
   registerIntegrations(app,integrations,wrap);
@@ -84,9 +92,9 @@ export function createApp(options={}){
   app.get('/api/financial-export',(req,res)=>{res.set('Cache-Control','no-store');res.json({...profit.export(),integrations:integrations.export()});});
   app.get('/api/settings',(req,res)=>res.json(lite(req,settings())));
   app.get('/api/cep/:postalCode',wrap(async(req,res)=>res.json(await cepLookup.lookup(req.params.postalCode))));
-  app.put('/api/settings',wrap(async(req,res)=>{const value=await validateSettings({...settings(),...keepLogo(req.body,settings())});repo.transaction(()=>{const old=settings(),draft=repo.config('draft');if(draft?.quote){if(JSON.stringify(draft.quote.company)===JSON.stringify(old.company))draft.quote.company=value.company;if(JSON.stringify(draft.quote.terms)===JSON.stringify(old.terms))draft.quote.terms=value.terms;repo.setConfig('draft',draft)}repo.setConfig('settings',value)});await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
-  app.get('/api/draft',(req,res)=>res.json(repo.config('draft')));
-  app.put('/api/draft',(req,res)=>{const quote=cleanQuote(req.body.quote);quote.revision=req.body.quote.revision;repo.setConfig('draft',{id:'current',quote});res.json({id:'current',quote})});
+  app.put('/api/settings',wrap(async(req,res)=>{const value=await validateSettings({...settings(),...keepLogo(req.body,settings())});repo.transaction(()=>{const old=settings(),draft=repo.config('draft');sec.team.rebrandDrafts(old,value);if(draft?.quote){if(JSON.stringify(draft.quote.company)===JSON.stringify(old.company))draft.quote.company=value.company;if(JSON.stringify(draft.quote.terms)===JSON.stringify(old.terms))draft.quote.terms=value.terms;repo.setConfig('draft',draft)}repo.setConfig('settings',value)});await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
+  app.get('/api/draft',(req,res)=>res.json(sec.team.draft(req.session.user.id,req.query.slot)));
+  app.put('/api/draft',(req,res)=>{if(req.query.slot&&!Number.isInteger(req.body.draftRevision))throw fail(400,'Informe a revisão do rascunho.');const quote=cleanQuote(req.body.quote);quote.revision=req.body.quote.revision;res.json(sec.team.saveDraft(req.session.user.id,req.query.slot,{id:'current',quote},req.body.draftRevision))});
   // ?summary=1: mesmo formato, sem imagens. Em cada item, photos vira photoCount (número); company.logo é omitido.
   app.get('/api/proposals',(req,res)=>res.json(repo.list({summary:req.query.summary==='1'})));
   app.get('/api/proposals/:id',(req,res)=>res.json(repo.requireProposal(req.params.id)));
@@ -128,6 +136,7 @@ export function createApp(options={}){
   // Na Hostinger, public/ é servido direto pelo CDN, sem Cache-Control e ignorando query string; a versão no caminho passa pelo app e muda a cada deploy.
   const assetHash=crypto.createHash('sha256');for(const n of [...allowed].sort())assetHash.update(fs.readFileSync(path.join(root,'public',n)));const assetVersion=assetHash.digest('hex').slice(0,10);
   const indexHtml=fs.readFileSync(path.join(root,'public/index.html'),'utf8').replace(/(src|href)="([a-zA-Z0-9_.-]+\.(?:js|css))"/g,`$1="v/${assetVersion}/$2"`);
+  app.get('/painel',(req,res)=>res.set('Cache-Control','no-store').type('html').sendFile(path.join(root,'public/panel.html')));
   app.get('/',(req,res)=>res.set('Cache-Control','no-cache').type('html').send(indexHtml));
   app.get('/guia-integracoes',sec.requireAuth,(req,res)=>res.type('text/plain; charset=utf-8').sendFile(path.join(root,'INTEGRATIONS_SETUP.md')));
   app.get('/guia-google',sec.requireAuth,(req,res)=>res.type('text/plain').sendFile(path.join(root,'docs/CONEXAO-GOOGLE.md')));
@@ -145,6 +154,6 @@ export function createApp(options={}){
   // Tarefas de manutenção: chamadas pelo servidor depois de começar a atender, sem atrasar createApp.
   const sweep=()=>{try{sec.sweep()}catch(error){console.error('Falha ao limpar sessões expiradas:',error)}};
   const start=()=>{sweep();setInterval(sweep,6*3600000).unref();setImmediate(()=>commercial.syncAll())};
-  return {app,repo,google,service,finance,dre,profit,integrations,asaas,commercial,start};
+  return {app,repo,google,service,finance,dre,profit,integrations,asaas,commercial,team:sec.team,start};
 }
 

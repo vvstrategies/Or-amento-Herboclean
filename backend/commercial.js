@@ -99,13 +99,13 @@ export class CommercialService{
   writeClient(id,data,created){const t=now();this.repo.db.prepare('INSERT INTO clients VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data,updated_at=excluded.updated_at').run(id,JSON.stringify(data),created||t,t);return this.client(id)}
   // Só telefone ou e-mail identificam o mesmo cliente; nome igual é apenas sugestão.
   match(q){
-    const phone=phoneOf(q.clientContact),email=emailOf(q.clientContact),rows=this.clientRows();
+    const phone=phoneOf(q.clientContact),email=emailOf(q.clientEmail)||emailOf(q.clientContact),rows=this.clientRows();
     return (phone&&rows.find(c=>phoneOf(c.phone)===phone))||(email&&rows.find(c=>c.email&&c.email.toLowerCase()===email))||null;
   }
   sameName(name,exceptId){const key=norm(name);return key?this.clientRows().filter(c=>c.id!==exceptId&&norm(c.name)===key).map(c=>({id:c.id,name:c.name})):[]}
   // O orçamento só preenche campos vazios: o que foi editado no cadastro do cliente prevalece.
   clientFromQuote(q,base={}){
-    const phone=base.phone||(phoneOf(q.clientContact)?q.clientContact:''),email=base.email||emailOf(q.clientContact);
+    const phone=base.phone||(phoneOf(q.clientContact)?q.clientContact:''),email=base.email||emailOf(q.clientEmail)||emailOf(q.clientContact);
     const tags=[...new Set([...(base.tags||[]),...(Array.isArray(q.tags)?q.tags:[])])].slice(0,10);
     return {name:base.name||q.client.trim(),phone,email,contactName:base.contactName||'',address:base.address||q.address||'',city:base.city||placeOf(q).city,neighborhood:base.neighborhood||q.addressNeighborhood||'',
       birthday:base.birthday||quoteBirthday(q.clientBirthday),notes:base.notes||'',custom:base.custom||[],tags,origin:base.origin||q.origin||'',...(base.avatar?{avatar:base.avatar}:{})};

@@ -8,7 +8,7 @@
   const quoteAmount=value=>{try{return money(M.totals(value).total)}catch{return 'Confira as condições de pagamento'}};
   const date=v=>new Date(v+'T12:00:00').toLocaleDateString('pt-BR');
   const settingsKey='ecoclean-settings-v2';
-  let settings={company:M.company(),terms:M.terms()}, q, saved=[], db, timer, toastTimer, version=0, pendingPhotos=0, lastCepLookup='', cepRequest=0, previewMode='a4', tagOptions=[{id:'corporativo',label:'CORPORATIVO'},{id:'residencial',label:'RESIDENCIAL'}], knownClients=[], activeItem=null;
+  let settings={company:M.company(),terms:M.terms()}, q, saved=[], db, timer, toastTimer, version=0, pendingPhotos=0, draftUnsaved=false, lastCepLookup='', cepRequest=0, previewMode='a4', tagOptions=[{id:'corporativo',label:'CORPORATIVO'},{id:'residencial',label:'RESIDENCIAL'}], knownClients=[], activeItem=null;
   const M2=['carpete','tapete','persiana','cortina'];
   const fold=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
   const bdayText=v=>/^\d{2}-\d{2}$/.test(v||'')?v.slice(3)+'/'+v.slice(0,2):'';
@@ -21,8 +21,8 @@
   const put=async(store,value)=>{const result=await EcoStore.put(store,structuredClone(value));if(EcoAuth.online&&store==='quotes'){value.revision=result.revision;if(q.id===value.id)q.revision=result.revision}return result};
   const get=EcoStore.get;
   async function refreshSaved(){saved=(await EcoStore.all('quotes')).sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));$('#saved-count').textContent=saved.length;renderLibrary()}
-  async function saveDraft(){const current=version;try{await put('draft',{id:'current',quote:structuredClone(q)});if(current===version)$('#draft-status').textContent='Rascunho salvo automaticamente'}catch{$('#draft-status').textContent='Não foi possível salvar. Exporte um backup.'}}
-  function changed(){q.updatedAt=new Date().toISOString();version++;$('#draft-status').textContent='Salvando rascunho...';clearTimeout(timer);timer=setTimeout(saveDraft,500);renderSoon()}
+  async function saveDraft(){const current=version;try{await put('draft',{id:'current',quote:structuredClone(q)});if(current===version){draftUnsaved=false;$('#draft-status').textContent='Rascunho salvo automaticamente'}}catch(error){draftUnsaved=true;$('#draft-status').textContent='Rascunho não salvo: '+error.message}}
+  function changed(){draftUnsaved=true;q.updatedAt=new Date().toISOString();version++;$('#draft-status').textContent='Salvando rascunho...';clearTimeout(timer);timer=setTimeout(saveDraft,500);renderSoon()}
   function fill(){
     for(const input of $$('#form [name]'))input.value=input.name==='postalCode'?M.formatPostalCode(q.postalCode):input.name==='clientBirthday'?bdayText(q.clientBirthday):Object.hasOwn(q.terms,input.name)?q.terms[input.name]:q[input.name]??'';
     renderChoices();clientMatch();$('#editor-number').textContent=q.number?`${q.number} · rascunho salvo automaticamente`:'';
@@ -258,7 +258,8 @@
     const draft=await get('draft','current');if(draft?.quote){q=normalize(draft.quote);fill()}
     await refreshSaved();$('#draft-status').textContent=draft?'Continuando o rascunho '+(q.number||'')+' · salvo automaticamente':'Identidade da empresa carregada';
   }catch(error){$('#draft-status').textContent='Armazenamento indisponível. Use o backup.';toast(error.message||'Use o backup para guardar os dados.')}
-  window.EcoStudio={openQuote,newQuote,generatePDF,refresh:refreshSaved,notify:toast,getDraft:()=>structuredClone(q)};
+  window.EcoStudio={readImage,openQuote,newQuote,generatePDF,refresh:refreshSaved,notify:toast,getDraft:()=>structuredClone(q)};
+  const requestedQuote=new URLSearchParams(location.search).get('quote');if(requestedQuote){try{await openQuote(requestedQuote)}catch(error){toast(error.message)}}
   window.dispatchEvent(new CustomEvent('eco:ready'));
-  window.addEventListener('beforeunload',e=>{if(pendingPhotos||$('#draft-status').textContent==='Salvando rascunho...'){e.preventDefault();e.returnValue=''}});
+  window.addEventListener('beforeunload',e=>{if(pendingPhotos||draftUnsaved||$('#draft-status').textContent==='Salvando rascunho...'){e.preventDefault();e.returnValue=''}});
 })();

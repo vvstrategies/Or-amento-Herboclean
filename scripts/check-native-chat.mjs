@@ -1,0 +1,85 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {createApp} from '../backend/app.js';
+import {passwordHash} from '../backend/security.js';
+import {settings,image} from './test-company.mjs';
+
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'herbo-native-chat-'));
+const origin='http://127.0.0.1:3312';let calls=0;
+const system=createApp({origin,dataDir:dir,chatPilot:true,fetcher:async()=>{calls++;throw Error('External transport forbidden')}});
+const {repo,commercial}=system;
+repo.setConfig('settings',settings);repo.setConfig('companySetup',{completed:true});repo.setConfig('adminPassword',await passwordHash('local-native-chat-password'));
+const server=system.app.listen(3312,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+let headers={Origin:origin,'Content-Type':'application/json',Connection:'close'};
+async function req(url,body,method=body?'POST':'GET',status=200,extra={}){const r=await fetch(origin+url,{method,headers:{...headers,...extra},body:body?JSON.stringify(body):undefined});const data=await r.json();assert.equal(r.status,status,JSON.stringify(data));return {data,r}}
+try{
+  await req('/api/chat-pilot/conversations',null,'GET',401);
+  const {data:login,r}=await req('/api/login',{password:'local-native-chat-password'});headers.Cookie=r.headers.get('set-cookie').split(';')[0];headers['X-CSRF-Token']=login.csrf;
+  assert.equal((await req('/api/chat-pilot')).data.enabled,true);
+  const threads=(await req('/api/chat-pilot/conversations')).data;assert.equal(threads.length,3);
+  const t=threads[1],base='/api/chat-pilot/conversations/'+t.id,clientsBefore=commercial.clientRows().length;
+  await req(base+'/client',{birthday:'18/03',contactName:'Contato de teste',notes:'Preferência de horário',tags:['residencial'],origin:'google',custom:[{label:'Pet em casa',value:'Sim'}]},'PUT');
+  let profile=(await req(base)).data.client;
+  assert.equal(profile.birthday,'03-18');assert.equal(profile.origin,'google');assert.equal(profile.custom[0].value,'Sim');assert.equal(profile.contactName,'Contato de teste');
+  await req(base+'/client',{birthday:'31/02'},'PUT',400);
+  await req(base+'/client',{origin:'invalid'},'PUT',400);
+  await req(base+'/messages',{id:crypto.randomUUID(),direction:'out',text:'Blocked'},'POST',403,{'X-CSRF-Token':''});
+  const msg={id:crypto.randomUUID(),direction:'out',text:'Mensagem apenas local <script>alert(1)</script>'};
+  await req(base+'/messages',msg);await req(base+'/messages',msg);
+  assert.equal((await req(base)).data.messages.filter(x=>x.id===msg.id).length,1);
+  let d=(await req(base+'/draft')).data;
+  assert.equal(d.quote.client,t.client.name);assert.equal(d.quote.clientContact,t.client.phone);
+  await req(base+'/quote',{revision:d.revision},'POST',400);
+  Object.assign(d.quote,{client:'Marina de Teste',clientContact:'11900000009',clientEmail:'marina@example.invalid',address:'Rua Exemplo, 123, São Paulo - SP'});
+  d.quote.company.logo='data:image/png;base64,'+fs.readFileSync(new URL('../public/assets/herboclean.png',import.meta.url)).toString('base64');
+  Object.assign(d.quote.items[0],{price:180,quantity:2});
+  d.quote.items[0].photos=[image];
+  d=(await req(base+'/draft',d,'PUT')).data;
+  assert.equal((await req(base+'/draft')).data.quote.items[0].photos[0],image);
+  await req(base+'/draft',{...d,quote:{...d.quote,items:[{...d.quote.items[0],photos:Array(7).fill(image)}]}},'PUT',400);
+  await req(base+'/draft',{quote:d.quote,revision:0},'PUT',409);
+  assert.equal((await req(base+'/draft')).data.quote.clientEmail,'marina@example.invalid');
+  const other=threads[2];assert.notEqual((await req('/api/chat-pilot/conversations/'+other.id+'/draft')).data.quote.id,d.quote.id);
+  const generated=(await req(base+'/quote',{revision:d.revision})).data;
+  assert.equal(generated.pixCents,36000);
+  assert.deepEqual((await req(base+'/quote',{revision:d.revision})).data,generated);
+  const pdf=await fetch(origin+'/api/pdfs/'+generated.pdfId,{headers});assert.equal(pdf.status,200);assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,4).toString(),'%PDF');
+  assert.equal(repo.listPDFs(generated.id).length,1);
+  assert.equal(repo.pdf(generated.pdfId).snapshot.items[0].photos[0],image);
+  assert.equal(commercial.clientRows().length,clientsBefore);
+  const c=commercial.client(t.clientId);assert.equal(c.name,'Marina de Teste');assert.equal(c.phone,'11900000009');assert.equal(c.email,'marina@example.invalid');assert.equal(c.address,d.quote.address);
+  assert.equal(commercial.clientOf(generated.id).id,t.clientId);assert.equal(commercial.clientDetail(t.clientId).quoteCount,1);
+  assert.equal(c.contactName,'Contato de teste');assert.equal(c.birthday,'03-18');assert.equal(c.origin,'google');assert.equal(c.notes,'Preferência de horário');assert.deepEqual(c.tags,['residencial']);
+  assert.equal((await req(base)).data.client.history[0].pdfId,generated.pdfId);
+  const scheduleUrl='/api/chat-pilot/proposals/'+generated.id+'/schedule',future=globalThis.EcoOperations.localDate(new Date(Date.now()+3*86400000));
+  const appointment={key:crypto.randomUUID(),revision:repo.proposal(generated.id).revision,date:future,time:'10:30',duration:120};
+  await req(scheduleUrl,{...appointment,revision:0},'POST',409);
+  await req(scheduleUrl,{...appointment,date:'2020-01-01'},'POST',400);
+  await req(scheduleUrl,{...appointment,duration:0},'POST',400);
+  const scheduled=(await req(scheduleUrl,appointment)).data;assert.equal(scheduled.status,'scheduled');assert.equal(scheduled.schedule.simulation,true);assert.equal(scheduled.schedule.eventId,null);
+  assert.equal(globalThis.EcoOperations.time(scheduled.schedule.start),'10:30');assert.equal(globalThis.EcoOperations.normalize(scheduled).status,'scheduled');
+  assert.deepEqual((await req(scheduleUrl,appointment)).data,scheduled);
+  assert.equal((await req(base)).data.client.history[0].status,'scheduled');
+  const changed=(await req(scheduleUrl,{...appointment,key:crypto.randomUUID(),time:'13:00'})).data;assert.equal(globalThis.EcoOperations.time(changed.schedule.start),'13:00');
+  await req(scheduleUrl+'/cancel',{});assert.equal(repo.operation(generated.id).status,'generated');
+  repo.setOperation({...repo.operation(generated.id),status:'cancelled'});await req(scheduleUrl,{...appointment,key:crypto.randomUUID()},'POST',409);
+  repo.setOperation({...repo.operation(generated.id),status:'generated'});
+  await req(base+'/messages',{id:crypto.randomUUID(),direction:'out',text:'Segue proposta',pdfId:generated.pdfId});
+  await req('/api/chat-pilot/conversations/'+other.id+'/messages',{id:crypto.randomUUID(),direction:'out',text:'Wrong client',pdfId:generated.pdfId},'POST',400);
+  await req(base+'/draft',d,'PUT',409);
+  const fresh=(await req(base+'/draft/new',{})).data;assert.notEqual(fresh.quote.id,generated.id);assert.equal(fresh.quote.clientEmail,c.email);
+  // Another account has an independent draft, but sees the same conversation.
+  system.team.create({name:'Second',username:'second'},await passwordHash('second-local-password'),'test');
+  const second=await req('/api/login',{username:'second',password:'second-local-password'});
+  const secondHeaders={Cookie:second.r.headers.get('set-cookie').split(';')[0],'X-CSRF-Token':second.data.csrf};
+  assert.notEqual((await req(base+'/draft',null,'GET',200,secondHeaders)).data.quote.id,fresh.quote.id);
+  assert.equal(calls,0);
+  // Reopening the same database preserves conversations, and the normal app exposes no simulator.
+  await new Promise(r=>server.close(r));repo.db.close();
+  const normal=createApp({origin,dataDir:dir,fetcher:async()=>{throw Error('No network')}}),http=normal.app.listen(3312,'127.0.0.1');await new Promise(r=>http.once('listening',r));
+  try{const again=await req('/api/login',{password:'local-native-chat-password'});headers.Cookie=again.r.headers.get('set-cookie').split(';')[0];headers['X-CSRF-Token']=again.data.csrf;assert.equal((await req('/api/chat-pilot')).data.enabled,false);await req(base,null,'GET',404);assert.equal(normal.repo.config('native-chat-pilot-v1').threads.find(x=>x.id===t.id).messages.length,3)}finally{await new Promise(r=>http.close(r));normal.repo.db.close()}
+  console.log('PASS: native chat — auth/CSRF, simulation, persistent drafts/photos, complete client profile, PDF, scheduling/rescheduling/cancellation, account separation and production gating.');
+}finally{if(server.listening)await new Promise(r=>server.close(r));try{repo.db.close()}catch{}fs.rmSync(dir,{recursive:true,force:true})}

@@ -6,7 +6,7 @@
   function normalize(raw={}){
     const result={id:clean(raw.id),status:Object.hasOwn(statuses,raw.status)?raw.status:'generated',suggestedSchedule:raw.suggestedSchedule||null,pendingAction:raw.pendingAction||null,schedule:null,createdAt:clean(raw.createdAt),updatedAt:clean(raw.updatedAt)};
     if(raw.schedule && Number.isFinite(Date.parse(raw.schedule.start)) && Number.isFinite(Date.parse(raw.schedule.end)) && Date.parse(raw.schedule.end)>Date.parse(raw.schedule.start)){
-      result.schedule={id:clean(raw.schedule.id)||crypto.randomUUID(),start:raw.schedule.start,end:raw.schedule.end,timezone,sync:raw.schedule.sync==='confirmed'?'confirmed':'pending',eventId:clean(raw.schedule.eventId)||null,eventUrl:clean(raw.schedule.eventUrl,500)||null};
+      result.schedule={id:clean(raw.schedule.id)||crypto.randomUUID(),start:raw.schedule.start,end:raw.schedule.end,timezone,sync:raw.schedule.sync==='confirmed'?'confirmed':'pending',simulation:raw.schedule.simulation===true,eventId:clean(raw.schedule.eventId)||null,eventUrl:clean(raw.schedule.eventUrl,500)||null};
     }
     if(result.schedule?.sync==='pending'){result.suggestedSchedule=result.schedule;result.schedule=null;}
     if(result.status==='scheduled'&&!result.schedule)result.status='generated';
