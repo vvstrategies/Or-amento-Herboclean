@@ -45,14 +45,14 @@
     const logo=c.logo?`<span class="pp-logo ${c.logoBackground==='light'?'plate':''}"><img src="${c.logo}" alt="${esc(c.name)}"></span>`:`<span class="pp-name">${esc(c.name||UniversalCompany.initials(c.name))}</span>`;
     const cardLine=t.count>1?`no cartão em até ${t.count}x sem juros`:'no cartão em 1x';
     const cardSub=(t.count>1?'Sem juros':'Pagamento em 1x')+' · total '+money(t.total);
-    const client=[['CLIENTE',q.client||'Nome do cliente','name'],['ENDEREÇO DO ATENDIMENTO',q.address||'Endereço do atendimento',''],['TELEFONE',q.clientContact,'phone']].filter(x=>String(x[1]||'').trim());
+    const client=[['CLIENTE',q.client||'Nome do cliente','name'],['ENDEREÇO DO ATENDIMENTO',q.address||'Endereço do atendimento',''],['TELEFONE',q.clientContact,'phone'],...M.corporateDetails(q).map(([label,value])=>[label,value,'corporate'])].filter(x=>String(x[1]||'').trim());
     const photos=it=>it.photos.length===1?`<img class="pp-thumb" src="${it.photos[0]}" alt="${esc(it.service)}">`:it.photos.length?`<div class="pp-thumbs">${it.photos.map(src=>`<img src="${src}" alt="${esc(it.service)}">`).join('')}</div>`:'<span class="pp-thumb pp-nophoto">Sem foto</span>';
     const benefits=c.benefits.split('\n').map(x=>x.trim()).filter(Boolean);
     const foot=[c.name,c.taxId,c.location].filter(Boolean).map(esc).join(' · '),footR=[c.phone,c.email].filter(Boolean).map(esc).join(' · ');
     $('#proposal').innerHTML=`<article class="sheet pp" style="${UniversalBrand.style(c)};${vars}">`
       +`<header class="pp-hero"><div class="pp-brand">${logo}${c.tagline?`<span class="pp-tag">${esc(c.tagline)}</span>`:''}</div><div class="pp-meta"><span class="pp-cap">PROPOSTA COMERCIAL</span><span class="pp-pill">${esc(q.number)}</span><span class="pp-date">Emitida em ${date(q.date)}</span></div></header>`
       +`<div class="pp-body"><h2 class="pp-title">${esc(c.proposalSubtitle||c.proposalTitle)}</h2>${c.intro.trim()?`<p class="pp-intro">${esc(c.intro)}</p>`:''}`
-      +(client.length?`<section class="pp-client">${client.map(([l,v,k])=>`<div class="${k}"><span class="pp-cap">${l}</span><span class="pp-v">${esc(v)}</span></div>`).join('')}</section>`:'')
+      +(client.length?`<section class="pp-client${M.corporateDetails(q).length?' has-corporate':''}">${client.map(([l,v,k])=>`<div class="${k}"><span class="pp-cap">${l}</span><span class="pp-v">${esc(v)}</span></div>`).join('')}</section>`:'')
       +`<section class="pp-scope"><div class="pp-scope-head"><span class="pp-cap">ESCOPO DOS SERVIÇOS</span><span>${q.items.length} ${q.items.length===1?'item':'itens'}</span></div><table><thead><tr><th>FOTOS</th><th>SERVIÇO</th><th>QTD.</th><th>UNIT. PIX</th><th>TOTAL PIX</th></tr></thead><tbody>${q.items.map((it,i)=>`<tr><td>${photos(it)}</td><td><strong>${esc(it.service)}</strong>${it.description?`<small>${esc(it.description)}</small>`:''}</td><td>${Number(it.quantity).toLocaleString('pt-BR')} ${esc(it.unit)}</td><td>${money(Math.round(Number(it.price)*100))}</td><td><b>${money(t.rows[i])}</b></td></tr>`).join('')}</tbody></table></section>`
       +`<section class="pp-invest"><div><span class="pp-cap">INVESTIMENTO TOTAL</span><span>${cardLine}</span></div><strong>${money(t.total)}</strong></section>`
       +`<section class="pp-pay"><div class="pp-card pix"><span class="pp-ic"><img src="assets/int-pix.svg" alt=""></span><div><span class="pp-cap">VALOR NO PIX</span><strong>${money(t.pix)}</strong><small>${t.saving?`Economize ${money(t.saving)} à vista`:'Pagamento à vista'}</small></div></div><div class="pp-card"><span class="pp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5.5" width="19" height="13" rx="2.6"/><path d="M2.5 10h19M6 15h4.5"/></svg></span><div><span class="pp-cap">CARTÃO DE CRÉDITO</span><strong>${t.count}x de ${money(t.part)}</strong><small>${cardSub}</small></div></div></section>`
@@ -89,6 +89,7 @@
         q[field]=field==='addressState'?e.target.value.toUpperCase():e.target.value;q.addressSource='manual';updateStructuredAddress();changed();
       }else if(field==='address'){
         q.address=e.target.value;q.addressSource='manual';changed();
+      }else if(field==='clientCnpj'){q.clientCnpj=M.formatCnpj(e.target.value);e.target.value=q.clientCnpj;changed();
       }else if(field==='clientBirthday'){const value=bdayValue(e.target.value);e.target.setCustomValidity(e.target.value&&!value?'Use DD/MM, por exemplo 18/03.':'');q.clientBirthday=value;changed();
       }else if(field==='client'){q.client=e.target.value;clientMatch();changed();
       }else {if(Object.hasOwn(q.terms,field))q.terms[field]=e.target.type==='number'?Number(e.target.value):e.target.value;else q[field]=e.target.value;changed();}
@@ -122,7 +123,7 @@
     const it=q.items.find(x=>x.id===activeItem)||q.items[q.items.length-1];addPhotos(it,files);
   });
   function renderChoices(){
-    const tags=q.tags||[];$('#quote-tags').innerHTML=tagOptions.map(t=>`<button type="button" data-quote-tag="${esc(t.id)}" aria-pressed="${tags.includes(t.id)}">${esc(t.label)}</button>`).join('');
+    const tags=q.tags||[];$('#corporate-fields').hidden=!tags.includes('corporativo');$('#quote-tags').innerHTML=tagOptions.map(t=>`<button type="button" data-quote-tag="${esc(t.id)}" aria-pressed="${tags.includes(t.id)}">${esc(t.label)}</button>`).join('');
     $('#quote-origin').innerHTML=Object.entries(M.origins).map(([id,label])=>`<button type="button" data-origin="${id}" aria-pressed="${q.origin===id}">${EcoIcons.brandIcon(id,'sm')}${esc(label)}</button>`).join('');
   }
   function clientMatch(){
@@ -140,12 +141,12 @@
     // Mesmo layout do PDF para celular (EcoRenderMobilePDF).
     const c=q.company,p=EcoProposalPalette(c),validUntil=new Date(q.date+'T12:00:00');validUntil.setDate(validUntil.getDate()+q.terms.validity);
     const vars=`--pp-green:${p.green};--pp-light:${p.light};--pp-deep:${p.deep};--pp-lime:${p.lime};--pp-lime-soft:${p.limeSoft};--pp-lime-border:${p.limeBorder}`;
-    const client=[['CLIENTE',q.client||'Nome do cliente','name'],['ENDEREÇO DO ATENDIMENTO',q.address||'Endereço do atendimento',''],['TELEFONE',q.clientContact,'']].filter(x=>String(x[1]||'').trim());
+    const client=[['CLIENTE',q.client||'Nome do cliente','name'],['ENDEREÇO DO ATENDIMENTO',q.address||'Endereço do atendimento',''],['TELEFONE',q.clientContact,''],...M.corporateDetails(q).map(([label,value])=>[label,value,'corporate'])].filter(x=>String(x[1]||'').trim());
     const benefits=c.benefits.split('\n').map(x=>x.trim()).filter(Boolean);
     $('#proposal-mobile').innerHTML=`<div class="mobile-sheet"><div class="mscr pp pp-m" style="${UniversalBrand.style(c)};${vars}">`
       +`<header class="pp-hero">${c.logo?`<span class="pp-logo ${c.logoBackground==='light'?'plate':''}"><img src="${c.logo}" alt="${esc(c.name)}"></span>`:`<span class="pp-name">${esc(c.name||UniversalCompany.initials(c.name))}</span>`}${c.tagline?`<span class="pp-tag">${esc(c.tagline)}</span>`:''}<span class="pp-cap">PROPOSTA COMERCIAL</span><span class="pp-pill">${esc(q.number)}</span><span class="pp-date">Emitida em ${date(q.date)}</span></header>`
       +`<div class="pp-body"><h2 class="pp-title">${esc(c.proposalSubtitle||c.proposalTitle)}</h2>${c.intro.trim()?`<p class="pp-intro">${esc(c.intro)}</p>`:''}`
-      +(client.length?`<section class="pp-client">${client.map(([l,v,k])=>`<div class="${k}"><span class="pp-cap">${l}</span><span class="pp-v">${esc(v)}</span></div>`).join('')}</section>`:'')
+      +(client.length?`<section class="pp-client${M.corporateDetails(q).length?' has-corporate':''}">${client.map(([l,v,k])=>`<div class="${k}"><span class="pp-cap">${l}</span><span class="pp-v">${esc(v)}</span></div>`).join('')}</section>`:'')
       +`<div class="pp-mscope"><span class="pp-cap">ESCOPO DOS SERVIÇOS</span><span>${q.items.length} ${q.items.length===1?'item':'itens'}</span></div>`
       +q.items.map((it,i)=>`<article class="pp-item">${it.photos.length?`<img class="pp-hero-photo" src="${it.photos[0]}" alt="${esc(it.service)}">`:''}${it.photos.length>1?`<div class="pp-mthumbs">${it.photos.slice(1).map(src=>`<img src="${src}" alt="">`).join('')}</div>`:''}<div class="pp-item-body"><strong>${esc(it.service)}</strong>${it.description?`<small>${esc(it.description)}</small>`:''}<div class="pp-item-foot"><span>${Number(it.quantity).toLocaleString('pt-BR')} ${esc(it.unit)} × ${money(Math.round(Number(it.price)*100))}</span><b>${money(t.rows[i])}</b></div></div></article>`).join('')
       +`<section class="pp-invest"><span class="pp-cap">INVESTIMENTO TOTAL</span><strong>${money(t.total)}</strong><span>${t.count>1?`no cartão em até ${t.count}x sem juros`:'no cartão em 1x'}</span></section>`

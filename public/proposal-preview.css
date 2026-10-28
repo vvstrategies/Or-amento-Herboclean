@@ -96,3 +96,11 @@
 .pp-m .pp-foot{flex-direction:column;gap:2px}
 @media(max-width:830px){.pp .pp-hero{padding:24px 20px 28px;flex-wrap:wrap}.pp .pp-body{padding:20px 16px}.pp .pp-client,.pp .pp-pay,.pp .pp-terms{display:flex;flex-direction:column}.pp .pp-client>div{padding:10px 0;border-left:0}.pp .pp-invest strong{font-size:26px}}
 @media print{.pp .pp-invest,.pp .pp-pay,.pp .pp-terms{break-inside:avoid}}
+
+/* Corporate identity stays readable below the client/contact row. */
+.pp .pp-client.has-corporate{flex-wrap:wrap}
+.pp .pp-client.has-corporate>div:not(.corporate):not(.phone){flex:36 1 0}
+.pp .pp-client.has-corporate>div:nth-child(2):not(.corporate){flex-grow:64}
+.pp .pp-client>.corporate{flex:1 0 100%;border-left:0;border-top:1px solid #d9e3dd;padding:12px 0 0;margin-top:12px;overflow-wrap:anywhere}
+.pp-m .pp-client.has-corporate>div{flex:none}
+@media(max-width:830px){.pp .pp-client.has-corporate>div{flex:none}}

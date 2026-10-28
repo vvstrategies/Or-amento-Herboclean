@@ -198,7 +198,7 @@ root.EcoRenderPDF=function(doc,q){
   {
     const cols=[['CLIENTE',q.client,S.em,true],['ENDEREÇO DO ATENDIMENTO',q.address,S.body,false],['TELEFONE',q.clientContact,S.body,false]].filter(col=>String(col[1]||'').trim());
     if(cols.length){
-      const pad=15,gap=15,inner=CW-2*pad;
+      const pad=15,gap=15,inner=CW-2*pad,corporate=globalThis.EcoModel.corporateDetails(q);
       const phone=cols.find(col=>col[0]==='TELEFONE');
       const phoneW=phone?Math.max(K.widthOf(phone[0],S.cap,true,S.cap*.09),K.widthOf(phone[1],S.body)):0;
       const free=inner-(cols.length-1)*gap*2-phoneW;
@@ -206,16 +206,25 @@ root.EcoRenderPDF=function(doc,q){
       const sum=flex.reduce((a,col)=>a+weights[col[0]],0);
       const widths=cols.map(col=>col===phone?(flex.length?phoneW:inner):free*weights[col[0]]/sum);
       const heights=cols.map((col,i)=>col===phone&&flex.length?K.measure('Ag',widths[i],col[2]):K.measure(col[1],widths[i],col[2],col[3]));
-      const h=2*pad+S.cap+6+Math.max(...heights);
+      const baseH=2*pad+S.cap+6+Math.max(...heights);
+      const corporateHeights=corporate.map(([,value])=>S.cap+6+K.measure(value,inner,S.body)+14);
+      const h=baseH+corporateHeights.reduce((sum,height)=>sum+height,0);
       push();ensure(h);sync();
       K.fillShape(()=>doc.roundedRect(X,y,CW,h,15),P.gray);
       let x=X+pad;
       cols.forEach((col,i)=>{
-        if(i){doc.moveTo(x-gap,y+pad).lineTo(x-gap,y+h-pad).lineWidth(.75).strokeColor('#d9e3dd',1).stroke()}
+        if(i){doc.moveTo(x-gap,y+pad).lineTo(x-gap,y+baseH-pad).lineWidth(.75).strokeColor('#d9e3dd',1).stroke()}
         K.caps(col[0],x,y+pad,S.cap,P.muted);
         if(col===phone&&flex.length)K.line(col[1],x,y+pad+S.cap+6,S.body,false,P.ink);
         else K.text(col[1],x,y+pad+S.cap+6,widths[i],col[2],col[3],P.ink);
         x+=widths[i]+gap*2;
+      });
+      let cy=y+baseH-pad;
+      corporate.forEach(([label,value],i)=>{
+        doc.moveTo(X+pad,cy+7).lineTo(X+CW-pad,cy+7).lineWidth(.75).strokeColor('#d9e3dd',1).stroke();
+        K.caps(label,X+pad,cy+14,S.cap,P.muted);
+        K.text(value,X+pad,cy+14+S.cap+6,inner,S.body,false,P.ink);
+        cy+=corporateHeights[i];
       });
       y+=h+16;
     }
@@ -380,7 +389,7 @@ root.EcoRenderMobilePDF=function(doc,q){
   y+=14;
   // Cliente: as três informações empilhadas na mesma caixa cinza.
   {
-    const rows=[['CLIENTE',q.client,S.em,true],['ENDEREÇO DO ATENDIMENTO',q.address,S.body,false],['TELEFONE',q.clientContact,S.body,false]].filter(r=>String(r[1]||'').trim());
+    const rows=[['CLIENTE',q.client,S.em,true],['ENDEREÇO DO ATENDIMENTO',q.address,S.body,false],['TELEFONE',q.clientContact,S.body,false],...globalThis.EcoModel.corporateDetails(q).map(([label,value])=>[label,value,S.body,false])].filter(r=>String(r[1]||'').trim());
     if(rows.length){
       const pad=16,iw=CW-2*pad,hs=rows.map(r=>S.cap+5+K.measure(r[1],iw,r[2],r[3])),h=2*pad+hs.reduce((a,b)=>a+b,0)+(rows.length-1)*21;
       ensure(h);K.fillShape(()=>doc.roundedRect(X,y,CW,h,18),P.gray);
