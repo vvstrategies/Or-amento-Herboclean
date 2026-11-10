@@ -37,6 +37,9 @@ fixture.stdout.on('data',async data=>{if(!data.toString().includes('Preview read
     for(let i=0;i<people.length;i++){const q=EcoModel.quote(s);Object.assign(q,{client:people[i],address:'Rua das Flores, '+(10+i)+', Centro, Santo André - SP, 09010-000',clientContact:'(11) 9'+String(81110000+i),tags:[i%3?'residencial':'corporativo'],origin:origins[i]});q.items=[{...EcoModel.item(svc(i)),price:180+i*37},...(i%4===0?[{...EcoModel.item(svc(i+2)),price:120}]:[])];const back=2+i*1.5|0,d=new Date();d.setDate(d.getDate()-back-3);q.date=d.toISOString().slice(0,10);const saved=await EcoAuth.api('/api/proposals/'+q.id,{method:'PUT',body:JSON.stringify(q)});ops.push({id:saved.id||q.id,status:statuses[i],daysAgo:back});}
     await fetch('/__preview__/seed',{method:'POST',headers:{'Content-Type':'application/json','X-Preview':'1'},body:JSON.stringify({ops})});
   })()`);
+  // Perfil de exemplo (chip do menu): mesma foto e nome usados na instalação da Herboclean.
+  const photo='data:image/jpeg;base64,'+fs.readFileSync('backend/seed/profile-gabriel.jpg').toString('base64');
+  await evaluate(`(async()=>{await EcoAuth.api('/api/profile',{method:'PUT',body:JSON.stringify({name:'Gabriel',subtitle:'Herboclean'})});await EcoAuth.api('/api/profile/photo',{method:'PUT',body:JSON.stringify({dataUrl:${JSON.stringify(photo)}})});})()`);
   await send('Page.reload');await until("document.body.dataset.workspaceReady==='true'");
   const report=[];
   for(const page of pages){

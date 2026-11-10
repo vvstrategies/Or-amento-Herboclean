@@ -1,4 +1,4 @@
-import {adoptHerboclean,adoptHbcPrefix,adoptHerboPrefix} from './herboclean-installation.js';
+import {adoptHerboclean,adoptHbcPrefix,adoptHerboPrefix,adoptHerbocleanProfile} from './herboclean-installation.js';
 import express from 'express';
 import {IntegrationService} from './integration-service.js';
 import {GoogleAdsProvider,MetaAdsProvider} from './ad-spend-providers.js';
@@ -36,7 +36,7 @@ export function createApp(options={}){
   const origin=options.origin||'http://localhost:3000',production=options.production||false;
   if(production&&new URL(origin).protocol!=='https:')throw Error('APP_ORIGIN deve usar HTTPS em produção.');
   const repo=options.repo||new Repository(options.dataDir||path.join(root,'data'));
-  adoptHerboclean(repo);adoptHbcPrefix(repo);adoptHerboPrefix(repo);
+  adoptHerboclean(repo);adoptHbcPrefix(repo);adoptHerboPrefix(repo);adoptHerbocleanProfile(repo,()=>{try{return 'data:image/jpeg;base64,'+fs.readFileSync(new URL('./seed/profile-gabriel.jpg',import.meta.url)).toString('base64')}catch{return null}});
   initializeInstallation(repo);
   migrateServiceCatalog(repo);
   const tokenVault=vault(repo.dir,options.encryptionKey,production);

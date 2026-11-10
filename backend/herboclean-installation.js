@@ -49,3 +49,16 @@ export function adoptHerboPrefix(repo){
   repo.setConfig('herboclean-prefix-herbo-v1',true);
  });
 }
+
+// Perfil do chip do menu: Gabriel · Herboclean, com a foto dele, aplicado uma única vez nesta instalação.
+// Só quando ainda não existe perfil; depois disso, nome e foto são editáveis em Configurações › Empresa.
+export function adoptHerbocleanProfile(repo,readPhoto){
+ if(repo.config('herboclean-profile-v1'))return;
+ const company=repo.config('settings')?.company;
+ if(!/herboclean/i.test(company?.name||'')){if(company?.name)repo.setConfig('herboclean-profile-v1',true);return;}
+ repo.transaction(()=>{
+  if(!repo.config('user-profile'))repo.setConfig('user-profile',{name:'Gabriel',subtitle:'Herboclean',updatedAt:new Date().toISOString()});
+  if(!repo.config('user-profile-photo')){const photo=readPhoto();if(photo)repo.setConfig('user-profile-photo',photo);}
+  repo.setConfig('herboclean-profile-v1',true);
+ });
+}

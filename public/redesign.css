@@ -1065,3 +1065,41 @@ body:has(#bulk-bar:not([hidden])) #toast{bottom:104px}
 .dre-top.fin-top{flex-wrap:nowrap;margin-bottom:14px}
 .dre-top.fin-top .fbar-slot{flex:0 1 auto;min-width:0;justify-content:flex-start}
 .dre-top.fin-top .dre-actions{flex:none;flex-wrap:nowrap}
+/* ---------- Chip do perfil no rodapé do menu (foto, nome, subtítulo) ---------- */
+.sidebar-bottom{display:flex;align-items:center;width:100%;text-align:left;cursor:pointer;color:inherit;font:inherit;transition:background .18s}
+.sidebar-bottom:hover{background:rgba(255,255,255,.11)}
+.sidebar-bottom:focus-visible{outline:2px solid var(--r-accent);outline-offset:2px}
+.sidebar-bottom .nav-label{display:flex;flex-direction:column;min-width:0;gap:1px}
+.workspace-avatar{overflow:hidden;display:grid;place-items:center}
+.workspace-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+#profile-chip .workspace-avatar{box-shadow:0 0 0 2px color-mix(in srgb,var(--r-accent) 70%,transparent)}
+/* ---------- Configurações › Empresa: identidade em duas colunas + Seu perfil, sem rolagem da página ---------- */
+.settings-heading{margin-bottom:6px}
+.profile-edit{display:flex;align-items:center;gap:16px;margin:6px 0 14px}
+.profile-pic{width:88px;height:88px;border-radius:50%;overflow:hidden;flex:none;display:grid;place-items:center;background:linear-gradient(135deg,var(--r-accent),var(--r-mid));color:var(--r-ink);font-weight:800;font-size:26px;box-shadow:0 0 0 3px #fff,0 0 0 5px color-mix(in srgb,var(--r-accent) 60%,transparent)}
+.profile-pic img{width:100%;height:100%;object-fit:cover}
+.profile-pic-actions{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.profile-pic-actions small{font-size:11px}
+.profile-form{display:grid;gap:10px}
+.profile-form label{display:grid;gap:5px;font-size:12px}
+.profile-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+@media(min-width:1151px) and (min-height:700px){
+  .settings-view:not([hidden]):has([data-settings-tab=company][aria-selected=true]){display:flex;flex-direction:column;height:calc(100vh - 32px);box-sizing:border-box}
+  .settings-view:has([data-settings-tab=company][aria-selected=true]) .settings-layout{flex:1;min-height:0;grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr)!important;grid-template-rows:minmax(0,1fr);align-items:stretch!important}
+  .settings-view .identity-card:not([hidden]),.settings-view .profile-card:not([hidden]){overflow:auto;min-height:0;scrollbar-width:thin}
+  .settings-view .profile-card{align-self:start;max-height:100%}
+  .identity-card #company-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .identity-card #company-fields label.wide:has(textarea){grid-column:auto}
+  .identity-card #company-fields textarea{min-height:150px}
+}
+#profile-avatar{color:var(--r-ink)!important;font-size:12px!important;font-weight:800}
+@media(min-width:1151px) and (min-height:700px){
+  .settings-view:has([data-settings-tab=company][aria-selected=true]) .identity-card{grid-column:1!important;grid-row:1}
+  .settings-view:has([data-settings-tab=company][aria-selected=true]) .profile-card{grid-column:2!important;grid-row:1}
+}
+#profile-avatar{display:grid!important;place-items:center;width:38px;height:38px;border-radius:50%;flex:none;line-height:1}
+.settings-view .identity-card .identity-wizard{position:static;margin:0 0 12px;display:flex;justify-content:flex-end}
+body:not(.sidebar-collapsed) #profile-chip{justify-content:flex-start}
+.settings-view .identity-card .identity-wizard{position:absolute;top:16px;right:18px;margin:0}
+.settings-view .identity-card #settings>.hint{max-width:52%}
+@media(max-width:760px){.settings-view .identity-card .identity-wizard{position:static;margin:0 0 10px}.settings-view .identity-card #settings>.hint{max-width:none}}

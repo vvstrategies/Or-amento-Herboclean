@@ -40,10 +40,28 @@ export class AvatarService{
   }
 }
 
+// Perfil de quem usa o sistema (chip no rodapé do menu): nome, subtítulo e foto.
+// A foto fica no banco (miniatura 256×256 JPEG) e só é entregue com sessão.
+const PROFILE='user-profile',PROFILE_PHOTO='user-profile-photo';
+const text=(v,max)=>String(v??'').replace(/\s+/g,' ').trim().slice(0,max);
+export function profileOf(repo){const p=repo.config(PROFILE)||{};return {name:p.name||'',subtitle:p.subtitle||'',hasPhoto:!!repo.config(PROFILE_PHOTO),updatedAt:p.updatedAt||null}}
+export async function profilePhotoFrom(dataUrl){
+  const m=/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl||'');if(!m)throw fail(400,'Envie uma imagem PNG, JPEG ou WEBP.');
+  const raw=Buffer.from(m[1],'base64');if(raw.length>8*1024*1024)throw fail(413,'A foto deve ter até 8 MB.');
+  let img;try{img=await Jimp.read(raw)}catch{throw fail(400,'Não foi possível ler esta imagem.')}
+  img.cover({w:256,h:256});return 'data:image/jpeg;base64,'+(await img.getBuffer('image/jpeg',{quality:82})).toString('base64');
+}
+
 export function registerAvatars(app,service,wrap){
+  const repo=service.repo,touch=p=>repo.setConfig(PROFILE,{...(repo.config(PROFILE)||{}),...p,updatedAt:new Date().toISOString()});
+  app.get('/api/profile',(req,res)=>res.json(profileOf(repo)));
+  app.put('/api/profile',(req,res)=>{const name=text(req.body?.name,60),subtitle=text(req.body?.subtitle,80);if(!name)throw fail(400,'Informe o nome.');touch({name,subtitle});res.json(profileOf(repo))});
+  app.put('/api/profile/photo',wrap(async(req,res)=>{repo.setConfig(PROFILE_PHOTO,await profilePhotoFrom(req.body?.dataUrl));touch({});res.json(profileOf(repo))}));
+  app.delete('/api/profile/photo',(req,res)=>{repo.setConfig(PROFILE_PHOTO,null);touch({});res.json(profileOf(repo))});
   // Sem foto responde 204: a tela mantém as iniciais sem registrar erro no navegador.
   const send=async(req,res,photo)=>{if(!photo)return res.set('Cache-Control','private, no-cache').status(204).end();const t=await service.thumbnail(photo);res.set({'Cache-Control':'private, no-cache',ETag:t.etag});if(req.headers['if-none-match']===t.etag)return res.status(304).end();res.type('jpeg').send(t.body)};
   app.get('/api/proposals/:id/avatar',wrap(async(req,res)=>{const q=service.repo.proposal(req.params.id);if(!q)throw fail(404,'Orçamento não encontrado.');await send(req,res,service.proposalPhoto(q))}));
   app.put('/api/proposals/:id/avatar',(req,res)=>res.json(service.choose(req.params.id,req.body)));
   app.get('/api/clients/:id/avatar',wrap(async(req,res)=>send(req,res,service.clientPhoto(req.params.id))));
+  app.get('/api/profile/photo',wrap(async(req,res)=>send(req,res,repo.config(PROFILE_PHOTO))));
 }
