@@ -42,10 +42,58 @@ export class GeocodingProvider {
  async geocode(){throw integrationError('NOT_CONFIGURED',503);}
 }
 
+/**
+ * Reserva com o Nominatim (OpenStreetMap), usada só quando o Pelias acha apenas bairro/cidade.
+ * Política de uso: no máximo 1 consulta por segundo e User-Agent próprio. Só o endereço é enviado.
+ */
+const NOMINATIM_URL='https://nominatim.openstreetmap.org/search';
+let nominatimNext=0;
+const nominatimSlot=async()=>{const wait=nominatimNext-Date.now();nominatimNext=Math.max(Date.now(),nominatimNext)+1100;if(wait>0)await new Promise(r=>setTimeout(r,wait));};
+export class NominatimGeocoder extends GeocodingProvider {
+ constructor({fetcher=fetch,userAgent='orcamentos-geocoder/1.0',throttle=true}={}){super();this.id='nominatim';this.fetcher=fetcher;this.userAgent=userAgent;this.throttle=throttle;this.configured=true;}
+ async request(params){
+  const url=new URL(NOMINATIM_URL);
+  for(const [key,value] of Object.entries(params))if(value)url.searchParams.set(key,value);
+  for(const [key,value] of Object.entries({format:'jsonv2',addressdetails:'1',limit:'5',countrycodes:'br','accept-language':'pt-BR'}))url.searchParams.set(key,value);
+  if(this.throttle)await nominatimSlot();
+  let response;
+  try{response=await this.fetcher(url,{method:'GET',signal:AbortSignal.timeout(timeoutMs),redirect:'error',headers:{'User-Agent':this.userAgent,Accept:'application/json'}});}
+  catch{return [];}
+  if(!response?.ok)return [];
+  const body=await responseBody(response);
+  return (Array.isArray(body)?body:[]).map(item=>{
+   try{
+    const a=item.address||{},city=a.city||a.town||a.municipality||a.village||'',state=String(a['ISO3166-2-lvl4']||'').replace(/^BR-/,'');
+    const road=a.road||'',neighbourhood=a.suburb||a.neighbourhood||a.quarter||'';
+    const layer=a.house_number?'address':(item.category||item.class)==='highway'||road?'street':'locality';
+    const label=[road&&(a.house_number?road+', '+a.house_number:road),neighbourhood,city,state].filter(Boolean).join(', ')||String(item.display_name||'');
+    return {coordinates:coordinates({longitude:item.lon,latitude:item.lat}),label,confidence:null,properties:{layer,name:road,street:road,housenumber:a.house_number||'',neighbourhood,locality:city,region_a:state,postalcode:a.postcode||'',label}};
+   }catch{return null;}
+  }).filter(Boolean);
+ }
+ async geocode(address,{near=null}={}){
+  const parsed=parseAddress(safeAddress(address));
+  if(!parsed.street||!parsed.city)return null;
+  const attempts=[{street:[parsed.number,parsed.street].filter(Boolean).join(' '),city:parsed.city,state:parsed.state,country:'Brasil'},{q:[streetCore(parsed.street),parsed.city,parsed.state].filter(Boolean).join(', ')}];
+  let best=null,requests=0;
+  for(const params of attempts){
+   const candidates=await this.request(params);requests++;
+   const pick=pickBest(candidates.filter(c=>['address','street'].includes(precisionOf(c.properties.layer))),parsed,{near});
+   if(pick&&(!best||pick.score>best.score))best={...pick,query:params.q?'osm-street-name':'osm-structured'};
+   if(best)break;
+  }
+  if(!best)return null;
+  const city=best.properties.locality;
+  if(city&&!scoreMatches(city,parsed.city))return null;
+  const precision=precisionOf(best.properties.layer);
+  return {coordinates:best.coordinates,label:best.label,confidence:null,precision,layer:best.properties.layer,approximate:false,query:best.query,requests,provider:this.id,geocodedAt:new Date().toISOString(),quota:null};
+ }
+}
+
 /** Server-side Pelias client. Only the address is sent to HeiGIT. */
 export class HeiGITPeliasGeocoder extends GeocodingProvider {
- constructor({apiKey='',baseUrl=HEIGIT_DEFAULT_BASE_URL,fetcher=fetch}={}){
-  super();this.id='heigit_pelias';this.apiKey=String(apiKey||'').trim();this.baseUrl=cleanBase(baseUrl);this.fetcher=fetcher;this.configured=!!this.apiKey;
+ constructor({apiKey='',baseUrl=HEIGIT_DEFAULT_BASE_URL,fetcher=fetch,fallback=null}={}){
+  super();this.id='heigit_pelias';this.apiKey=String(apiKey||'').trim();this.baseUrl=cleanBase(baseUrl);this.fetcher=fetcher;this.fallback=fallback;this.configured=!!this.apiKey;
  }
  async request(path,params,near){
   const url=new URL('/pelias/v1/'+path,this.baseUrl);
@@ -87,6 +135,11 @@ export class HeiGITPeliasGeocoder extends GeocodingProvider {
    const pick=pickBest(candidates,parsed,{near});
    if(pick&&(!best||pick.score>best.score))best={...pick,query:attempt.kind};
    if(best&&['address','street'].includes(precisionOf(best.properties.layer))&&best.score>=30)break;
+  }
+  // Pelias só achou bairro/cidade (ou nada): tenta a reserva do OpenStreetMap antes de aceitar o ponto aproximado.
+  if(this.fallback&&(!best||!['address','street'].includes(precisionOf(best.properties.layer)))){
+   const osm=await this.fallback.geocode(query,{near}).catch(()=>null);
+   if(osm)return {...osm,requests,quota:null};
   }
   if(!best)throw integrationError('INVALID_ADDRESS',400);
   const p=best.properties,city=p.locality||p.localadmin||p.county||'';

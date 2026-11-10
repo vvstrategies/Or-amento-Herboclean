@@ -2,7 +2,8 @@
 // Usado só no servidor; nada aqui chama a rede.
 
 // v3: nomes de rua comparados sem "da/do/de" e sem o tipo, e busca pelo nome da rua na cidade (camada street).
-export const GEOCODER_VERSION=3;
+// v4: reserva do OpenStreetMap (Nominatim) quando o Pelias só acha bairro/cidade.
+export const GEOCODER_VERSION=4;
 
 const UF=new Set('AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' '));
 const ABBREVIATIONS=[

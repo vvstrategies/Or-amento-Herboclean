@@ -14,7 +14,7 @@ import {ReceiptStore,registerReceipts} from './receipts.js';
 import {registerDre} from './dre-routes.js';
 import {financialDemo} from './finance-demo.js';
 import {FinanceService} from './finance-service.js';
-import {HeiGITOpenRouteServiceProvider,HeiGITPeliasGeocoder} from './routes-provider.js';
+import {HeiGITOpenRouteServiceProvider,HeiGITPeliasGeocoder,NominatimGeocoder} from './routes-provider.js';
 import {CepLookupService} from './cep-cache.js';
 import {BrasilApiCepProvider,ViaCepProvider} from './cep-provider.js';
 import path from 'node:path';
@@ -44,7 +44,8 @@ export function createApp(options={}){
   const google=options.google||new GoogleIntegration(repo,tokenVault,options.googleConfig,options.fetcher);
   const service=new Service(repo,google),sec=security(repo,{origin,production,legacyHosts:options.legacyHosts||[]}),app=express();
   const cepLookup=options.cepLookup||new CepLookupService(repo,{primary:new BrasilApiCepProvider({fetcher:options.fetcher||globalThis.fetch}),fallback:new ViaCepProvider({fetcher:options.fetcher||globalThis.fetch})});
-  const geocoder=options.geocoder||new HeiGITPeliasGeocoder(options.routesConfig);
+  // Reserva do OpenStreetMap só quando ligada (produção); testes e pré-visualização nunca saem para a rede.
+  const geocoder=options.geocoder||new HeiGITPeliasGeocoder({...options.routesConfig,fallback:options.routesConfig?.osmFallback?new NominatimGeocoder():null});
   const finance=new FinanceService(repo,service,options.routeProvider||new HeiGITOpenRouteServiceProvider(options.routesConfig),{dailyLimit:options.routesConfig?.dailyLimit,directionsDailyLimit:options.routesConfig?.directionsDailyLimit,geocodingDailyLimit:options.routesConfig?.geocodingDailyLimit,routeCacheHours:options.routesConfig?.cacheHours,geocoder:options.routeProvider&&options.geocoder===undefined?null:geocoder});
   const dre=new DreService(repo,finance),profit=new ProfitService(repo,finance,dre,service);service.onComplete=(id,day)=>{const value=dre.recognize(id,day);profit.captureContext(id);return value;};
   const asaas=new AsaasService(repo,options.asaasConfig,options.asaasFetcher||options.fetcher||globalThis.fetch);

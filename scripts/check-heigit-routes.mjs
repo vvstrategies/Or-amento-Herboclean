@@ -5,7 +5,7 @@ import path from 'node:path';
 import {Repository,hash} from '../backend/database.js';
 import {migrateFinance} from '../backend/finance-migration.js';
 import {RouteCache} from '../backend/route-cache.js';
-import {HeiGITPeliasGeocoder,HeiGITOpenRouteServiceProvider} from '../backend/routes-provider.js';
+import {HeiGITPeliasGeocoder,HeiGITOpenRouteServiceProvider,NominatimGeocoder} from '../backend/routes-provider.js';
 import {GEOCODER_VERSION,sameStreet,streetCore} from '../backend/geocode-address.js';
 import {addressKey,calculateEstimate,defaultEstimateInput,defaultFinancialSettings,snapshotAssumptions} from '../backend/finance-domain.js';
 import {modelo} from '../utils/proposta.js';
@@ -87,6 +87,23 @@ try{
  assert.ok(seen.at(-1).includes('layers=street')&&seen.at(-1).includes('text=Fazendinha, Carapicuíba - SP'),'busca só o nome da rua, entre ruas');
  assert.ok(sameStreet('Estrada Fazendinha','Estrada da Fazendinha')&&sameStreet('R. das Flores','Rua Flores')&&!sameStreet('Rua das Flores','Rua dos Pinheiros'));
  assert.equal(streetCore('Estrada Fazendinha'),'Fazendinha');assert.equal(streetCore('Avenida Paulista'),'Paulista');
+ // v4: quando o Pelias só acha a cidade, a reserva do OpenStreetMap (Nominatim) entra e acha a rua.
+ const osmSeen=[];
+ const osmItem=(road,suburb,city,lat,lon)=>({lat:String(lat),lon:String(lon),category:'highway',type:'tertiary',display_name:road+', '+suburb+', '+city,address:{road,suburb,city,'ISO3166-2-lvl4':'BR-SP',country_code:'br'}});
+ const osm=new NominatimGeocoder({throttle:false,fetcher:async(url,request)=>{
+  osmSeen.push({url,ua:request.headers['User-Agent']});assert.equal(url.origin,'https://nominatim.openstreetmap.org');assert.equal(url.searchParams.get('countrycodes'),'br');
+  const street=url.searchParams.get('street')||'';
+  const body=street==='476 Estrada Fazendinha'?[osmItem('Estrada Fazendinha','Jardim Ana Stella','Barueri',-23.50,-46.87),osmItem('Estrada Fazendinha','Jardim Ana Stella','Carapicuíba',-23.5648869,-46.8674698)]:street.includes('Rua Sem Fim')?[osmItem('Rua Sem Fim','Centro','Curitiba',-25.4,-49.2)]:[];
+  return {ok:true,status:200,headers:headers({}),json:async()=>body};
+ }});
+ const onlyCity=new HeiGITPeliasGeocoder({apiKey:'k',fallback:osm,fetcher:async()=>({ok:true,status:200,headers:headers({}),json:async()=>({features:[feature(-46.8309,-23.5329,{layer:'locality',locality:'Carapicuíba',region_a:'SP',label:'Carapicuíba, SP, Brasil',confidence:0.6,match_type:'fallback'})]})})});
+ const viaOsm=await onlyCity.geocode('Estrada Fazendinha, 476 - casa, Jardim Ana Estela, Carapicuíba - SP, 06364-000, Brasil');
+ assert.deepEqual([viaOsm.provider,viaOsm.precision,viaOsm.approximate,viaOsm.label,viaOsm.query],['nominatim','street',false,'Estrada Fazendinha, Jardim Ana Stella, Carapicuíba, SP','osm-structured'],'rua do OSM na cidade certa');
+ assert.deepEqual(viaOsm.coordinates,{longitude:-46.8674698,latitude:-23.5648869});
+ assert.ok(osmSeen[0].ua&&!/node|undici/i.test(osmSeen[0].ua),'User-Agent próprio, como pede a política do Nominatim');
+ const osmWrongCity=await onlyCity.geocode('Rua Sem Fim, 1, Carapicuíba - SP');
+ assert.deepEqual([osmWrongCity.provider,osmWrongCity.precision,osmWrongCity.approximate],['heigit_pelias','city',true],'OSM em outra cidade é ignorado e fica o ponto aproximado com aviso');
+ const noFallbackWhenPrecise=osmSeen.length;await smart.geocode('Rua Dos Ciprestes, 342- Jardim Irene, Santo André- SP');assert.equal(osmSeen.length,noFallbackWhenPrecise,'endereço preciso não consulta o OSM');
  const abbreviated=await smart.geocode('Av. Dr. Altino Arantes, Vila Clementino, São Paulo - SP, 04042-030, Brasil');
  assert.equal(abbreviated.precision,'street');
  await assert.rejects(smart.geocode('Rua das Flores, 10, Centro, Diadema - SP'),e=>e.status===400&&/Curitiba/.test(e.message),'ponto em outra cidade é recusado');

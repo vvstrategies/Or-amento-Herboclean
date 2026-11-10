@@ -132,7 +132,7 @@ function understood(e){
  const s=e.routeSnapshot;if(!s||e.result.distanceSource!=='automatic'||(!s.originGeocodeLabel&&!s.destinationGeocodeLabel))return '';
  const vague=[['origin','a saída da equipe'],['destination','o endereço do cliente']].filter(([k])=>PRECISION_TEXT[s[k+'Precision']]);
  const warn=vague.length?`<p class="finance-geo-warn" role="status">Atenção: ${vague.map(([k,label])=>`${label} foi localizado ${PRECISION_TEXT[s[k+'Precision']]}`).join(' e ')}. A distância pode estar errada. Confira o endereço${vague.some(([k])=>k==='origin')?' da empresa em Configurações › Custos e financeiro (inclua o CEP)':' do cliente'} e clique em Recalcular, ou informe a distância manualmente.</p>`:'';
- return `<p class="finance-geo hint">Saída entendida como: <b>${esc(s.originGeocodeLabel||'—')}</b><br>Cliente entendido como: <b>${esc(s.destinationGeocodeLabel||'—')}</b></p>${warn}`;
+ return `<p class="finance-geo hint">Saída entendida como: <b>${esc(s.originGeocodeLabel||'—')}</b><br>Cliente entendido como: <b>${esc(s.destinationGeocodeLabel||'—')}</b>${[s.originGeocodeProvider,s.destinationGeocodeProvider].includes('nominatim')?'<br><small>Endereço localizado pelo © OpenStreetMap</small>':''}</p>${warn}`;
 }
 function distance(e){
  const r=e.result;if(!e.inputs.considerTravel)return '<p class="finance-distance">Deslocamento não considerado neste atendimento.</p>';
