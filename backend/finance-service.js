@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import {RouteCache,isUnexpectedZeroRoute} from './route-cache.js';
 import {fail,hash} from './database.js';
 import {migrateFinance} from './finance-migration.js';
+import {GEOCODER_VERSION} from './geocode-address.js';
 import {defaultFinancialSettings,validateFinancialSettings,defaultEstimateInput,validateEstimateInput,calculateEstimate,snapshotAssumptions,financialQuoteKey,addressKey,quotedRevenue,resolveOrigin} from './finance-domain.js';
 
 export class FinanceService{
@@ -13,7 +14,18 @@ export class FinanceService{
  settings(){return this.repo.config('financial-settings-v1')||defaultFinancialSettings();}
  saveSettings(raw){const settings=validateFinancialSettings(raw);this.repo.setConfig('financial-settings-v1',settings);return settings;}
  company(){return this.repo.config('settings')?.company||{};}
- async rememberCompanyAddress(address){return this.routeCache.rememberCompany(address);}
+ async rememberCompanyAddress(address,options){return this.routeCache.rememberCompany(address,options);}
+ // Rotas automáticas calculadas com o geocodificador antigo podem ter usado o centro da cidade.
+ outdatedGeocode(route){return !!this.routeCache.geocodes&&!!route&&route.geocoderVersion!==GEOCODER_VERSION;}
+ /** Refaz a localização da sede (botão em Configurações › Custos e financeiro). */
+ async refreshCompanyLocation(){
+  const origin=resolveOrigin(this.settings(),this.company());
+  if(!origin)throw fail(400,'Defina o endereço de saída da equipe em Configurações › Financeiro.');
+  const value=await this.routeCache.rememberCompany(origin,{force:true});
+  if(!value)throw fail(503,'Cálculo automático de distância não configurado.');
+  return {address:origin,label:value.label,precision:value.precision,approximate:value.approximate,coordinates:value.coordinates,geocodedAt:value.geocodedAt};
+ }
+ companyLocation(){const value=this.routeCache.geocodes?.subject('company','operational');return value?{address:value.addressSnapshot,label:value.label||'',precision:value.precision||null,approximate:value.approximate===true,current:value.version===GEOCODER_VERSION,geocodedAt:value.geocodedAt}:null;}
  versions(id){
   const current=this.repo.currentVersion(id),currentSnapshot=current?.financialSnapshot||null;
   const historical=this.repo.db.prepare('SELECT data FROM finance_estimates WHERE proposal_id=? ORDER BY version DESC').all(id).map(r=>JSON.parse(r.data));
@@ -27,7 +39,7 @@ export class FinanceService{
   const q=this.repo.requireProposal(id),[latest,previous]=this.versions(id),editable=this.editable(id);
   const addressChanged=!!latest&&addressKey(latest.destinationAddressSnapshot)!==addressKey(q.address);
   const stale=!!latest&&latest.quoteKey!==financialQuoteKey(q),routes=this.routeCache.status();
-  const routeNeedsRefresh=!!latest&&latest.inputs?.considerTravel&&latest.inputs?.distanceMode==='automatic'&&(!latest.routeSnapshot||isUnexpectedZeroRoute(latest.assumptions?.originAddressSnapshot,latest.destinationAddressSnapshot,latest.routeSnapshot));
+  const routeNeedsRefresh=!!latest&&latest.inputs?.considerTravel&&latest.inputs?.distanceMode==='automatic'&&(!latest.routeSnapshot||isUnexpectedZeroRoute(latest.assumptions?.originAddressSnapshot,latest.destinationAddressSnapshot,latest.routeSnapshot)||this.outdatedGeocode(latest.routeSnapshot));
   const automatic=this.automaticState(q);
   return {latest:latest||null,previous:previous||null,editable,stale,addressChanged,routeNeedsRefresh,automaticReady:automatic.ready,autoRouteIssue:automatic.reason,autoRouteError:this.autoErrors.get(id)||null,status:this.repo.operation(id).status,
    currentRevenue:quotedRevenue(q),defaults:this.settings(),currentOrigin:resolveOrigin(this.settings(),this.company()),
@@ -68,7 +80,7 @@ export class FinanceService{
  async refreshAutomatically(id,{alreadyLocked=false}={}){
   const run=async()=>{
    this.checkEditable(id);const q=this.repo.requireProposal(id),previous=this.latest(id),quoteKey=financialQuoteKey(q);
-   const routeNeedsRefresh=!!previous&&previous.inputs?.considerTravel&&previous.inputs?.distanceMode==='automatic'&&(!previous.routeSnapshot||isUnexpectedZeroRoute(previous.assumptions?.originAddressSnapshot,previous.destinationAddressSnapshot,previous.routeSnapshot));
+   const routeNeedsRefresh=!!previous&&previous.inputs?.considerTravel&&previous.inputs?.distanceMode==='automatic'&&(!previous.routeSnapshot||isUnexpectedZeroRoute(previous.assumptions?.originAddressSnapshot,previous.destinationAddressSnapshot,previous.routeSnapshot)||this.outdatedGeocode(previous.routeSnapshot));
    if(previous?.quoteKey===quoteKey&&!routeNeedsRefresh){this.autoErrors.delete(id);return this.view(id);}
    const automatic=this.automaticState(q);
    if(!automatic.ready){this.autoErrors.set(id,automatic.reason);return this.view(id);}
@@ -108,11 +120,11 @@ export class FinanceService{
     if(!automatic.ready)throw fail(409,automatic.reason);
     route=await this.routeCache.get(assumptions.originAddressSnapshot,q.address,{force:true,originRef:{type:'company',id:'operational'},destinationRef:{type:'proposal',id}});
    }
-   if(!route||addressKey(route.origin)!==addressKey(assumptions.originAddressSnapshot)||addressKey(route.destination)!==addressKey(q.address))throw fail(409,'A rota nÃ£o corresponde aos endereÃ§os atuais. Recalcule o deslocamento ou informe a distÃ¢ncia manualmente.');
+   if(!route||addressKey(route.origin)!==addressKey(assumptions.originAddressSnapshot)||addressKey(route.destination)!==addressKey(q.address))throw fail(409,'A rota não corresponde aos endereços atuais. Recalcule o deslocamento ou informe a distância manualmente.');
   }
   this.autoErrors.delete(id);
   const previous=this.latest(id);
-  if(inputs.considerTravel&&inputs.distanceMode==='manual'&&previous&&(addressKey(previous.destinationAddressSnapshot)!==addressKey(q.address)||addressKey(previous.assumptions.originAddressSnapshot)!==addressKey(assumptions.originAddressSnapshot))&&body.confirmDistance!==true)throw fail(409,'O endereÃ§o de origem ou destino mudou. Confirme novamente a distÃ¢ncia manual para este destino.');
+  if(inputs.considerTravel&&inputs.distanceMode==='manual'&&previous&&(addressKey(previous.destinationAddressSnapshot)!==addressKey(q.address)||addressKey(previous.assumptions.originAddressSnapshot)!==addressKey(assumptions.originAddressSnapshot))&&body.confirmDistance!==true)throw fail(409,'O endereço de origem ou destino mudou. Confirme novamente a distância manual para este destino.');
   return this.record(id,q,assumptions,inputs,route);
  })();}
  async route(id,body){return (async()=>{

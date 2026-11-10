@@ -1,4 +1,7 @@
 import {integrationError} from './integration-domain.js';
+import {fold,parseAddress,pickBest,precisionOf,searchText} from './geocode-address.js';
+
+const scoreMatches=(a,b)=>fold(a)===fold(b)||fold(a).includes(fold(b))||fold(b).includes(fold(a));
 
 export const HEIGIT_DEFAULT_BASE_URL='https://api.heigit.org';
 const timeoutMs=10000;
@@ -44,27 +47,50 @@ export class HeiGITPeliasGeocoder extends GeocodingProvider {
  constructor({apiKey='',baseUrl=HEIGIT_DEFAULT_BASE_URL,fetcher=fetch}={}){
   super();this.id='heigit_pelias';this.apiKey=String(apiKey||'').trim();this.baseUrl=cleanBase(baseUrl);this.fetcher=fetcher;this.configured=!!this.apiKey;
  }
- async geocode(address){
-  const query=safeAddress(address);
-  if(!this.configured)throw integrationError('NOT_CONFIGURED',503);
-  const url=new URL('/pelias/v1/search',this.baseUrl);
-  url.searchParams.set('text',query);url.searchParams.set('size','5');url.searchParams.set('lang','pt');url.searchParams.set('boundary.country','BR');
+ async request(path,params,near){
+  const url=new URL('/pelias/v1/'+path,this.baseUrl);
+  for(const [key,value] of Object.entries(params))if(value)url.searchParams.set(key,value);
+  url.searchParams.set('size','8');url.searchParams.set('lang','pt');url.searchParams.set('boundary.country','BR');
+  if(near){url.searchParams.set('focus.point.lat',String(near.latitude));url.searchParams.set('focus.point.lon',String(near.longitude));}
   let response;
   try{response=await this.fetcher(url,{method:'GET',signal:AbortSignal.timeout(timeoutMs),redirect:'error',headers:{Authorization:this.apiKey,Accept:'application/json'}});}
   catch(error){throw integrationError(['TimeoutError','AbortError'].includes(error?.name)?'TIMEOUT':'EXTERNAL',503);}
   const body=await responseBody(response);
   if(!response?.ok)throw requestError(response,body);
-  const matches=(Array.isArray(body.features)?body.features:[]).map(feature=>{
+  const candidates=(Array.isArray(body.features)?body.features:[]).map(feature=>{
    try{
-    const point=coordinates(feature?.geometry?.coordinates);
-    const confidence=Number(feature?.properties?.confidence);
-    return {coordinates:point,label:typeof feature?.properties?.label==='string'?feature.properties.label:'',confidence:Number.isFinite(confidence)?confidence:null};
+    const point=coordinates(feature?.geometry?.coordinates),properties=feature?.properties||{},confidence=Number(properties.confidence);
+    return {coordinates:point,label:typeof properties.label==='string'?properties.label:'',confidence:Number.isFinite(confidence)?confidence:null,properties};
    }catch{return null;}
   }).filter(Boolean);
-  if(!matches.length)throw integrationError('INVALID_ADDRESS',400);
-  const first=matches[0],second=matches[1];
-  if((first.confidence!==null&&first.confidence<0.4)||(second&&first.confidence!==null&&second.confidence!==null&&Math.abs(first.confidence-second.confidence)<0.02&&Math.abs(first.coordinates.longitude-second.coordinates.longitude)+Math.abs(first.coordinates.latitude-second.coordinates.latitude)>0.01))throw integrationError('AMBIGUOUS_ADDRESS',400);
-  return {...first,provider:this.id,geocodedAt:new Date().toISOString(),quota:quota(response)};
+  return {candidates,quota:quota(response)};
+ }
+ /**
+  * Tenta, nesta ordem e só enquanto o ponto for impreciso: texto normalizado,
+  * busca estruturada e "rua, cidade". Escolhe pelo que o endereço cita (cidade,
+  * bairro, UF, CEP, número) e desempata pela proximidade da sede (`near`).
+  */
+ async geocode(address,{near=null}={}){
+  const query=safeAddress(address);
+  if(!this.configured)throw integrationError('NOT_CONFIGURED',503);
+  const parsed=parseAddress(query),attempts=[{path:'search',params:{text:searchText(parsed)||query},kind:'text'}];
+  if(parsed.street&&parsed.city){
+   attempts.push({path:'search/structured',params:{address:[parsed.street,parsed.number].filter(Boolean).join(' '),neighbourhood:parsed.neighborhood,locality:parsed.city,region:parsed.state,postalcode:parsed.postalCode,country:'BRA'},kind:'structured'});
+   attempts.push({path:'search',params:{text:[parsed.street,parsed.city+(parsed.state?' - '+parsed.state:'')].join(', ')},kind:'street'});
+  }
+  let best=null,lastQuota=null,requests=0;
+  for(const attempt of attempts){
+   const {candidates,quota:q}=await this.request(attempt.path,attempt.params,near);requests++;lastQuota=q||lastQuota;
+   const pick=pickBest(candidates,parsed,{near});
+   if(pick&&(!best||pick.score>best.score))best={...pick,query:attempt.kind};
+   if(best&&['address','street'].includes(precisionOf(best.properties.layer))&&best.score>=30)break;
+  }
+  if(!best)throw integrationError('INVALID_ADDRESS',400);
+  const p=best.properties,city=p.locality||p.localadmin||p.county||'';
+  // Ponto em outra cidade/UF do que o endereço diz é pior que nenhum ponto.
+  if(parsed.city&&city&&!scoreMatches(city,parsed.city))throw Object.assign(integrationError('AMBIGUOUS_ADDRESS',400),{message:`O endereço "${query}" foi localizado em ${city}, não em ${parsed.city}. Confira o endereço ou informe a distância manualmente.`});
+  const precision=precisionOf(p.layer);
+  return {coordinates:best.coordinates,label:best.label,confidence:best.confidence,precision,layer:p.layer||'',approximate:!['address','street'].includes(precision),query:best.query,requests,provider:this.id,geocodedAt:new Date().toISOString(),quota:lastQuota};
  }
 }
 

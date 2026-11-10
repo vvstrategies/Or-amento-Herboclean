@@ -18,7 +18,8 @@ async function initSettings(){
   <section><h3>Materiais</h3>${field('materialRate','Custo médio de materiais (%)',s.defaultMaterialBps,'Ex.: 20% significa R$ 20 de materiais a cada R$ 100 vendidos.')}
   <details><summary>Percentuais por serviço · opcional</summary><p class="hint">Deixe em branco para usar o custo médio da empresa.</p><div class="finance-service-rates">${data.services.map(it=>`<label>${esc(it.name)} (%)<input inputmode="decimal" data-service-rate="${esc(it.name)}" value="${esc(scaled(s.serviceMaterialBps[it.name]))}" placeholder="Padrão da empresa"></label>`).join('')}</div></details></section>
   <section><h3>Deslocamento</h3><label>Endereço de saída<select name="originMode"><option value="company">Usar endereço da empresa</option><option value="custom">Usar outro endereço</option></select></label>
-  <p class="hint">${esc(data.companyLocation||'Configure a localização da empresa.')}</p><label id="finance-origin-field">Endereço de saída personalizado<input name="originAddress" maxlength="800" value="${esc(s.originAddress)}" placeholder="Rua, número, cidade e estado"></label>
+  <p class="hint">${esc(data.companyLocation||'Configure a localização da empresa.')}</p>
+  ${data.routes.configured?`<div class="finance-geo-company"><p class="hint" id="finance-company-geo">Verificando como a saída foi localizada no mapa...</p><button id="finance-company-geo-refresh" class="text-button" type="button">Recalcular localização</button></div>`:''}<label id="finance-origin-field">Endereço de saída personalizado<input name="originAddress" maxlength="800" value="${esc(s.originAddress)}" placeholder="Rua, número, cidade e estado"></label>
   <label class="finance-check"><input name="roundTrip" type="checkbox" ${s.roundTrip?'checked':''}> Considerar ida e volta automaticamente</label><p class="hint">Cada atendimento parte da base. Use um endereço completo para uma rota mais precisa.</p></section>
   <section><h3>Veículo operacional</h3><div class="fields"><label>Nome do veículo<input name="vehicleName" maxlength="120" value="${esc(v.name)}" placeholder="Ex.: Fiat Mobi"></label><label>Combustível<select name="fuelType"><option value="gasoline">Gasolina</option><option value="ethanol">Etanol</option><option value="diesel">Diesel</option><option value="flex">Flex</option></select></label>
   ${field('consumption','Consumo médio (km/L)',v.consumptionCentiKmL,'Use o consumo observado no uso real do veículo.')}${field('fuelPrice','Preço do combustível (R$/L)',v.fuelPriceCents)}${field('operatingCost','Custo adicional do veículo (R$/km)',v.additionalCostPerKmCents,'Manutenção, pneus, desgaste e depreciação estimados.')}</div></section>
@@ -38,6 +39,17 @@ async function initSettings(){
   };
   $('#financial-export',form).onclick=async()=>{try{const data=await EcoAuth.api('/api/financial-export');EcoDownloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'financeiro-interno-'+EcoModel.today()+'.json')}catch(e){notify(e.message)}};
   $('#finance-demo',form).onclick=showDemo;
+  const geo=$('#finance-company-geo',form);
+  if(geo){
+   const show=l=>{
+    if(!l){geo.textContent='A saída ainda não foi localizada no mapa. Ela é localizada no primeiro cálculo de rota.';return;}
+    const vague=PRECISION_TEXT[l.precision];
+    geo.innerHTML=`Localizada no mapa como: <b>${esc(l.label||'—')}</b>${vague?`<br><span class="finance-geo-warn">Foi encontrado ${vague}. Inclua o CEP e o número no endereço da empresa e recalcule.</span>`:''}${l.current===false?'<br>Localização feita pela versão anterior; recalcule para conferir.':''}`;
+   };
+   EcoAuth.api('/api/finance/company-location').then(r=>show(r.location)).catch(()=>{geo.textContent='';});
+   $('#finance-company-geo-refresh',form).onclick=async e=>{e.target.disabled=true;geo.textContent='Localizando...';try{show({...await EcoAuth.api('/api/finance/company-location/refresh',{method:'POST'}),current:true});}catch(error){geo.textContent=error.message;}finally{e.target.disabled=false;}};
+   if(!/\d{5}-?\d{3}/.test(data.companyLocation||'')&&s.originMode==='company')geo.insertAdjacentHTML('afterend','<p class="hint finance-geo-warn">Dica: o endereço da empresa está sem CEP. Com o CEP, o cálculo das rotas fica mais preciso.</p>');
+  }
  }catch(error){slot.innerHTML='<h2>Custos dos atendimentos</h2><p class="hint">'+esc(error.message)+'</p>';}
 }
 function metrics(view){
@@ -64,8 +76,19 @@ function composition(e){
  Materiais padrão: ${a.defaultMaterialBps===null?'não informado':number(a.defaultMaterialBps/100)+'%'}</p>
  <p class="hint">Receita baseada no PIX. O preço do cartão já compensa taxas; nenhuma taxa é descontada novamente aqui. A estimativa não representa dinheiro recebido nem lucro líquido.</p></details>`;
 }
+// Como o geocodificador entendeu cada ponta da rota. Ponto só no bairro/cidade deixa a distância errada.
+const PRECISION_TEXT={neighbourhood:'só o bairro',city:'só a cidade',region:'só a região'};
+function understood(e){
+ const s=e.routeSnapshot;if(!s||e.result.distanceSource!=='automatic'||(!s.originGeocodeLabel&&!s.destinationGeocodeLabel))return '';
+ const vague=[['origin','a saída da equipe'],['destination','o endereço do cliente']].filter(([k])=>PRECISION_TEXT[s[k+'Precision']]);
+ const warn=vague.length?`<p class="finance-geo-warn" role="status">Atenção: ${vague.map(([k,label])=>`${label} foi localizado por ${PRECISION_TEXT[s[k+'Precision']]}`).join(' e ')}. A distância pode estar errada. Confira o endereço${vague.some(([k])=>k==='origin')?' da empresa em Configurações › Custos e financeiro (inclua o CEP)':' do cliente'} e clique em Recalcular, ou informe a distância manualmente.</p>`:'';
+ return `<p class="finance-geo hint">Saída entendida como: <b>${esc(s.originGeocodeLabel||'—')}</b><br>Cliente entendido como: <b>${esc(s.destinationGeocodeLabel||'—')}</b></p>${warn}`;
+}
 function distance(e){
  const r=e.result;if(!e.inputs.considerTravel)return '<p class="finance-distance">Deslocamento não considerado neste atendimento.</p>';
+ return distanceLine(e,r)+understood(e);
+}
+function distanceLine(e,r){
  return `<div class="finance-distance"><strong>${r.distanceMeters===null?'Distância pendente':number(r.distanceMeters/1000)+' km até o cliente · '+number(r.totalDistanceMeters/1000)+' km considerados'}</strong><span>${r.distanceSource==='automatic'?'Calculado automaticamente · openrouteservice / HeiGIT':r.distanceSource==='manual'?'Distância informada manualmente':'Informe ou calcule o trajeto'}${r.durationSeconds===null?'':' · aprox. '+Math.round(r.durationSeconds/60)+' min por trecho'}</span></div>`;
 }
 async function mount(slot,q,{demo=false}={}){
