@@ -1103,3 +1103,14 @@ body:not(.sidebar-collapsed) #profile-chip{justify-content:flex-start}
 .settings-view .identity-card .identity-wizard{position:absolute;top:16px;right:18px;margin:0}
 .settings-view .identity-card #settings>.hint{max-width:52%}
 @media(max-width:760px){.settings-view .identity-card .identity-wizard{position:static;margin:0 0 10px}.settings-view .identity-card #settings>.hint{max-width:none}}
+/* ---------- Ícones próprios do menu (nav-icons.js): quadrado arredondado, item ativo aceso ---------- */
+.sidebar .nav-item .nav-tile{display:grid;place-items:center;width:32px;height:32px;margin:-7px 0 -7px -8px;border-radius:10px;flex:none;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#d9e8e0;transition:background .25s,border-color .25s,box-shadow .25s,color .25s}
+.nav-tile svg{width:18px;height:18px}
+.nav-tile .ni-soft{fill:currentColor;opacity:.38}
+.nav-tile .ni-bold{fill:currentColor}
+.nav-tile .ni-line{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav-tile .ni-hole{fill:#0b3d31}
+.sidebar .nav-item:hover .nav-tile{background:rgba(255,255,255,.13);color:#fff}
+.sidebar .nav-item.active .nav-tile{background:linear-gradient(135deg,#e6f59a,var(--r-accent) 70%);border-color:color-mix(in srgb,var(--r-accent) 80%,#fff);color:#0b3d31;box-shadow:0 6px 16px -6px color-mix(in srgb,var(--r-accent) 85%,transparent),inset 0 1px 0 rgba(255,255,255,.5)}
+.sidebar .nav-item.active .nav-tile .ni-hole{fill:#d4f26a}
+body.sidebar-collapsed .sidebar .nav-item .nav-tile{margin:0}
