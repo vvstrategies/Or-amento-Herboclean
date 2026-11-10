@@ -61,7 +61,7 @@
   }
 
   // Marketing: custo por orçamento, por fechamento, ROAS e ROI de cada canal no período.
-  async function channels(el,{from,to,demo}){
+  async function channels(el,{from,to,demo},replace=null){
     if(demo||!el)return;
     const d=await EcoAuth.api('/api/dashboard?'+new URLSearchParams({from:from+'-01',to:lastDay(to)}));
     const c=d.current.campaign,box=document.createElement('section');box.className='hcard channel-card';
@@ -70,7 +70,25 @@
     box.innerHTML=`<div class="mstat">${tile('Gasto em campanhas',money(c.spendCents,0),Object.entries(d.spend.providers).map(([k,v])=>(k==='meta-ads'?'Meta ':'Google ')+r(v)).join(' · ')||'sem gasto no período')}${tile('Custo por orçamento',c.costPerQuoteCents==null?'—':money(c.costPerQuoteCents),c.costPerQuoteCents==null?'precisa de gasto e orçamentos':`${r(c.spendCents)} ÷ ${c.quotes} orçamentos`)}${tile('Custo por fechamento',c.costPerCloseCents==null?'—':money(c.costPerCloseCents),c.costPerCloseCents==null?'precisa de gasto e fechamentos':`${r(c.spendCents)} ÷ ${c.closed} concluídos`)}${tile('ROAS · ROI',c.roas==null?'—':`${num(c.roas)}× · ${num(c.roi*100,0)}%`,c.roas==null?'precisa de gasto no período':`receita ${r(c.revenueCents)} ÷ ${r(c.spendCents)}`,true)}</div>
       <div class="ph"><div><h2>Resultado por canal</h2><p>Cada orçamento conta para o canal marcado em "Como chegou até nós"</p></div></div>
       <div class="tblwrap"><table class="channel-table"><thead><tr><th>Canal</th><th>Gasto</th><th>Orçamentos</th><th>Fechamentos</th><th>Receita</th><th>Custo/orç.</th><th>Custo/fech.</th><th>ROAS</th><th>ROI</th></tr></thead><tbody>${d.channels.map(x=>`<tr><td><b class="with-icon">${EcoIcons.brandIcon(x.origin,'sm')}${esc(x.label)}</b></td><td>${x.paid?money(x.spendCents,0):'—'}</td><td>${x.quotes}</td><td>${x.closed}</td><td>${money(x.revenueCents,0)}</td><td>${x.costPerQuoteCents==null?'—':money(x.costPerQuoteCents)}</td><td>${x.costPerCloseCents==null?'—':money(x.costPerCloseCents)}</td><td><b>${x.roas==null?'—':num(x.roas)+'×'}</b></td><td><b class="${x.roi>=0?'up':'down'}">${x.roi==null?(x.paid?'—':'sem custo'):num(x.roi*100,0)+'%'}</b></td></tr>`).join('')||'<tr><td colspan="9" class="hint">Nenhum orçamento no período.</td></tr>'}</tbody></table></div>`;
-    el.prepend(box);
+    if(d.byTag)box.insertAdjacentHTML('beforeend',tagSection(d,c));
+    if(replace)replace.replaceWith(box);else el.prepend(box);
+    box.querySelector('#campaign-tags-form')?.addEventListener('submit',async e=>{e.preventDefault();const f=e.target,b=f.querySelector('[type=submit]');b.disabled=true;
+      try{const map={};for(const sel of f.querySelectorAll('select[data-campaign-tag]'))map[sel.dataset.campaignTag]=sel.value;await EcoAuth.api('/api/finance/campaign-tags',{method:'PUT',body:JSON.stringify(map)});notify('Campanhas vinculadas às tags.');await channels(el,{from,to,demo},box)}catch(err){notify(err.message)}finally{b.disabled=false}});
+  }
+  // Por tag: mesma fórmula e mesmo período do painel. Sem campanha vinculada à tag, o investimento é "não atribuível" (sem rateio).
+  function tagSection(d,c){
+    const t=d.byTag,cell=v=>v==null?'<span class="hint">—</span>':money(v);
+    const rows=t.rows.map(r=>`<tr><td><b>${esc(r.label.charAt(0)+r.label.slice(1).toLowerCase())}</b></td><td>${r.quotes}</td><td>${r.closed}</td><td>${money(r.revenueCents,0)}</td><td>${r.attributable?money(r.investmentCents,0):'<span class="hint" title="Nenhuma campanha vinculada a esta tag">Não atribuível</span>'}</td><td>${r.attributable?cell(r.costPerQuoteCents):'—'}</td><td>${r.attributable?cell(r.costPerCloseCents):'—'}</td></tr>`).join('');
+    const totalRow=`<tr class="total-row"><td><b>Total do período</b><small class="hint"> consolidado, sem repetir orçamentos</small></td><td>${c.quotes}</td><td>${c.closed}</td><td>${money(c.revenueCents,0)}</td><td>${money(c.spendCents,0)}</td><td>${cell(c.costPerQuoteCents)}</td><td>${cell(c.costPerCloseCents)}</td></tr>`;
+    const tags=[...new Map(t.rows.filter(r=>r.tag).map(r=>[r.tag,r.label])).entries()];
+    const camp=t.campaigns.length?`<details class="campaign-tags"><summary>Vincular campanhas às tags (${t.campaigns.filter(x=>x.tag).length} de ${t.campaigns.length} vinculadas)</summary>
+      <p class="hint">Marque a tag que cada campanha atende (ex.: campanha só de Residencial). Só campanhas vinculadas entram no investimento da tag; o restante fica fora, sem rateio.</p>
+      <form id="campaign-tags-form" class="campaign-tags-form">${t.campaigns.map(x=>`<label><span>${EcoIcons.brandIcon(x.provider,'sm')}${esc(x.campaignName)} <small class="hint">${money(x.spendCents,0)} no período</small></span><select data-campaign-tag="${esc(x.provider+':'+x.campaignId)}"><option value="">Sem tag (não atribuída)</option>${tags.map(([id,l])=>`<option value="${esc(id)}" ${x.tag===id?'selected':''}>${esc(l.charAt(0)+l.slice(1).toLowerCase())}</option>`).join('')}</select></label>`).join('')}<button class="primary" type="submit">Salvar vínculos</button></form></details>`:'<p class="hint">Nenhum gasto de campanha sincronizado no período.</p>';
+    return `<div class="ph tag-cost-head"><div><h2>Por tag</h2><p>Mesmo período e mesma fórmula do painel. Investimento atribuído = campanhas vinculadas à tag ÷ orçamentos (ou fechamentos) da tag vindos de Google/Meta Ads.</p></div></div>
+      <div class="tblwrap"><table class="channel-table tag-table"><thead><tr><th>Tag</th><th>Orçamentos</th><th>Fechamentos</th><th>Receita</th><th>Investimento atribuído</th><th>Custo/orç.</th><th>Custo/fech.</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="hint">Nenhuma tag cadastrada.</td></tr>'}${totalRow}</tbody></table></div>
+      ${t.overlapping?'<p class="hint tag-note">Há orçamentos com mais de uma tag: eles aparecem em cada tag, então as linhas não somam o total. Use a linha Total do período.</p>':''}
+      ${t.unattributedSpendCents>0?`<p class="hint tag-note">${money(t.unattributedSpendCents,0)} do gasto do período não está vinculado a nenhuma tag${t.attributedSpendCents?'':' — por isso o custo por tag aparece como "Não atribuível"'}. O gasto vem por campanha; os orçamentos não registram de qual campanha vieram.</p>`:''}
+      ${camp}`;
   }
   root.UniversalDistribution={render:distribution,channels};
 })(globalThis);

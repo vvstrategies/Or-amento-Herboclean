@@ -90,7 +90,7 @@
       }else if(field==='address'){
         q.address=e.target.value;q.addressSource='manual';changed();
       }else if(field==='clientBirthday'){const value=bdayValue(e.target.value);e.target.setCustomValidity(e.target.value&&!value?'Use DD/MM, por exemplo 18/03.':'');q.clientBirthday=value;changed();
-      }else if(field==='client'){q.client=e.target.value;clientMatch();changed();
+      }else if(field==='client'||field==='clientContact'||field==='clientEmail'){q[field]=e.target.value;clientMatch();changed();
       }else {if(Object.hasOwn(q.terms,field))q.terms[field]=e.target.type==='number'?Number(e.target.value):e.target.value;else q[field]=e.target.value;changed();}
     }
     const key=e.target.dataset.field;
@@ -101,7 +101,17 @@
   $('#add').onclick=()=>{if(q.items.length>=100)return toast('Limite de 100 serviços por proposta.');q.items.push(M.item());renderItems();changed()};
   async function readImage(file,logo=false){
     if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>20*1024*1024)throw Error('Use PNG, JPG ou WebP de até 20 MB.');
-    const url=URL.createObjectURL(file);try{const img=new Image();img.src=url;await img.decode();const scale=Math.min(1,(logo?1400:1000)/Math.max(img.width,img.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));const ctx=canvas.getContext('2d');if(!logo){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height)}ctx.drawImage(img,0,0,canvas.width,canvas.height);return canvas.toDataURL(logo?'image/png':'image/jpeg',.85)}finally{URL.revokeObjectURL(url)}
+    // Orientação EXIF: a imagem é decodificada já na orientação visual (imageOrientation 'from-image', padrão dos navegadores atuais)
+    // e redesenhada no canvas; o JPEG gerado não carrega EXIF, então PDF e telas nunca giram a foto de novo.
+    // Lado maior limitado a 1000 px (1400 no logo): qualidade suficiente para o PDF sem guardar fotos gigantes; nunca amplia.
+    let source=null,url=null;
+    try{
+      try{source=await createImageBitmap(file,{imageOrientation:'from-image'})}catch{source=null}
+      if(!source){url=URL.createObjectURL(file);const img=new Image();img.src=url;await img.decode();source=img}
+      const w=source.width||source.naturalWidth,h=source.height||source.naturalHeight,scale=Math.min(1,(logo?1400:1000)/Math.max(w,h));
+      const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));const ctx=canvas.getContext('2d');if(!logo){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height)}ctx.drawImage(source,0,0,canvas.width,canvas.height);
+      const out=canvas.toDataURL(logo?'image/png':'image/jpeg',.85);canvas.width=canvas.height=1;return out;
+    }finally{if(source?.close)source.close();if(url)URL.revokeObjectURL(url)}
   }
   async function addPhotos(it,files){
     files=files.filter(f=>['image/png','image/jpeg','image/webp'].includes(f.type));if(!files.length)return toast('Use imagens PNG, JPG ou WebP.');
@@ -125,14 +135,42 @@
     const tags=q.tags||[];$('#quote-tags').innerHTML=tagOptions.map(t=>`<button type="button" data-quote-tag="${esc(t.id)}" aria-pressed="${tags.includes(t.id)}">${esc(t.label)}</button>`).join('');
     $('#quote-origin').innerHTML=Object.entries(M.origins).map(([id,label])=>`<button type="button" data-origin="${id}" aria-pressed="${q.origin===id}">${EcoIcons.brandIcon(id,'sm')}${esc(label)}</button>`).join('');
   }
+  // Cliente já cadastrado: telefone ou e-mail iguais identificam o mesmo cliente (mesma regra do servidor); nome igual é só sugestão.
+  function strongMatch(){
+    const phone=EcoContacts.phoneKey(q.clientContact),email=EcoContacts.emailKey(q.clientEmail)||EcoContacts.emailKey(q.clientContact);
+    const byPhone=phone&&knownClients.find(x=>EcoContacts.phoneKey(x.phone)===phone);if(byPhone)return {client:byPhone,by:'telefone'};
+    const byEmail=email&&knownClients.find(x=>x.email&&x.email.toLowerCase()===email);return byEmail?{client:byEmail,by:'e-mail'}:null;
+  }
+  function fillFromClient(c){
+    let touched=false;if(!(q.tags||[]).length&&c.tags?.length){q.tags=[...c.tags];touched=true}
+    const set=(key,value,display=value)=>{if(q[key]||!value)return;q[key]=value;const input=$(`#form [name="${key}"]`);if(input)input.value=display;touched=true};
+    set('clientBirthday',c.birthday,bdayText(c.birthday));set('clientContact',c.phone);set('clientEmail',c.email);
+    if(touched)renderChoices();return touched;
+  }
   function clientMatch(){
     const box=$('#client-match'),name=fold(q.client);if(!box)return;
-    const c=name.length>2&&knownClients.find(x=>fold(x.name)===name);
+    const strong=strongMatch();
+    if(strong&&fold(strong.client.name)!==name){const c=strong.client;box.hidden=false;box.classList.add('warn');
+      box.innerHTML=`<b>Já existe um cliente com este ${strong.by}</b>${esc(c.name)} · ${c.quoteCount} orçamento${c.quoteCount===1?'':'s'}. <button type="button" class="text-button" data-use-client="${esc(c.id)}">Usar cliente existente</button><small>Se continuar assim, o orçamento é vinculado a esse mesmo cadastro ao salvar; nenhum cliente duplicado é criado.</small>`;return}
+    box.classList.remove('warn');
+    const c=strong?.client||(name.length>2&&knownClients.find(x=>fold(x.name)===name));
     if(!c){box.hidden=true;return}
     box.hidden=false;box.innerHTML=`<b>Cliente cadastrado</b>${c.quoteCount} orçamento${c.quoteCount===1?'':'s'}${c.lastService?` · último serviço em ${date(c.lastService.date)}`:''}`;
-    let touched=false;if(!(q.tags||[]).length&&c.tags?.length){q.tags=[...c.tags];touched=true}if(!q.clientBirthday&&c.birthday){q.clientBirthday=c.birthday;const input=$('#form [name="clientBirthday"]');if(input)input.value=bdayText(c.birthday);touched=true}if(!q.clientContact&&c.phone){q.clientContact=c.phone;const input=$('#form [name="clientContact"]');if(input)input.value=c.phone;touched=true}
-    if(touched)renderChoices();
+    fillFromClient(c);
   }
+  $('#client-match').addEventListener('click',e=>{const b=e.target.closest('[data-use-client]');if(!b)return;const c=knownClients.find(x=>x.id===b.dataset.useClient);if(!c)return;q.client=c.name;$('#form [name="client"]').value=c.name;fillFromClient(c);clientMatch();changed()});
+  const UF={acre:'AC',alagoas:'AL',amapa:'AP',amazonas:'AM',bahia:'BA',ceara:'CE','distrito federal':'DF','espirito santo':'ES',goias:'GO',maranhao:'MA','mato grosso':'MT','mato grosso do sul':'MS','minas gerais':'MG',para:'PA',paraiba:'PB',parana:'PR',pernambuco:'PE',piaui:'PI','rio de janeiro':'RJ','rio grande do norte':'RN','rio grande do sul':'RS',rondonia:'RO',roraima:'RR','santa catarina':'SC','sao paulo':'SP',sergipe:'SE',tocantins:'TO'};
+  // Importar contato: preenche só o que o usuário confirmou na revisão; tudo continua editável e nada é salvo até gerar o orçamento.
+  const contactImport={
+    current:()=>({name:q.client,phone:q.clientContact,email:q.clientEmail,birthday:bdayText(q.clientBirthday),address:q.address}),
+    beforeRedirect:async()=>{clearTimeout(timer);await saveDraft()},
+    apply:v=>{
+      if(v.name!=null)q.client=v.name;if(v.phone!=null)q.clientContact=v.phone;if(v.email!=null)q.clientEmail=v.email;if(v.birthday)q.clientBirthday=v.birthday;
+      const a=v.address;
+      if(a){if(a.street||a.city){const region=String(a.region||'').trim();Object.assign(q,{postalCode:M.digits(a.postalCode),addressStreet:a.street,addressNumber:a.number,addressComplement:a.complement,addressNeighborhood:a.neighborhood,addressCity:a.city,addressState:/^[a-z]{2}$/i.test(region)?region.toUpperCase():UF[fold(region)]||'',addressIbgeCode:'',addressSource:'manual'});q.address=M.addressFromFields(q)||a.formatted}else{q.address=a.formatted;q.addressSource='manual'}}
+      fill();changed();toast('Contato importado. Revise os dados antes de gerar o orçamento.');$('#form [name="client"]').focus();
+    }};
+  $('#import-contact').onclick=()=>EcoContacts.open(contactImport);
   async function loadClientHints(){if(!EcoAuth.online)return;try{const [tags,clients]=await Promise.all([EcoAuth.api('/api/tags'),EcoAuth.api('/api/clients')]);tagOptions=tags;knownClients=clients;$('#client-suggestions').innerHTML=clients.map(c=>`<option value="${esc(c.name)}"></option>`).join('');renderChoices();clientMatch()}catch{}}
   $('#quote-tags').addEventListener('click',e=>{const b=e.target.closest('[data-quote-tag]');if(!b)return;const id=b.dataset.quoteTag,set=new Set(q.tags||[]);set.has(id)?set.delete(id):set.add(id);q.tags=[...set];renderChoices();changed()});
   $('#quote-origin').addEventListener('click',e=>{const b=e.target.closest('[data-origin]');if(!b)return;q.origin=q.origin===b.dataset.origin?'':b.dataset.origin;renderChoices();changed()});
@@ -175,7 +213,7 @@
       if(!/agendamento terminar|operação deste orçamento está em andamento|operação em andamento/i.test(String(error.message||'')))throw error;
       await saveDraft().catch(()=>null);
     }
-    q=M.quote(settings);fill();changed();await refreshSaved();window.EcoWorkspace?.navigate('create');toast('Novo orçamento pronto. Os dados da empresa já estão preenchidos.')
+    await refreshSaved().catch(()=>null);const used=new Set(saved.map(x=>x.number));q=M.quote(settings,n=>used.has(n));fill();changed();await refreshSaved();window.EcoWorkspace?.navigate('create');toast('Novo orçamento pronto. Os dados da empresa já estão preenchidos.')
   }
   $('#new').onclick=()=>newQuote().catch(error=>toast(error.message));
   $('#save').onclick=async()=>{try{if(!$('#form').reportValidity())return;M.validate(q);if(pendingPhotos)return toast('Aguarde as fotos.');await put('quotes',q);await saveDraft();await refreshSaved();toast('Orçamento salvo.')}catch(error){toast(error.message||'Não foi possível salvar.')}};
@@ -257,6 +295,8 @@
     if(!EcoAuth.online&&!localStorage.getItem('orcamento-universal-migrated-v1')){const old=JSON.parse(localStorage.getItem('orcamento-universal-legacy-propostas')||'[]');if(Array.isArray(old))for(const p of old){try{await put('quotes',M.normalize(p))}catch{}}localStorage.setItem('orcamento-universal-migrated-v1','1')}
     const draft=await get('draft','current');if(draft?.quote){q=normalize(draft.quote);fill()}
     await refreshSaved();$('#draft-status').textContent=draft?'Continuando o rascunho '+(q.number||'')+' · salvo automaticamente':'Identidade da empresa carregada';
+    // Volta da autorização do Google Contatos: reabre o seletor com o rascunho intacto.
+    EcoContacts.resume(contactImport);
   }catch(error){$('#draft-status').textContent='Armazenamento indisponível. Use o backup.';toast(error.message||'Use o backup para guardar os dados.')}
   window.EcoStudio={openQuote,newQuote,generatePDF,refresh:refreshSaved,notify:toast,getDraft:()=>structuredClone(q)};
   window.dispatchEvent(new CustomEvent('eco:ready'));

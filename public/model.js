@@ -9,7 +9,10 @@
   const company = U.defaults;
   const terms = () => ({ pricingVersion: 3, validity: 15, installments: 3, notes: '', fixedFee: .49, rate1: 2.99, rate6: 3.49, rate12: 3.99, rate21: 4.29, anticipate: 'yes', anticipationRate: 1.70, anticipationRate1: 1.70, creditDays: 32 });
   const item = (service = services[0].name) => { const s = services.find(x => x.name === service) || services[0]; return { id: id(), service: s.name, description: s.description, unit: s.unit, quantity: 1, price: '', photos: [] }; };
-  const quote = (settings = {}) => ({ id: id(), number: `${settings.company?.proposalPrefix||'ORC'}-${today().replaceAll('-','')}-${id().slice(0,4).toUpperCase()}`, date: today(), client: '', address: '', postalCode: '', addressStreet: '', addressNumber: '', addressComplement: '', addressNeighborhood: '', addressCity: '', addressState: '', addressIbgeCode: '', addressSource: '', clientContact: '', clientBirthday: '', origin: '', tags: [], company: { ...company(), ...settings.company }, terms: { ...terms(), ...settings.terms }, items: [item()], updatedAt: new Date().toISOString() });
+  // Número da proposta: PREFIXO-AAAAMMDD-XXXX. O prefixo vem só de company.proposalPrefix (Configurações);
+  // números já emitidos nunca são reescritos. `taken` permite evitar colisão com números existentes.
+  const proposalNumber = (settings = {}, taken = null) => { const prefix=settings.company?.proposalPrefix||'ORC', day=today().replaceAll('-',''); for (let i=0;i<20;i++) { const n=`${prefix}-${day}-${root.crypto.getRandomValues(new Uint16Array(1))[0].toString(16).toUpperCase().padStart(4,'0')}`; if (!taken||!taken(n)) return n; } return `${prefix}-${day}-${id().slice(0,8).toUpperCase()}`; };
+  const quote = (settings = {}, taken = null) => ({ id: id(), number: proposalNumber(settings, taken), date: today(), client: '', address: '', postalCode: '', addressStreet: '', addressNumber: '', addressComplement: '', addressNeighborhood: '', addressCity: '', addressState: '', addressIbgeCode: '', addressSource: '', clientContact: '', clientEmail: '', clientBirthday: '', origin: '', tags: [], company: { ...company(), ...settings.company }, terms: { ...terms(), ...settings.terms }, items: [item()], updatedAt: new Date().toISOString() });
   const text = (v, n = 2000) => typeof v === 'string' ? v.slice(0,n) : '';
   const digits = value => String(value ?? '').replace(/\D/g, '').slice(0,8);
   const formatPostalCode = value => { const clean=digits(value); return clean.length>5 ? clean.slice(0,5)+'-'+clean.slice(5) : clean; };
@@ -48,6 +51,8 @@
     q.origin=Object.hasOwn(origins,raw.origin)?raw.origin:'';
     q.tags=Array.isArray(raw.tags)?[...new Set(raw.tags.filter(t=>typeof t==='string'&&t.trim()).map(t=>t.trim().slice(0,40)))].slice(0,6):[];
     q.clientBirthday=/^\d{2}-\d{2}$/.test(raw.clientBirthday||'')?raw.clientBirthday:'';
+    // E-mail do cliente: opcional, fica fora do PDF e do hash do documento (orçamentos antigos não mudam).
+    q.clientEmail=text(raw.clientEmail,240).trim();
     q.addressSource=raw.addressSource==='cep'?'cep':raw.addressSource==='manual'?'manual':'';
     const structuredAddress=addressFromFields(q);if(structuredAddress)q.address=structuredAddress;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(q.date) || Number.isNaN(Date.parse(q.date))) q.date = today();
@@ -105,5 +110,5 @@
     });
     return q;
   }
-  root.EcoModel = { origins,toPublicProposal:normalize,services,company,terms,item,quote,normalize,normalizeCompany,normalizeTerms,configure,totals,validate,today,image,digits,formatPostalCode,addressFromFields,proposalFilename };
+  root.EcoModel = { origins,proposalNumber,toPublicProposal:normalize,services,company,terms,item,quote,normalize,normalizeCompany,normalizeTerms,configure,totals,validate,today,image,digits,formatPostalCode,addressFromFields,proposalFilename };
 })(globalThis);

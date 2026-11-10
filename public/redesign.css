@@ -276,9 +276,9 @@ select.bsel-native{position:absolute!important;opacity:0!important;pointer-event
 .m-client{font-size:17px}
 .m-body p{margin:0;font-size:13px;line-height:1.5}
 .m-item{border:1px solid #e3e9e5;border-radius:16px;overflow:hidden}
-.m-item>img{display:block;width:100%;height:170px;object-fit:cover}
+.m-item>img{display:block;width:100%;height:auto;min-height:120px;max-height:280px;object-fit:contain;background:var(--r-paper,#f3f6f0)}
 .m-thumbs{display:flex;gap:6px;padding:8px 12px 0}
-.m-thumbs img{width:44px;height:44px;border-radius:8px;object-fit:cover}
+.m-thumbs img{width:44px;height:44px;border-radius:8px;object-fit:contain;background:var(--r-paper,#f3f6f0)}
 .m-row{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:12px 14px}
 .m-row b{color:var(--green)}
 .m-row small{display:block;color:#6b7a73;font-size:12px}

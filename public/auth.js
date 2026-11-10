@@ -5,7 +5,7 @@
     const response=await fetch(url,{...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),'X-CSRF-Token':csrf||'',...options.headers}});
     if(options.blob&&response.ok)return response.blob();
     const data=await response.json();
-    if(!response.ok){if(response.status===401&&!url.includes('/login'))show(false);if(response.status===428)await boot();throw Error(data.error||'Não foi possível concluir a solicitação.')}return data;
+    if(!response.ok){if(response.status===401&&!url.includes('/login'))show(false);if(response.status===428)await boot();throw Object.assign(Error(data.error||'Não foi possível concluir a solicitação.'),{status:response.status,code:data.code||null})}return data;
   }
   function lock(){screen.hidden=false;document.body.dataset.companyReady='false';document.querySelector('.app-shell').inert=true;document.querySelector('.sidebar').inert=true;document.querySelectorAll('dialog[open]').forEach(d=>d.close())}
   function unlock(settings){UniversalBrand.apply(settings.company);EcoModel.configure(settings);screen.hidden=true;document.body.dataset.companyReady='true';document.querySelector('.app-shell').inert=false;document.querySelector('.sidebar').inert=false;resolveReady()}

@@ -42,7 +42,7 @@ export class Service{
       this.repo.setJob(id,job);
       try{
         const pdf=await this.pdf(q),file=await this.google.upload(pdf,{signal}),total=modelo.totals(q).pix;aborted(signal);
-        const description=[`CLIENTE\n${q.client}`,`CONTATO\n${q.clientContact||'Não informado'}`,`ENDEREÇO\n${q.address}`,'SERVIÇOS\n'+q.items.map(i=>`${i.quantity} ${i.unit} · ${i.service}`).join('\n'),`VALOR NO PIX\n${money(total)}`,`ORÇAMENTO\n${q.number} · PDF versão ${pdf.version}`,q.terms.notes?`OBSERVAÇÕES\n${q.terms.notes}`:''].filter(Boolean).join('\n\n');
+        const description=[`CLIENTE\n${q.client}`,`CONTATO\n${[q.clientContact,q.clientEmail].filter(Boolean).join(' · ')||'Não informado'}`,`ENDEREÇO\n${q.address}`,'SERVIÇOS\n'+q.items.map(i=>`${i.quantity} ${i.unit} · ${i.service}`).join('\n'),`VALOR NO PIX\n${money(total)}`,`ORÇAMENTO\n${q.number} · PDF versão ${pdf.version}`,q.terms.notes?`OBSERVAÇÕES\n${q.terms.notes}`:''].filter(Boolean).join('\n\n');
         const intentHash=crypto.createHash('sha256').update(JSON.stringify({values,fingerprint:pdf.fingerprint})).digest('hex');
         const body={summary:`${q.company.name} | ${q.client} | ${q.items[0].service}`,location:q.address,description,start:{dateTime:values.start,timeZone:O.timezone},end:{dateTime:values.end,timeZone:O.timezone},attachments:[{fileUrl:file.url,fileId:file.id,title:pdf.filename,mimeType:'application/pdf'}],extendedProperties:{private:{ecocleanWorkspace:this.repo.config('workspaceId'),proposalId:id,intentHash}}};
         const event=await this.google.upsertEvent(calendarId,eventId,body,this.repo.config('workspaceId'),{signal});aborted(signal);

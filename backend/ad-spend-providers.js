@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {API_VERSIONS,account,scaled,microsToCents,integrationError,dayRange} from './integration-domain.js';
 import {externalJSON} from './integration-http.js';
+import {mergeRefreshedTokens} from './google-oauth.js';
 export class AdSpendProvider{
  constructor(id,config={},fetcher=fetch){this.id=id;this.config=config;this.fetcher=fetcher;this.transport=config.transport||{};}
  get configured(){return !!(this.config.clientId&&this.config.clientSecret&&this.config.redirectURI);}
@@ -12,7 +13,7 @@ export class GoogleAdsProvider extends AdSpendProvider{
  authorizationURL(state,verifier){const url=new URL('https://accounts.google.com/o/oauth2/v2/auth');url.search=new URLSearchParams({client_id:this.config.clientId,redirect_uri:this.config.redirectURI,response_type:'code',scope:'https://www.googleapis.com/auth/adwords',access_type:'offline',prompt:'consent',state,code_challenge:crypto.createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256'});return url.href;}
  async token(fields){return this.request('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({...fields,client_id:this.config.clientId,client_secret:this.config.clientSecret})},'token',false);}
  async exchange(code,verifier){const t=await this.token({grant_type:'authorization_code',code,code_verifier:verifier,redirect_uri:this.config.redirectURI});if(!String(t.scope).split(' ').includes('https://www.googleapis.com/auth/adwords')||!t.refresh_token||!t.access_token||!Number.isFinite(Number(t.expires_in))||Number(t.expires_in)<=0)throw integrationError('ACCESS_DENIED');return {accessToken:t.access_token,refreshToken:t.refresh_token,expires:Date.now()+Number(t.expires_in)*1000};}
- async refresh(tokens){const t=await this.token({grant_type:'refresh_token',refresh_token:tokens.refreshToken});if(!t.access_token||!Number.isFinite(Number(t.expires_in))||Number(t.expires_in)<=0)throw integrationError('RECONNECT');return {...tokens,accessToken:t.access_token,expires:Date.now()+Number(t.expires_in)*1000};}
+ async refresh(tokens){const t=await this.token({grant_type:'refresh_token',refresh_token:tokens.refreshToken});if(!t.access_token||!Number.isFinite(Number(t.expires_in))||Number(t.expires_in)<=0)throw integrationError('RECONNECT');return mergeRefreshedTokens(tokens,t);}
  headers(token,managerId){return {Authorization:'Bearer '+token,'Content-Type':'application/json',...(managerId?{'login-customer-id':managerId}:{})};}
  async search(token,id,query,managerId){
  if(!/^\d{1,30}$/.test(id)||managerId&&!/^\d{1,30}$/.test(managerId))throw integrationError('INVALID_DATA');

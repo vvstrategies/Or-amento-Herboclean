@@ -84,14 +84,20 @@ function kit(doc,q,W,H){
     }
     doc.image(c.logo,x,y,{fit:[w,h],align:center?'center':'left',valign:'center'});
   }
-  function photo(src,x,y,w,h,r){doc.save();doc.roundedRect(x,y,w,h,r).clip();doc.rect(x,y,w,h).fill(P.gray);doc.image(src,x,y,{cover:[w,h],align:'center',valign:'center'});doc.restore();doc.fillColor(P.ink,1)}
+  // Fotos: sempre inteiras e proporcionais (equivalente a object-fit: contain), centralizadas sobre fundo neutro.
+  // scale = min(w/largura, h/altura); nunca estica nem corta para preencher. Cada imagem é decodificada uma vez.
+  const opened=new Map();
+  const image=src=>{if(!opened.has(src))opened.set(src,doc.openImage(src));return opened.get(src)};
+  const ratio=src=>{try{const i=image(src);return i.width>0&&i.height>0?i.height/i.width:.75}catch{return .75}};
+  function fitImage(src,x,y,w,h){const i=image(src),scale=Math.min(w/i.width,h/i.height),rw=i.width*scale,rh=i.height*scale;doc.image(i,x+(w-rw)/2,y+(h-rh)/2,{width:rw,height:rh})}
+  function photo(src,x,y,w,h,r){doc.save();doc.roundedRect(x,y,w,h,r).clip();doc.rect(x,y,w,h).fill(P.gray);fitImage(src,x,y,w,h);doc.restore();doc.fillColor(P.ink,1)}
   function pixIcon(x,y,size){doc.save();doc.translate(x,y).scale(size/24);doc.path(PIX_PATH).fillColor(PIX_COLOR,1).fill();doc.restore();doc.fillColor(P.ink,1)}
   function cardIcon(x,y,size){
     const w=size,h=size*.72,top=y+(size-h)/2;doc.save();doc.lineWidth(size*.075).lineJoin('round').lineCap('round').strokeColor('#475569',1);
     doc.roundedRect(x,top,w,h,size*.14).stroke();doc.moveTo(x,top+h*.34).lineTo(x+w,top+h*.34).stroke();doc.moveTo(x+w*.16,top+h*.72).lineTo(x+w*.4,top+h*.72).stroke();doc.restore();
   }
   function check(x,y,s,color){doc.save();doc.moveTo(x,y+s*.52).lineTo(x+s*.36,y+s*.86).lineTo(x+s,y+s*.12).lineWidth(s*.2).lineCap('round').lineJoin('round').strokeColor(color,1).stroke();doc.restore()}
-  return {P,font,measure,widthOf,text,line,caps,wrap,shape,linear,glow,fillShape,strokeShape,band,logoAt,photo,pixIcon,cardIcon,check};
+  return {P,font,measure,widthOf,text,line,caps,wrap,shape,linear,glow,fillShape,strokeShape,band,logoAt,photo,fitImage,ratio,pixIcon,cardIcon,check};
 }
 
 // Paginação comum: cabeçalho por página, rodapé "página X de Y" no final.
@@ -392,10 +398,12 @@ root.EcoRenderMobilePDF=function(doc,q){
     }
   }
   // A foto do primeiro serviço encolhe (até 70 pt) para o escopo começar na mesma página, em vez de deixar meia página vazia.
-  let firstHero=150;const heroH=item=>item.photos.length?(item===q.items[0]?firstHero:150):0,thumbH=item=>item.photos.length>1?62:0;
+  // Altura da foto principal segue a proporção real: paisagem fica mais baixa, retrato ganha altura até 280 pt (largura reduzida, sem corte).
+  const naturalHero=item=>item.photos.length?Math.round(Math.min(280,Math.max(120,CW*K.ratio(item.photos[0])))):0;
+  let firstHero=naturalHero(q.items[0]);const heroH=item=>item.photos.length?(item===q.items[0]?firstHero:naturalHero(item)):0,thumbH=item=>item.photos.length>1?62:0;
   {const it=q.items[0],iw=CW-32,lines=it.description?K.wrap(it.description,iw,S.body).length:0,lh=K.measure('Ag',iw,S.body),
     rest=24+thumbH(it)+16+K.measure(it.service,iw,S.em,true)+(lines?4:0)+Math.min(lines,3)*lh+(14+12+18+16-4)+4;
-   if(it.photos.length){push();const room=Math.floor(pg.room()-rest);if(room>=70&&room<150)firstHero=room}
+   if(it.photos.length){push();const room=Math.floor(pg.room()-rest);if(room>=70&&room<firstHero)firstHero=room}
    ensure(rest+heroH(it))}
   K.caps('ESCOPO DOS SERVIÇOS',X,y+2,S.cap,P.ink);K.line(D.count,W-X,y,S.body,false,P.muted,{right:true});y+=24;
   q.items.forEach((item,i)=>{
@@ -413,7 +421,7 @@ root.EcoRenderMobilePDF=function(doc,q){
       K.fillShape(draw,'#ffffff');
       let iy=top;
       if(first){
-        if(hero){doc.save();K.shape(X,top,CW,hero,{tl:18,tr:18}).clip();doc.rect(X,top,CW,hero).fill(P.gray);doc.image(photos[0],X,top,{cover:[CW,hero],align:'center',valign:'center'});doc.restore();doc.fillColor(P.ink,1)}
+        if(hero){doc.save();K.shape(X,top,CW,hero,{tl:18,tr:18}).clip();doc.rect(X,top,CW,hero).fill(P.gray);K.fitImage(photos[0],X,top,CW,hero);doc.restore();doc.fillColor(P.ink,1)}
         iy+=hero;
         if(thumbs){iy+=12;photos.slice(1,6).forEach((src,p)=>K.photo(src,X+pad+p*60,iy,52,50,10));iy+=50}
         iy+=pad;iy=K.text(item.service,X+pad,iy,iw,S.em,true,P.green)+(lines.length?4:0);

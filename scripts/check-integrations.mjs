@@ -109,7 +109,7 @@ try{
  const rev=JSON.parse(repo.db.prepare('SELECT data FROM ad_spend_revisions WHERE run_id=?').get(run.id).data);
  assert.equal(rev.before.spendCents,10000);assert.equal(rev.after.spendCents,10700);
  const facts=s.export().adSpend;g.fail=true;
- assert.equal((await request(api('google-ads','sync'),range)).status,502);assert.deepEqual(s.export().adSpend,facts);assert.equal(s.status('google-ads').status,'error');
+ assert.equal((await request(api('google-ads','sync'),range)).status,502);assert.deepEqual(s.export().adSpend,facts);assert.equal(s.status('google-ads').status,'temporarily_unavailable');assert.ok(s.secret('google-ads').refreshToken,'falha temporária preserva o refresh token');
  g.fail=false;g.spend=100000;m.spend=50000;await data(api('google-ads','sync'),range);await data(api('meta-ads','sync'),range);
  let r=await report();assert.equal(r.total.opex,150000);assert.equal(r.total.result,-150000);assert.equal(r.expenses.length,2);assert.ok(r.expenses.every(e=>e.automatic));
  assert.equal(repo.db.prepare('SELECT COUNT(*) n FROM finance_expenses').get().n,0);
@@ -136,7 +136,7 @@ try{
  await data('/api/integrations/routes/test',routeBody);assert.equal(routeCalls,3);
  await data('/api/integrations/routes/test',{...routeBody,destination:'Rua C'});assert.equal(routeCalls,4);
  assert.equal((await request('/api/integrations/routes/test',{...routeBody,destination:'Rua D'})).status,429);assert.equal(routeCalls,4);
- assert.equal(s.statuses().find(x=>x.provider==='heigit-routes').status,'error');
+ assert.equal(s.statuses().find(x=>x.provider==='heigit-routes').status,'temporarily_unavailable');
  const q=modelo.quote(company);q.client='Teste';q.address='Teste';q.items=[{...modelo.item('Sofá'),price:200}];
  const poison={...q,adSpend:123,utm_source:'private',accessToken:'PRIVATE-LEAK'};
  assert.ok(!JSON.stringify(modelo.toPublicProposal(poison)).includes('PRIVATE-LEAK'));assert.ok(!JSON.stringify(modelo.toPublicProposal(poison)).includes('adSpend'));

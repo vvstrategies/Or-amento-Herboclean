@@ -93,15 +93,20 @@
     const all=getQuotes(),f=filters(),invalid=f.from&&f.to&&f.from>f.to;
     $('#filter-error').hidden=!invalid;$('#filter-error').textContent=invalid?'A data inicial deve ser anterior ou igual à data final.':'';
     if(invalid)return [];
-    return all.filter(q=>{const op=getOp(q.id);return O.matches(q,op,{...f,status:op.status})&&(!tagFilter||(tagFilter==='__none'?!(q.tags||[]).length:(q.tags||[]).includes(tagFilter)))});
+    return all.filter(q=>{const op=getOp(q.id);return O.matches(q,op,{...f,status:op.status})&&passFilter(q)});
   }
+  // Uma opção por vez. Tags (Corporativo/Residencial = tipo de cliente) filtram q.tags; Google Ads/Meta Ads filtram a origem (q.origin).
+  const ORIGIN_ALIASES={google:'google',google_ads:'google','google-ads':'google',googleads:'google',meta:'meta',meta_ads:'meta','meta-ads':'meta',facebook:'meta',facebook_ads:'meta',instagram:'meta'};
+  const originOf=q=>ORIGIN_ALIASES[String(q.origin||'').toLowerCase().replace(/\s+/g,'')]||q.origin||'';
+  const ORIGIN_FILTERS=[['origin:google','Google Ads'],['origin:meta','Meta Ads']];
+  function passFilter(q){if(!tagFilter)return true;if(tagFilter.startsWith('origin:'))return originOf(q)===tagFilter.slice(7);return tagFilter==='__none'?!(q.tags||[]).length:(q.tags||[]).includes(tagFilter)}
   function renderLibrary(){
     const all=getQuotes(),list=visible();
     $('#demo-banner').hidden=!demo;$('#show-demo').hidden=demo;
     const counts={comercial:list.filter(q=>getOp(q.id).status!=='cancelled').length,follow:0,pos:0},saved=funnel;
     for(const name of ['follow','pos']){funnel=name;counts[name]=list.filter(q=>stageOf(q,getOp(q.id))).length}funnel=saved;
     for(const name of ['comercial','follow','pos'])$('#count-'+name).textContent=counts[name];
-    $('#tag-filter').innerHTML=[['','Todas'],...tagList.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()]),...(all.some(q=>!(q.tags||[]).length)?[['__none','Sem tag']]:[])].map(([id,label])=>`<button type="button" data-tag-filter="${esc(id)}" aria-pressed="${tagFilter===id}">${esc(label)}</button>`).join('');
+    $('#tag-filter').innerHTML=[['','Todas'],...tagList.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()]),...ORIGIN_FILTERS,...(all.some(q=>!(q.tags||[]).length)?[['__none','Sem tag']]:[])].map(([id,label])=>`<button type="button" data-tag-filter="${esc(id)}" aria-pressed="${tagFilter===id}"${id.startsWith('origin:')?' class="origin-filter"':''}>${id.startsWith('origin:')?EcoIcons.brandIcon(id.slice(7),'sm'):''}${esc(label)}</button>`).join('');
     $('#show-cancelled').hidden=funnel!=='comercial';$('#show-cancelled').setAttribute('aria-pressed',String(showCancelled));
     const cols=FUNNELS[funnel].filter(([id])=>id!=='cancelled'||showCancelled);
     if(!all.length){$('#board').innerHTML=`<div class="empty-library"><span class="feature-icon">${icon('folder')}</span><h3>Seu próximo atendimento começa aqui.</h3><p>Crie sua primeira proposta com a identidade da empresa. Depois, acompanhe a aprovação e prepare o atendimento por aqui.</p><div class="empty-actions"><button class="primary" data-new>＋ Criar orçamento</button><button class="secondary" data-demo>Ver demonstração</button></div></div>`;$('#library-count-note').textContent='';return}
@@ -141,6 +146,7 @@
     const present=[...new Set(getQuotes().filter(q=>picked.has(q.id)).flatMap(q=>q.tags||[]))];
     $('#bulk-tag-remove').innerHTML=opts('Remover tag…',present.map(id=>[id,pretty(tagLabel(id)),'tag']));
     for(const el of $$('#bulk-bar select'))el.disabled=!n||(el.id==='bulk-tag-remove'&&!present.length);
+    $('#bulk-delete').disabled=!n;$('#bulk-delete').textContent=n>1?`Excluir ${n} orçamentos`:'Excluir orçamento';
   }
   function applyBulk(change,description){
     const ids=[...picked];if(!ids.length)return;
@@ -150,7 +156,28 @@
       setPicking(false);
     });
   }
+  // Excluir pelo card: mesma regra da exclusão de versão no detalhe (DELETE /api/proposals/:id/versions/:versionId).
+  // Exclui a versão atual; se houver anterior, ela volta a ser a atual. Se for a única, o orçamento é arquivado (soft delete).
+  // Agendados, concluídos e com cobrança Asaas ativa são recusados pelo servidor para preservar o histórico.
+  async function deletePicked(){
+    const ids=[...picked];if(!ids.length)return;
+    let description='Esta ação removerá esta proposta da visualização ativa e dos cálculos aplicáveis.';
+    if(!demo&&ids.length===1){try{const versions=await EcoAuth.api('/api/proposals/'+encodeURIComponent(ids[0])+'/versions'),current=versions.find(v=>v.current);
+      description+=versions.length>1&&current?' A versão anterior mais recente passará a ser considerada como orçamento atual.':' Como é a única versão, o orçamento será arquivado: PDFs e histórico ficam preservados e o cadastro do cliente continua.'}catch(error){return notify(error.message)}}
+    else if(ids.length>1)description=`Esta ação removerá a versão atual de ${ids.length} propostas da visualização ativa e dos cálculos aplicáveis. Onde houver versão anterior, a mais recente passará a ser a atual; propostas de versão única serão arquivadas, com PDFs e histórico preservados. Agendadas, concluídas ou com cobrança ativa não serão excluídas.`;
+    confirmAction(ids.length>1?`Excluir ${ids.length} orçamentos?`:'Excluir orçamento?',description,'Excluir orçamento',async()=>{
+      if(demo){examples=examples.filter(q=>!ids.includes(q.id));setPicking(false);notify('Orçamento de exemplo removido.');return}
+      let promoted=0,archived=0;const failed=[];
+      for(const id of ids){try{const versions=await EcoAuth.api('/api/proposals/'+encodeURIComponent(id)+'/versions'),current=versions.find(v=>v.current);if(!current)throw Error('Versão atual não encontrada.');
+        const r=await EcoAuth.api('/api/proposals/'+encodeURIComponent(id)+'/versions/'+encodeURIComponent(current.id),{method:'DELETE'});if(r.archived)archived++;else promoted++;
+        if(selected===id&&r.archived)selected=null}catch(error){failed.push((findQuote(id)?.client||'Orçamento')+': '+error.message)}}
+      EcoCache.clear();window.dispatchEvent(new CustomEvent('eco:data-changed'));setPicking(false);await refresh();
+      const parts=[promoted&&`${promoted} com a versão anterior promovida`,archived&&`${archived} arquivado${archived>1?'s':''}`].filter(Boolean);
+      notify((parts.length?'Excluído: '+parts.join(' · ')+'.':'')+(failed.length?' Não excluído — '+failed.join(' | '):''));
+    });
+  }
   function bindBulk(){
+    $('#bulk-delete').onclick=()=>deletePicked();
     $('#select-mode').onclick=()=>setPicking(!picking);$('#bulk-clear').onclick=()=>setPicking(false);$('#bulk-all').onclick=()=>pickAll(boardIds());
     document.addEventListener('keydown',e=>{
       if(!(e.ctrlKey||e.metaKey)||e.key.toLowerCase()!=='a'||view!=='quotes'||document.querySelector('dialog[open]'))return;
@@ -436,8 +463,10 @@
   }
   async function refreshGoogle(){
     if(!EcoAuth.online){$('#google-hint').textContent='Abra http://localhost:3000 para usar a agenda e o armazenamento do servidor.';$('#connect-google').onclick=()=>notify('Abra http://localhost:3000 para conectar a conta Google.');$('#logout').hidden=true;$('#migrate-local').hidden=true;return}
-    const g=await EcoAuth.api('/api/google/status');$('#google-account').textContent=g.email||'Nenhuma conta';$('#google-badge').textContent=g.connected?'Conectado':g.needsReconnect?'Reconectar':'Desconectado';$('#google-badge').className='int-pill '+(g.connected?'on':g.needsReconnect?'warn':'off');window.EcoSettings?.summary();$('#connect-google').textContent=g.connected?'Desconectar Google':g.needsReconnect?'Reconectar Google':'Conectar Google';
-    $('#google-hint').textContent=g.configured?'A confirmação cria o evento com o PDF anexado. Nenhum convite é enviado ao cliente.':'Falta cadastrar o aplicativo Google no servidor. Consulte docs/CONEXAO-GOOGLE.md na pasta do sistema.';
+    const g=await EcoAuth.api('/api/google/status');$('#google-account').textContent=g.email||'Nenhuma conta';const gLabel={connected:'Conectado',temporarily_unavailable:'Temporariamente indisponível',revoked:'Credencial revogada',config_error:'Erro de configuração',attention:'Atenção necessária',not_connected:'Desconectado',not_configured:'Não configurado'}[g.state]||(g.connected?'Conectado':g.needsReconnect?'Reconectar':'Desconectado');
+    $('#google-badge').textContent=gLabel;$('#google-badge').className='int-pill '+(g.state==='connected'?'on':['temporarily_unavailable','revoked','config_error','attention'].includes(g.state)||g.needsReconnect?'warn':'off');window.EcoSettings?.summary();$('#connect-google').textContent=g.connected?'Desconectar Google':g.needsReconnect?'Reconectar Google':'Conectar Google';
+    const gWhen=v=>v?new Date(v).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):null;
+    $('#google-hint').textContent=!g.configured?'Falta cadastrar o aplicativo Google no servidor. Consulte docs/CONEXAO-GOOGLE.md na pasta do sistema.':g.state==='revoked'?'O Google recusou a renovação do acesso (expirado ou revogado). Reconecte a mesma conta; agendamentos e PDFs foram preservados. Se isso se repetir a cada 7 dias, o app OAuth está em modo Testing no Google Cloud.':g.state==='temporarily_unavailable'?'O Google não respondeu na última tentativa. A conexão foi preservada e será usada de novo automaticamente.':g.state==='config_error'?'O Google recusou as credenciais do app (GOOGLE_CLIENT_ID/SECRET). Confira a configuração do servidor; não é preciso reconectar a conta.':'A confirmação cria o evento com o PDF anexado. Nenhum convite é enviado ao cliente.'+(g.lastSuccessfulAt?' Última operação bem-sucedida: '+gWhen(g.lastSuccessfulAt)+'.':'')+(g.tokenRefreshAt?' Acesso renovado automaticamente em '+gWhen(g.tokenRefreshAt)+'.':'');
     $('#connect-google').onclick=()=>busy($('#connect-google'),'Conectando...',async()=>{if(g.connected)confirmAction('Desconectar Google','Os eventos existentes serão preservados. Reconecte a mesma conta para reagendá-los ou cancelá-los.','Desconectar',async()=>{const result=await EcoAuth.api('/api/google/disconnect',{method:'POST',body:'{}'});await refreshGoogle();if(result.revocationSkipped)notify('Acesso local removido. A revogação no Google ficou manual para preservar Google Ads.');});else {const result=await EcoAuth.api('/api/google/connect',{method:'POST',body:'{}'});location.href=result.url}});
   }
   async function init(){
@@ -458,7 +487,7 @@
       const extras=await EcoLocalStore.exportExtras(list.map(q=>q.id)),settings=null;
       const result=await EcoAuth.api('/api/import?migration=yes',{method:'POST',body:JSON.stringify({version:3,proposals:list,settings,...extras})});await refresh();notify(result.imported+' orçamento(s) importado(s).');
     });
-    const params=new URLSearchParams(location.search);if(params.has('google')){notify(params.get('google')==='connected'?'Google conectado. Você já pode aprovar e agendar.':params.get('reason')||'Não foi possível conectar o Google.');history.replaceState(null,'',location.pathname+location.hash)}
+    const params=new URLSearchParams(location.search);if(params.has('google')){notify(params.get('google')==='connected'?'Google conectado. Você já pode aprovar e agendar.':params.get('google')==='contacts'?'Google Contatos autorizado. Clique em Importar contato → Google Contatos.':params.get('reason')||'Não foi possível conectar o Google.');history.replaceState(null,'',location.pathname+location.hash)}
 
     $('#schedule-form').onsubmit=reviewSchedule;$('#schedule-duration').onchange=()=>{$('#custom-duration-label').hidden=$('#schedule-duration').value!=='custom'};
     $('#schedule-dialog').addEventListener('close',()=>{review=null});

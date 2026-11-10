@@ -99,13 +99,13 @@ export class CommercialService{
   writeClient(id,data,created){const t=now();this.repo.db.prepare('INSERT INTO clients VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data,updated_at=excluded.updated_at').run(id,JSON.stringify(data),created||t,t);return this.client(id)}
   // Só telefone ou e-mail identificam o mesmo cliente; nome igual é apenas sugestão.
   match(q){
-    const phone=phoneOf(q.clientContact),email=emailOf(q.clientContact),rows=this.clientRows();
+    const phone=phoneOf(q.clientContact),email=emailOf(q.clientEmail)||emailOf(q.clientContact),rows=this.clientRows();
     return (phone&&rows.find(c=>phoneOf(c.phone)===phone))||(email&&rows.find(c=>c.email&&c.email.toLowerCase()===email))||null;
   }
   sameName(name,exceptId){const key=norm(name);return key?this.clientRows().filter(c=>c.id!==exceptId&&norm(c.name)===key).map(c=>({id:c.id,name:c.name})):[]}
   // O orçamento só preenche campos vazios: o que foi editado no cadastro do cliente prevalece.
   clientFromQuote(q,base={}){
-    const phone=base.phone||(phoneOf(q.clientContact)?q.clientContact:''),email=base.email||emailOf(q.clientContact);
+    const phone=base.phone||(phoneOf(q.clientContact)?q.clientContact:''),email=base.email||emailOf(q.clientEmail)||emailOf(q.clientContact);
     const tags=[...new Set([...(base.tags||[]),...(Array.isArray(q.tags)?q.tags:[])])].slice(0,10);
     return {name:base.name||q.client.trim(),phone,email,contactName:base.contactName||'',address:base.address||q.address||'',city:base.city||placeOf(q).city,neighborhood:base.neighborhood||q.addressNeighborhood||'',
       birthday:base.birthday||quoteBirthday(q.clientBirthday),notes:base.notes||'',custom:base.custom||[],tags,origin:base.origin||q.origin||'',...(base.avatar?{avatar:base.avatar}:{})};
@@ -229,10 +229,50 @@ export class CommercialService{
     // A receber: agendados a partir de hoje, independentemente de quando o orçamento foi criado.
     const toReceiveCents=total(scheduled);
     const channels=[...Object.keys(ORIGINS),''].map(origin=>{const paid=has(CHANNEL_PROVIDER,origin),p=this.period(all.filter(r=>r.origin===origin),from,to,paid?this.spendFor(spendNow,origin):0,origin);return {origin,label:has(ORIGINS,origin)?ORIGINS[origin]:'Sem origem',paid,...p.campaign}}).filter(c=>c.paid||c.quotes||c.closed);
-    return {from,to,channel,previous:{from:prevFrom,to:prevTo,...previous},current,
+    const byTag=this.tagBreakdown(all,from,to);
+    return {from,to,channel,previous:{from:prevFrom,to:prevTo,...previous},current,byTag,
       series:{current:series(from),previous:series(prevFrom)},
       services:[...services.values()].sort((a,b)=>b.revenueCents-a.revenueCents),
       upcoming,toReceiveCents,forecastCents:toReceiveCents,spend:{totalCents:this.spendFor(spendNow,'all'),providers:spendNow,connected:this.connectedProviders()},channels};
+  }
+  /* ---------- Custo por tag ---------- */
+  // Mesma metodologia do painel (campaignMetrics): coorte de orçamentos criados no período e fechamentos concluídos no período.
+  // O gasto de mídia só existe por campanha (ad_spend_daily), nunca por orçamento. Por isso uma tag só recebe investimento
+  // quando o usuário declara que uma campanha é daquela tag; sem isso o custo fica "não atribuível" (nada é rateado).
+  // Denominador do custo atribuído: orçamentos/fechamentos da tag vindos de origem paga (Google/Meta Ads), como em "por canal".
+  campaignTagMap(){return this.repo.config('campaign-tag-map')||{}}
+  saveCampaignTags(raw){
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))throw fail(400,'Mapa de campanhas inválido.');
+    const known=new Set(this.tags().map(t=>t.id)),map={...this.campaignTagMap()};let n=0;
+    for(const [key,tag] of Object.entries(raw)){
+      if(++n>500||!/^(google-ads|meta-ads):\d{1,40}$/.test(key))throw fail(400,'Campanha inválida.');
+      if(tag===''||tag==null){delete map[key];continue}
+      if(typeof tag!=='string'||!known.has(tag))throw fail(400,'Tag inválida para a campanha.');
+      map[key]=tag;
+    }
+    this.repo.setConfig('campaign-tag-map',map);return map;
+  }
+  campaignSpend(from,to){
+    if(!this.repo.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ad_spend_daily'").get())return [];
+    return this.repo.db.prepare("SELECT provider,campaign_id campaignId,MAX(json_extract(data,'$.campaignName')) campaignName,SUM(spend_cents) cents FROM ad_spend_daily WHERE day>=? AND day<=? AND currency='BRL' GROUP BY provider,campaign_id ORDER BY cents DESC").all(from,to).map(r=>({provider:r.provider,campaignId:r.campaignId,campaignName:r.campaignName||r.campaignId,spendCents:Number(r.cents)||0}));
+  }
+  tagBreakdown(all,from,to){
+    const map=this.campaignTagMap(),campaigns=this.campaignSpend(from,to).map(c=>({...c,tag:map[c.provider+':'+c.campaignId]||''}));
+    const spendBy=new Map();for(const c of campaigns)if(c.tag)spendBy.set(c.tag,(spendBy.get(c.tag)||0)+c.spendCents);
+    const paid=r=>has(CHANNEL_PROVIDER,r.origin),hasTag=(r,id)=>id===''?!(r.tags||[]).length:(r.tags||[]).includes(id);
+    const cohort=all.filter(r=>between(r.date,from,to)),done=all.filter(r=>between(r.completedAt,from,to));
+    const rows=[...this.tags().map(t=>({id:t.id,label:t.label})),{id:'',label:'Sem tag'}].map(t=>{
+      const quotes=cohort.filter(r=>hasTag(r,t.id)),closes=done.filter(r=>hasTag(r,t.id)),revenue=total(closes);
+      const attributable=spendBy.has(t.id),spend=spendBy.get(t.id)||0,paidQuotes=quotes.filter(paid).length,paidCloses=closes.filter(paid);
+      const m=attributable?campaignMetrics({spendCents:spend,quotes:paidQuotes,closed:paidCloses.length,revenueCents:revenue,paidRevenueCents:total(paidCloses)}):null;
+      return {tag:t.id,label:t.label,quotes:quotes.length,closed:closes.length,revenueCents:revenue,conversion:quotes.length?quotes.filter(r=>r.op.status==='completed').length/quotes.length:null,
+        paidQuotes,paidClosed:paidCloses.length,attributable,investmentCents:attributable?spend:null,
+        costPerQuoteCents:m?.costPerQuoteCents??null,costPerCloseCents:m?.costPerCloseCents??null,roas:m?.roas??null};
+    }).filter(r=>r.tag!==''||r.quotes||r.closed);
+    const multi=cohort.some(r=>(r.tags||[]).length>1)||done.some(r=>(r.tags||[]).length>1);
+    const attributed=campaigns.filter(c=>c.tag).reduce((a,c)=>a+c.spendCents,0),spendTotal=campaigns.reduce((a,c)=>a+c.spendCents,0);
+    return {rows,overlapping:multi,campaigns,spendTotalCents:spendTotal,attributedSpendCents:attributed,unattributedSpendCents:spendTotal-attributed,
+      method:'Investimento das campanhas marcadas com a tag ÷ orçamentos (ou fechamentos) da tag com origem Google/Meta Ads no período.'};
   }
   connectedProviders(){try{return this.repo.db.prepare('SELECT provider FROM integration_connections').all().map(r=>r.provider)}catch{return []}}
 
@@ -298,6 +338,7 @@ const validPartnerId=v=>typeof v==='string'&&/^[a-zA-Z0-9-]{8,60}$/.test(v)?v:nu
 export function registerCommercial(app,commercial,wrap){
   app.get('/api/dashboard',(req,res)=>res.json(commercial.dashboard({from:req.query.from,to:req.query.to,channel:req.query.channel||'all'})));
   app.get('/api/tags',(req,res)=>res.json(commercial.tags()));
+  app.put('/api/finance/campaign-tags',(req,res)=>res.json(commercial.saveCampaignTags(req.body)));
   app.put('/api/tags',(req,res)=>res.json(commercial.saveTags(req.body)));
   app.get('/api/crm/funnels',(req,res)=>res.json({funnels:FUNNELS,origins:ORIGINS}));
   app.post('/api/proposals/:id/crm',(req,res)=>res.json(commercial.setStage(req.params.id,req.body)));

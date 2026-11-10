@@ -1,4 +1,4 @@
-import {adoptHerboclean,adoptHbcPrefix} from './herboclean-installation.js';
+import {adoptHerboclean,adoptHbcPrefix,adoptHerboPrefix} from './herboclean-installation.js';
 import express from 'express';
 import {IntegrationService} from './integration-service.js';
 import {GoogleAdsProvider,MetaAdsProvider} from './ad-spend-providers.js';
@@ -35,7 +35,7 @@ export function createApp(options={}){
   const origin=options.origin||'http://localhost:3000',production=options.production||false;
   if(production&&new URL(origin).protocol!=='https:')throw Error('APP_ORIGIN deve usar HTTPS em produção.');
   const repo=options.repo||new Repository(options.dataDir||path.join(root,'data'));
-  adoptHerboclean(repo);adoptHbcPrefix(repo);
+  adoptHerboclean(repo);adoptHbcPrefix(repo);adoptHerboPrefix(repo);
   initializeInstallation(repo);
   migrateServiceCatalog(repo);
   const tokenVault=vault(repo.dir,options.encryptionKey,production);
@@ -106,8 +106,9 @@ export function createApp(options={}){
   app.post('/api/proposals/:id/schedule/cancel',wrap(async(req,res)=>res.json(await service.cancelSchedule(req.params.id,req.body))));
   app.post('/api/proposals/:id/status',wrap(async(req,res)=>res.json(await service.status(req.params.id,req.body.status,req.body))));
   app.get('/api/google/status',(req,res)=>res.json(google.status()));
-  app.post('/api/google/connect',(req,res)=>res.json(google.connect(req.session)));
-  app.get('/api/google/callback',wrap(async(req,res)=>{try{await google.callback(req.query,req.session);res.redirect('/?google=connected#configuracoes')}catch(error){res.redirect('/?google=error&reason='+encodeURIComponent(error.status?error.message:'Não foi possível conectar. Tente novamente.')+'#configuracoes')}}));
+  app.post('/api/google/connect',(req,res)=>res.json(google.connect(req.session,{purpose:req.body?.purpose})));
+  app.get('/api/google/contacts',wrap(async(req,res)=>{res.set('Cache-Control','no-store');res.json(await google.contacts({pageToken:req.query.pageToken,query:req.query.q}))}));
+  app.get('/api/google/callback',wrap(async(req,res)=>{try{const r=await google.callback(req.query,req.session);res.redirect(r.purpose==='contacts'?'/?google=contacts#criar':'/?google=connected#configuracoes')}catch(error){res.redirect('/?google=error&reason='+encodeURIComponent(error.status?error.message:'Não foi possível conectar. Tente novamente.')+(error.purpose==='contacts'?'#criar':'#configuracoes'))}}));
   app.post('/api/google/disconnect',wrap(async(req,res)=>{if(service.locks.size)throw fail(409,'Aguarde as operações em andamento antes de desconectar.');res.json(await google.disconnect())}));
   app.get('/api/backup',(req,res)=>res.json({version:4,settings:settings(),proposals:repo.list(),draft:repo.config('draft'),operations:repo.listOperations(),documents:repo.listPDFs().map(p=>({...publicPDF(p),data:'data:application/pdf;base64,'+fs.readFileSync(repo.file(p)).toString('base64')}))}));
   app.post('/api/import',wrap(async(req,res)=>{
@@ -140,7 +141,7 @@ export function createApp(options={}){
   app.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
     if(!error.status){console.error(`Erro em ${req.method} ${req.path}:`,error.stack||error);return res.status(500).json({error:'Erro interno. Tente novamente em instantes.'})}
-    res.status(error.status).json({error:bodyErrors[error.type]||error.message});
+    res.status(error.status).json({error:bodyErrors[error.type]||error.message,...(typeof error.code==='string'&&/^[A-Z_]{3,40}$/.test(error.code)?{code:error.code}:{})});
   });
   // Tarefas de manutenção: chamadas pelo servidor depois de começar a atender, sem atrasar createApp.
   const sweep=()=>{try{sec.sweep()}catch(error){console.error('Falha ao limpar sessões expiradas:',error)}};
