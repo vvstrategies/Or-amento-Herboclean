@@ -23,7 +23,12 @@ harness.post('/__preview__/seed',(req,res)=>{
   else if(status==='cancelled')system.repo.setOperation({...op,status:'cancelled'});
  }
  const insert=db.prepare("INSERT OR REPLACE INTO ad_spend_daily VALUES (?,?,?,?,?,?,?,?)");
- for(let i=0;i<60;i++){const day=addDays(today,-i);insert.run('meta-ads','act_1','c-meta-1',day,'BRL',2800+(i%7)*350,'{"campaignName":"Higienização SP"}','preview');insert.run('google-ads','g-1','c-g-1',day,'BRL',4100+(i%5)*420,'{"campaignName":"Pesquisa · Limpeza de sofá"}','preview');}
+ // Mesmo formato das linhas sincronizadas (data JSON completo), com IDs numéricos como os das plataformas.
+ const row=(provider,account,accountName,id,name,day,spend,imp,clk,conv)=>insert.run(provider,account,id,day,'BRL',spend,JSON.stringify({provider,date:day,externalAccountId:account,accountName,campaignId:id,campaignName:name,currency:'BRL',spendCents:spend,impressions:imp,clicks:clk,platformConversions:conv,syncedAt:new Date().toISOString()}),'preview');
+ for(let i=0;i<60;i++){const day=addDays(today,-i);
+  row('meta-ads','120253','Herboclean','120253399173','[LEADS] Sofá limpo em 1 dia – ABC',day,2800+(i%7)*350,1600+i*9,34+(i%6),null);
+  row('google-ads','2443786','Herboclean','24437867749','[SEARCH] São Paulo – MAX CONV',day,4100+(i%5)*420,410+i*3,14+(i%4),String(i%3?1:0));
+  row('google-ads','2443786','Herboclean','24437867911','[SEARCH] Leads – Max Conv.',day,1200+(i%4)*150,60+i,4+(i%3),String(i%5?0:1));}
  res.json({ok:true});
 });
 harness.use(system.app);

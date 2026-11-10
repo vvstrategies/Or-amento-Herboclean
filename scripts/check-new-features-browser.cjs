@@ -116,11 +116,10 @@ fixture.stdout.on('data',async data=>{if(!data.toString().includes('Fixture read
   await click('#bulk-delete');await until("document.querySelector('#confirm-dialog').open");assert.match(await evaluate("document.querySelector('#confirm-description').textContent"),/arquivado/);
   await click('#confirm-action');await until("document.querySelectorAll('#board .proposal-card').length===5");
 
-  // Financeiro › Marketing: seção Por tag (mesma tela do custo por canal)
-  await evaluate("location.hash='#financeiro'");await until("!!document.querySelector('[data-dre-tab=marketing]')");await click('[data-dre-tab=marketing]');
-  await until("!!document.querySelector('.tag-table')");assert.ok(await evaluate("document.querySelector('.tag-table').textContent.includes('Total do período')"));
-  assert.ok(!(await evaluate("document.querySelector('.tag-table').textContent")).match(/NaN|Infinity/));
-  await evaluate("document.querySelector('.tag-cost-head').scrollIntoView({block:'start'})");await screenshot('por-tag');
+  // Tráfego pago (antes Financeiro › Marketing): custo por tag ao lado, mesmo sem contas conectadas
+  await evaluate("location.hash='#trafego'");await until("!!document.querySelector('.tr-tags table')");
+  const tagText=await evaluate("document.querySelector('.tr-tags').textContent");assert.match(tagText,/Corporativo/);assert.match(tagText,/Total/);assert.ok(!tagText.match(/NaN|Infinity|undefined/));
+  await click('[data-tag-mode="link"]');await until("!!document.querySelector('.tr-links')");await screenshot('por-tag');
   // Integrações: Drive e Contatos com estado explícito
   await evaluate("location.hash='#configuracoes'");await until("!!document.querySelector('[data-integration=google-contacts]')");
   assert.match(await evaluate("document.querySelector('[data-integration=google-contacts]').textContent"),/Permissão não concedida/);

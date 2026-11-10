@@ -8,34 +8,84 @@ const scaled=(v,d=2)=>v==null?'':(v/10**d).toFixed(d).replace('.',',');
 function parse(v,d=2,optional=false){const t=String(v??'').trim().replace(',','.');if(!t&&optional)return null;if(!new RegExp('^\\d+(?:\\.\\d{1,'+d+'})?$').test(t))throw Error('Use valores positivos com até '+d+' casas decimais.');const [whole,fraction='']=t.split('.'),n=Number(whole+fraction.padEnd(d,'0'));if(!Number.isSafeInteger(n))throw Error('Valor muito grande.');return n;}
 const field=(name,label,value=null,hint='',digits=2)=>`<label>${esc(label)}<input name="${name}" inputmode="decimal" value="${esc(scaled(value,digits))}" placeholder="Não informado">${hint?`<small>${esc(hint)}</small>`:''}</label>`;
 const notify=s=>window.EcoStudio?.notify(s);
+// Configurações › Custos e financeiro (item 16). Duas visões do MESMO formulário, alternáveis:
+// "Grade" (A): cinco cards na tela; "Seções" (B): menu lateral com um assunto por vez e a simulação fixa ao lado.
+// Um só "Salvar premissas" grava custos dos atendimentos (/api/financial-settings) e premissas da DRE (/api/finance/settings).
+const COMPONENTS={maintenance:'Manutenção',tires:'Pneus',oil:'Óleo',insurance:'Seguro',tax:'IPVA',depreciation:'Depreciação'};
+const loose=v=>{if(!String(v??'').trim())return null;const n=Number(String(v??'').trim().replace(/\./g,'').replace(',','.'));return Number.isFinite(n)?n:null};
+let costView=(()=>{try{return localStorage.getItem('hc-costs-view')}catch{return null}})()||'grid',costSection='materials';
 async function initSettings(){
  const slot=$('#financial-settings-slot');if(!slot)return;
  try{
-  const data=await EcoAuth.api('/api/financial-settings'),s=data.settings,v=s.vehicle;
-  slot.innerHTML=`<div class="finance-heading"><div><h2>Custos dos atendimentos</h2><p class="hint">Premissas para estimar o resultado de cada atendimento.</p></div><span class="finance-private">Uso interno</span></div>
-  <p class="finance-note">Custos e margem não aparecem na proposta nem no PDF do cliente. Alterar os padrões não modifica estimativas já salvas.</p>
-  <form id="financial-settings-form"><div class="finance-config-grid">
-  <section><h3>Materiais</h3>${field('materialRate','Custo médio de materiais (%)',s.defaultMaterialBps,'Ex.: 20% significa R$ 20 de materiais a cada R$ 100 vendidos.')}
-  <details><summary>Percentuais por serviço · opcional</summary><p class="hint">Deixe em branco para usar o custo médio da empresa.</p><div class="finance-service-rates">${data.services.map(it=>`<label>${esc(it.name)} (%)<input inputmode="decimal" data-service-rate="${esc(it.name)}" value="${esc(scaled(s.serviceMaterialBps[it.name]))}" placeholder="Padrão da empresa"></label>`).join('')}</div></details></section>
-  <section><h3>Deslocamento</h3><label>Endereço de saída<select name="originMode"><option value="company">Usar endereço da empresa</option><option value="custom">Usar outro endereço</option></select></label>
-  <p class="hint">${esc(data.companyLocation||'Configure a localização da empresa.')}</p>
-  ${data.routes.configured?`<div class="finance-geo-company"><p class="hint" id="finance-company-geo">Verificando como a saída foi localizada no mapa...</p><button id="finance-company-geo-refresh" class="text-button" type="button">Recalcular localização</button></div>`:''}<label id="finance-origin-field">Endereço de saída personalizado<input name="originAddress" maxlength="800" value="${esc(s.originAddress)}" placeholder="Rua, número, cidade e estado"></label>
-  <label class="finance-check"><input name="roundTrip" type="checkbox" ${s.roundTrip?'checked':''}> Considerar ida e volta automaticamente</label><p class="hint">Cada atendimento parte da base. Use um endereço completo para uma rota mais precisa.</p></section>
-  <section><h3>Veículo operacional</h3><div class="fields"><label>Nome do veículo<input name="vehicleName" maxlength="120" value="${esc(v.name)}" placeholder="Ex.: Fiat Mobi"></label><label>Combustível<select name="fuelType"><option value="gasoline">Gasolina</option><option value="ethanol">Etanol</option><option value="diesel">Diesel</option><option value="flex">Flex</option></select></label>
-  ${field('consumption','Consumo médio (km/L)',v.consumptionCentiKmL,'Use o consumo observado no uso real do veículo.')}${field('fuelPrice','Preço do combustível (R$/L)',v.fuelPriceCents)}${field('operatingCost','Custo adicional do veículo (R$/km)',v.additionalCostPerKmCents,'Manutenção, pneus, desgaste e depreciação estimados.')}</div></section>
-  <section><h3>Custos adicionais e margem</h3><p class="hint">Pedágio, estacionamento, material manual e outros custos diretos são ajustados no detalhe de cada orçamento.</p><p class="hint">A margem de contribuição é o valor base da venda menos os custos diretos. Despesas fixas, impostos e recebimentos não fazem parte desta estimativa.</p><p class="finance-route-status">${data.routes.configured?'Rotas automáticas disponíveis · openrouteservice / HeiGIT.':'Rotas automáticas não configuradas. A distância manual funciona normalmente.'}</p><button id="finance-demo" class="secondary" type="button">Ver demonstração</button></section>
-  </div><div class="finance-actions"><p id="financial-settings-message" role="status"></p><button class="primary" type="submit">Salvar premissas</button><button id="financial-export" class="text-button" type="button">Exportar histórico financeiro</button></div><p class="hint">A exportação financeira é privada, para consulta e guarda. Não envie esse arquivo ao cliente.</p></form>`;
+  const [data,dre]=await Promise.all([EcoAuth.api('/api/financial-settings'),EcoAuth.api('/api/finance/settings')]),s=data.settings,v=s.vehicle;
+  const svcOpts=data.services.map(it=>`<option value="${esc(it.name)}">${esc(it.name)}</option>`).join('');
+  slot.innerHTML=`<form id="financial-settings-form" class="cs cs-v-${costView}" novalidate>
+  <div class="cs-head"><div class="cs-title"><h2>Custos e financeiro</h2><span class="finance-private">Uso interno · não aparece no PDF</span></div>
+   <div class="cs-actions"><div class="seg view-switch" role="group" aria-label="Visão"><button type="button" data-cs-view="grid" aria-pressed="${costView==='grid'}">Grade</button><button type="button" data-cs-view="sections" aria-pressed="${costView==='sections'}">Seções</button></div><button id="finance-demo" class="text-button" type="button">Ver demonstração</button><button id="financial-export" class="secondary" type="button">Exportar histórico</button><button class="primary" type="submit">Salvar premissas</button></div></div>
+  <p id="financial-settings-message" class="cs-msg" role="status"></p>
+  <div class="cs-body">
+  <nav class="cs-nav" aria-label="Assuntos">${[['materials','Materiais','cs-sum-mat'],['travel','Deslocamento','cs-sum-travel'],['vehicle','Veículo','cs-sum-veh'],['dre','Impostos e DRE','cs-sum-dre'],['export','Exportação','']].map(([id,l,sum])=>`<button type="button" data-cs-sec="${id}" aria-pressed="${costSection===id}"><b>${l}</b><small id="${sum}">${id==='export'?'JSON':''}</small></button>`).join('')}</nav>
+  <div class="cs-grid">
+   <section class="cs-card" data-sec="materials"><h3>Materiais</h3><p class="cs-sub">Quanto da venda vai em produto</p>
+    ${field('materialRate','Custo médio de materiais (% da venda)',s.defaultMaterialBps)}<p class="cs-hint" id="cs-mat-hint"></p>
+    <p class="cs-label">Por serviço · opcional <small>em branco = padrão da empresa</small></p>
+    <div class="cs-rates">${data.services.map(it=>`<label><span>${esc(it.name)}</span><input inputmode="decimal" data-service-rate="${esc(it.name)}" value="${esc(scaled(s.serviceMaterialBps[it.name]))}" placeholder="padrão"><i>%</i></label>`).join('')}</div></section>
+   <section class="cs-card" data-sec="travel"><h3>Deslocamento</h3><p class="cs-sub">De onde a equipe sai</p>
+    <p class="cs-chip ${data.routes.configured?'ok':''}">${data.routes.configured?'Rotas automáticas ativas':'Rotas automáticas não configuradas · distância manual funciona'}</p>
+    <label>Endereço de saída<select name="originMode"><option value="company">Usar endereço da empresa</option><option value="custom">Usar outro endereço</option></select></label>
+    <p class="hint cs-addr">${esc(data.companyLocation||'Configure a localização da empresa.')}</p>
+    ${data.routes.configured?`<div class="finance-geo-company"><p class="hint" id="finance-company-geo">Verificando como a saída foi localizada no mapa...</p><button id="finance-company-geo-refresh" class="text-button" type="button">Recalcular localização</button></div>`:''}
+    <label id="finance-origin-field">Endereço de saída personalizado<input name="originAddress" maxlength="800" value="${esc(s.originAddress)}" placeholder="Rua, número, bairro, cidade, UF e CEP"></label>
+    <label class="finance-check"><input name="roundTrip" type="checkbox" ${s.roundTrip?'checked':''}> Considerar ida e volta automaticamente</label></section>
+   <section class="cs-card" data-sec="vehicle"><h3>Veículo</h3><p class="cs-sub">Custo por km rodado</p>
+    <p class="cs-big"><strong id="cs-km">—</strong><small>por km</small></p>
+    <div class="cs-two"><label>Nome do veículo<input name="vehicleName" maxlength="120" value="${esc(v.name)}" placeholder="Ex.: Fiat Mobi"></label><label>Combustível<select name="fuelType"><option value="gasoline">Gasolina</option><option value="ethanol">Etanol</option><option value="diesel">Diesel</option><option value="flex">Flex</option></select></label>
+    ${field('consumption','Consumo (km/L)',v.consumptionCentiKmL)}${field('fuelPrice','Combustível (R$/L)',v.fuelPriceCents)}</div>
+    ${field('operatingCost','Adicional por km (R$) · manutenção, pneus e desgaste',v.additionalCostPerKmCents)}<p class="cs-hint" id="cs-km-hint"></p></section>
+   <section class="cs-card cs-sim" data-sec="sim"><h3>Simulação de um atendimento</h3><p class="cs-sub">Exemplo com as premissas acima · não altera nada</p>
+    <div class="cs-two"><label>Serviço<select id="cs-sim-service">${svcOpts}</select></label><label>Venda (R$)<input id="cs-sim-sale" inputmode="decimal" value="450,00"></label></div>
+    <label>Distância até o cliente (km)<input id="cs-sim-km" inputmode="decimal" value="18"></label>
+    <dl class="cs-sim-rows" id="cs-sim-rows"></dl><p class="cs-hint" id="cs-sim-hint"></p></section>
+   <section class="cs-card" data-sec="dre"><h3>DRE · impostos e veículo</h3><p class="cs-sub">Premissas usadas no Financeiro</p>
+    <label>Imposto estimado sobre a receita (%)<input name="taxRate" inputmode="decimal" value="${esc(scaled(dre.taxRateBps))}" required></label>
+    <p class="cs-label">O que já está no custo adicional por km</p><div class="cs-checks">${Object.entries(COMPONENTS).map(([id,n])=>`<label class="finance-check"><input type="checkbox" name="components" value="${id}" ${dre.vehicleComponents.includes(id)?'checked':''}> ${n}</label>`).join('')}</div>
+    <p class="cs-hint">Avisa se uma despesa lançada parecer duplicar esses itens.</p>
+    <label>Composição / observações<textarea name="vehicleNotes" maxlength="500" rows="2">${esc(dre.vehicleNotes||'')}</textarea></label></section>
+   <section class="cs-card" data-sec="export"><h3>Exportação</h3><p class="cs-sub">Histórico financeiro interno em JSON, para consulta e guarda.</p><p class="hint">Privado: não envie este arquivo ao cliente.</p><button type="button" class="secondary" data-export-again>Exportar histórico financeiro</button></section>
+  </div></div></form>`;
   const form=$('form',slot);form.elements.originMode.value=s.originMode;form.elements.fuelType.value=v.fuelType;
   const origin=()=>{$('#finance-origin-field',form).hidden=form.elements.originMode.value==='company';};form.elements.originMode.onchange=origin;origin();
+  // Cálculos ao vivo: custo por km, materiais e simulação, a partir dos campos (antes de salvar).
+  const live=()=>{
+   const rate=loose(form.elements.materialRate.value),cons=loose(form.elements.consumption.value),fuel=loose(form.elements.fuelPrice.value),add=loose(form.elements.operatingCost.value)||0;
+   const perKm=cons&&fuel!=null?fuel/cons+add:null,fmt=n=>n==null?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n);
+   $('#cs-km').textContent=fmt(perKm);$('#cs-km-hint').textContent=perKm==null?'Informe consumo e preço do combustível.':`${fmt(fuel/cons)} de combustível + ${fmt(add)} de manutenção, pneus e desgaste.`;
+   $('#cs-mat-hint').textContent=rate==null?'Sem padrão: cada serviço precisa de um percentual.':`${fmt(rate)} de materiais a cada R$ 100 vendidos.`;
+   const svc=$('#cs-sim-service').value,own=form.querySelector(`[data-service-rate="${CSS.escape(svc)}"]`),r=loose(own?.value)??rate,sale=loose($('#cs-sim-sale').value)||0,km=loose($('#cs-sim-km').value)||0,total=km*(form.elements.roundTrip.checked?2:1);
+   const mat=r==null?null:sale*r/100,trip=perKm==null?null:total*perKm,margin=mat==null||trip==null?null:sale-mat-trip;
+   $('#cs-sim-rows').innerHTML=`<div><dt>Venda</dt><dd>${fmt(sale)}</dd></div><div><dt>− Materiais (${r==null?'—':String(r).replace('.',',')+'%'})</dt><dd>${fmt(mat)}</dd></div><div><dt>− Deslocamento (${String(total).replace('.',',')} km)</dt><dd>${fmt(trip)}</dd></div><div class="cs-margin"><dt>= Margem</dt><dd>${fmt(margin)}</dd></div>`;
+   $('#cs-sim-hint').textContent=margin==null?'Complete materiais e veículo para ver a margem.':`Margem de contribuição de ${(sale?margin/sale*100:0).toLocaleString('pt-BR',{maximumFractionDigits:1})}%. Despesas fixas e impostos ficam na DRE.`;
+   $('#cs-sum-mat').textContent=rate==null?'sem padrão':String(rate).replace('.',',')+'% · '+data.services.length+' serviços';
+   $('#cs-sum-travel').textContent=form.elements.originMode.value==='company'?(data.companyLocation||'').split(/[,-]/).slice(-2,-1)[0]?.trim()||'empresa':'outro endereço';
+   $('#cs-sum-veh').textContent=perKm==null?'—':fmt(perKm)+'/km';$('#cs-sum-dre').textContent=(form.elements.taxRate.value||'0')+'%';
+  };
+  form.addEventListener('input',live);form.addEventListener('change',live);live();
+  form.addEventListener('click',e=>{const b=e.target.closest('[data-cs-view],[data-cs-sec],[data-export-again]');if(!b)return;
+   if(b.dataset.csView){costView=b.dataset.csView;try{localStorage.setItem('hc-costs-view',costView)}catch{}form.className='cs cs-v-'+costView;form.querySelectorAll('[data-cs-view]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));return}
+   if(b.dataset.csSec){costSection=b.dataset.csSec;form.dataset.sec=costSection;form.querySelectorAll('[data-cs-sec]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));return}
+   $('#financial-export',form).click();});
+  form.dataset.sec=costSection;
   form.onsubmit=async e=>{
-   e.preventDefault();const button=$('button[type=submit]',form),msg=$('#financial-settings-message',form);button.disabled=true;msg.textContent='';
+   e.preventDefault();const button=$('button[type=submit]',form),msg=$('#financial-settings-message',form);button.disabled=true;msg.textContent='';msg.className='cs-msg';
    try{
     const val=n=>form.elements[n].value,rates={...s.serviceMaterialBps};
     form.querySelectorAll('[data-service-rate]').forEach(el=>{const value=parse(el.value,2,true);if(value===null)delete rates[el.dataset.serviceRate];else Object.defineProperty(rates,el.dataset.serviceRate,{value,enumerable:true,configurable:true,writable:true});});
     const payload={...s,defaultMaterialBps:parse(val('materialRate'),2,true),serviceMaterialBps:rates,originMode:val('originMode'),originAddress:val('originAddress'),roundTrip:form.elements.roundTrip.checked,
      vehicle:{id:'default',name:val('vehicleName'),fuelType:val('fuelType'),consumptionCentiKmL:parse(val('consumption'),2,true),fuelPriceCents:parse(val('fuelPrice'),2,true),additionalCostPerKmCents:parse(val('operatingCost')||'0')}};
-    await EcoAuth.api('/api/financial-settings',{method:'PUT',body:JSON.stringify(payload)});msg.textContent='Premissas salvas. Novos orçamentos e edições completas passam a calcular automaticamente; o histórico anterior permanece preservado.';
-   }catch(error){msg.textContent=error.message}finally{button.disabled=false}
+    await EcoAuth.api('/api/financial-settings',{method:'PUT',body:JSON.stringify(payload)});
+    await EcoAuth.api('/api/finance/settings',{method:'PUT',body:JSON.stringify({taxRateBps:parse(val('taxRate')),vehicleComponents:[...form.querySelectorAll('[name=components]:checked')].map(x=>x.value),vehicleNotes:val('vehicleNotes')})});
+    msg.className='cs-msg ok';msg.textContent='Premissas salvas. Novos orçamentos passam a usar estes valores; estimativas e meses já abertos ficam preservados.';
+   }catch(error){msg.className='cs-msg warn';msg.textContent=error.message}finally{button.disabled=false}
   };
   $('#financial-export',form).onclick=async()=>{try{const data=await EcoAuth.api('/api/financial-export');EcoDownloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'financeiro-interno-'+EcoModel.today()+'.json')}catch(e){notify(e.message)}};
   $('#finance-demo',form).onclick=showDemo;
@@ -44,13 +94,13 @@ async function initSettings(){
    const show=l=>{
     if(!l){geo.textContent='A saída ainda não foi localizada no mapa. Ela é localizada no primeiro cálculo de rota.';return;}
     const vague=PRECISION_TEXT[l.precision];
-    geo.innerHTML=`Localizada no mapa como: <b>${esc(l.label||'—')}</b>${vague?`<br><span class="finance-geo-warn">Foi encontrado ${vague}. Inclua o CEP e o número no endereço da empresa e recalcule.</span>`:''}${l.current===false?'<br>Localização feita pela versão anterior; recalcule para conferir.':''}`;
+    geo.innerHTML=`Entendido pelo mapa como: <b>${esc(l.label||'—')}</b>${vague?`<br><span class="finance-geo-warn">Foi encontrado ${vague}. Inclua o CEP e o número no endereço da empresa e recalcule.</span>`:''}${l.current===false?'<br>Localização feita pela versão anterior; recalcule para conferir.':''}`;
    };
    EcoAuth.api('/api/finance/company-location').then(r=>show(r.location)).catch(()=>{geo.textContent='';});
-   $('#finance-company-geo-refresh',form).onclick=async e=>{e.target.disabled=true;geo.textContent='Localizando...';try{show({...await EcoAuth.api('/api/finance/company-location/refresh',{method:'POST'}),current:true});}catch(error){geo.textContent=error.message;}finally{e.target.disabled=false;}};
-   if(!/\d{5}-?\d{3}/.test(data.companyLocation||'')&&s.originMode==='company')geo.insertAdjacentHTML('afterend','<p class="hint finance-geo-warn">Dica: o endereço da empresa está sem CEP. Com o CEP, o cálculo das rotas fica mais preciso.</p>');
+   $('#finance-company-geo-refresh',form).onclick=async e=>{e.target.disabled=true;geo.textContent='Localizando...';try{show({...await EcoAuth.api('/api/finance/company-location/refresh',{method:'POST'}),current:true});}catch(error){geo.textContent=error.message;}finally{e.target.disabled=false}};
+   if(!/\d{5}-?\d{3}/.test(data.companyLocation||'')&&s.originMode==='company')geo.insertAdjacentHTML('afterend','<p class="hint finance-geo-warn">Inclua o CEP no endereço da empresa para mais precisão.</p>');
   }
- }catch(error){slot.innerHTML='<h2>Custos dos atendimentos</h2><p class="hint">'+esc(error.message)+'</p>';}
+ }catch(error){slot.innerHTML='<h2>Custos e financeiro</h2><p class="hint">'+esc(error.message)+'</p>';}
 }
 function metrics(view){
  const r=view.latest?.result,invalid=view.stale&&view.editable,display=invalid?null:r;

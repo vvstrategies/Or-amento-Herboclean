@@ -175,7 +175,7 @@ export class CommercialService{
     const today=localDate(),done=list.filter(x=>x.completedAt),dates=list.map(x=>x.date).filter(Boolean).sort();
     const lastServiceDate=done.map(x=>x.completedAt).sort().at(-1)||null,nextServiceDate=list.filter(x=>x.op.status==='scheduled'&&x.start>=today).map(x=>x.start).sort()[0]||null;
     return {...c,proposalIds:this.history(list).map(x=>x.id),quoteCount:list.length,closedCount:done.length,closedCents:total(done),
-      lastServiceDate,nextServiceDate,facets:list.map(x=>({date:x.date,origin:x.origin,services:[...new Set(x.items.map(i=>i.service).filter(Boolean))],status:x.op.status||'generated',tags:x.tags})),lastService:lastServiceDate?{date:lastServiceDate,status:'completed'}:null,nextService:nextServiceDate?{date:nextServiceDate,status:'scheduled'}:null,firstDate:dates[0]||null};
+      lastServiceDate,nextServiceDate,facets:list.map(x=>({date:x.date,origin:x.origin,services:[...new Set(x.items.map(i=>i.service).filter(Boolean))],status:x.op.status||'generated',tags:x.tags,completedAt:x.completedAt||null,pixCents:x.pix})),lastService:lastServiceDate?{date:lastServiceDate,status:'completed'}:null,nextService:nextServiceDate?{date:nextServiceDate,status:'scheduled'}:null,firstDate:dates[0]||null};
   }
   clients(){
     const groups=new Map();for(const q of this.quotes(' AND l.client_id IS NOT NULL')){if(!groups.has(q.clientId))groups.set(q.clientId,[]);groups.get(q.clientId).push(q)}

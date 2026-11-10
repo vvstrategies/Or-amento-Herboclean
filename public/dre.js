@@ -22,7 +22,7 @@ function footer(text='Salvar'){return '<p class="dre-error wide" role="alert"></
 function presetOf(){const m=current();return from===m&&to===m?'current':from===shift(m,-1)&&to===from?'previous':to===m&&from===shift(m,-2)?'three':to===m&&from===shift(m,-5)?'six':to===m&&from===m.slice(0,4)+'-01'?'year':'custom'}
 function shell(){
  if(!host)host=$('#finance-view');if(!host)return;
- const tabs=[['overview','Resultado (DRE)'],['distribution','Distribuição de lucros'],['statement','DRE detalhada'],['marketing','Marketing'],['expenses','Despesas'],['intelligence','Inteligência']];
+ const tabs=[['overview','Resultado (DRE)'],['distribution','Distribuição de lucros'],['statement','DRE detalhada'],['expenses','Despesas'],['intelligence','Inteligência']];
  // Sem título grande: a barra de filtros única (em meses de competência) ocupa o topo.
  host.innerHTML='<div class="dre-top fin-top"><h1 class="sr-only">Financeiro</h1><div class="fbar-slot" id="fin-filters"></div><span class="sr-only" id="dre-range"></span><div class="dre-actions">'+
  '<div class="dre-filters fin-period"><div class="seg dre-mode" role="group" aria-label="Visão financeira"><button data-mode="actual" aria-pressed="'+(mode==='actual')+'">Realizado</button><button data-mode="projected" aria-pressed="'+(mode==='projected')+'">Projetado</button></div></div>'+
@@ -41,7 +41,7 @@ function shell(){
  host.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;shell();load();});
  host.querySelectorAll('[data-dre-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.dreTab;page=1;shell();load();});
  $('#dre-new-expense').onclick=()=>expenseForm();$('#dre-categories').onclick=categoryDialog;$('#dre-rules').onclick=ruleList;
- $('#dre-preferences').onclick=()=>{EcoWorkspace.navigate('settings');EcoSettings.reveal('#dre-settings-slot');};
+ $('#dre-preferences').onclick=()=>{EcoWorkspace.navigate('settings');EcoSettings.reveal('#financial-settings-slot');};
  $('#dre-demo').onclick=()=>{demo=!demo;if(demo){from=shift(current(),-2);to=current();}shell();load();};
  for(const ext of ['csv','pdf'])$('#dre-'+ext).onclick=async()=>{try{const blob=await EcoAuth.api('/api/finance/report.'+ext+'?'+new URLSearchParams({from,to,mode}),{blob:true});EcoDownloadBlob(blob,'DRE-gerencial-interna-'+from+'-'+to+'.'+ext);}catch(e){notice(e.message)}};
  if(demo)for(const id of ['new-expense','categories','rules','csv','pdf'])$('#dre-'+id).disabled=true;

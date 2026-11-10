@@ -9,19 +9,15 @@ module.exports=async({evaluate,click,set,until,screenshot,send})=>{
  assert.equal(await evaluate("document.querySelectorAll('.integration-demo-states span').length"),5);
  assert.ok(await evaluate("document.querySelector('#integration-dialog').textContent.includes('675,00')"));
  await screenshot('integrations-demo');await click('#integration-dialog [data-close]');
- await click('[data-nav="finance"]');await until("!!document.querySelector('[data-dre-tab=marketing]')");await click('[data-dre-tab=marketing]');
- await until("!!document.querySelector('.marketing-kpis')");assert.ok(await evaluate("document.querySelector('#dre-content').textContent.includes('Conecte suas contas')"));
- await click('#dre-demo');await until("document.querySelectorAll('[data-campaign]').length===3");
- assert.ok(await evaluate("document.querySelector('.marketing-kpis').textContent.includes('675,00')"));await screenshot('marketing-desktop');
- await click('[data-campaign]');await until("document.querySelector('#integration-dialog').open");
- assert.equal(await evaluate("document.querySelectorAll('#integration-dialog tbody tr').length"),3);await click('#integration-dialog [data-close]');
- await set('#marketing-provider','google-ads');await evaluate("document.querySelector('#marketing-provider').dispatchEvent(new Event('change'))");
- assert.equal(await evaluate("document.querySelectorAll('[data-campaign]').length"),2);
+ // Mídia paga saiu do Financeiro: virou a tela "Tráfego pago" no menu (item 11), com as visões Indicadores e Canais.
+ assert.equal(await evaluate("!!document.querySelector('[data-dre-tab=marketing]')"),false,'aba Marketing removida do Financeiro');
+ await click('[data-nav="traffic"]');await until("!document.querySelector('#traffic-view').hidden&&!!document.querySelector('#traffic-body .tr-empty,#traffic-body .tr-kpis')");
+ assert.ok(await evaluate("document.querySelector('#traffic-body').textContent.includes('Conecte o Google Ads ou o Meta Ads')"),'estado sem contas conectadas');await screenshot('traffic-empty-desktop');
+ assert.equal(await evaluate("location.hash"),'#trafego');
+ await click('[data-traffic-view="channels"]');assert.equal(await evaluate("localStorage.getItem('hc-traffic-view')"),'channels');await click('[data-traffic-view="kpis"]');
  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
- await evaluate("document.querySelector('.marketing-heading').scrollIntoView({block:'start'})");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('marketing-mobile');
- await click('[data-campaign]');await until("document.querySelector('#integration-dialog').open");assert.equal(await evaluate("document.querySelector('#integration-dialog').scrollWidth<=366"),true);await screenshot('marketing-daily-mobile');await click('#integration-dialog [data-close]');
- await click('#dre-demo');await until("document.querySelector('#dre-content').textContent.includes('Conecte suas contas')");
- await click('#marketing-connections');await until("!document.querySelector('#settings-view').hidden");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('integrations-mobile');
+ assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('traffic-empty-mobile');
+ await click('#traffic-body [data-go="settings"]');await until("!document.querySelector('#settings-view').hidden");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('integrations-mobile');
  await send('Emulation.setDeviceMetricsOverride',{width:1512,height:1100,deviceScaleFactor:1,mobile:false});
- console.log('PASS: integrações e Marketing desktop/mobile — estados, demo isolada, campanhas, filtro, detalhamento e DRE fictícia.');
+ console.log('PASS: integrações e Tráfego pago desktop/mobile — estados, demo isolada das integrações, Marketing fora do Financeiro, tela própria com visões Indicadores/Canais e caminho para conectar.');
 };

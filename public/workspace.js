@@ -21,20 +21,22 @@
   function totals(q){try{return M.totals(q)}catch{return null}}
   function hydrateIcons(){for(const element of $$('[data-icon]'))element.innerHTML=icon(element.dataset.icon)}
   function navigate(next,update=true){
-    const views=['home','quotes','clients','create','settings','finance'];
+    const views=['home','quotes','clients','create','settings','finance','sales','traffic'];
     if(!views.includes(next))next='home';view=next;
     for(const name of views){const el=$('#'+name+'-view'),show=name===next;if(show&&el.hidden){el.classList.remove('view-enter');void el.offsetWidth;el.classList.add('view-enter')}el.hidden=!show}
     for(const el of $$('.nav-item')){const active=el.dataset.nav===next;el.classList.toggle('active',active);if(active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current')}
-    $('#page-location').textContent={home:'Início',quotes:'Orçamentos',clients:'Clientes',create:'Novo orçamento',settings:'Configurações',finance:'Financeiro'}[next];
-    const hash={home:'inicio',quotes:'orcamentos',clients:'clientes',create:'criar',settings:'configuracoes',finance:'financeiro'}[next];
+    $('#page-location').textContent={home:'Início',quotes:'Orçamentos',clients:'Clientes',create:'Novo orçamento',settings:'Configurações',finance:'Financeiro',sales:'Vendas & Receita',traffic:'Tráfego pago'}[next];
+    const hash={home:'inicio',quotes:'orcamentos',clients:'clientes',create:'criar',settings:'configuracoes',finance:'financeiro',sales:'vendas',traffic:'trafego'}[next];
     if(update&&location.hash!=='#'+hash)location.hash=hash;
     if(next==='finance')window.UniversalDre?.open();
     if(next==='quotes')refresh().catch(error=>notify(error.message));
     if(next==='home')window.EcoHome?.open();
     if(next==='clients')window.EcoClients?.open();
+    if(next==='sales')window.EcoSales?.open();
+    if(next==='traffic')window.EcoTraffic?.open();
     window.scrollTo({top:0,behavior:'instant'});
   }
-  function fromHash(){navigate({'#orcamentos':'quotes','#clientes':'clients','#criar':'create','#configuracoes':'settings','#financeiro':'finance'}[location.hash]||'home',false)}
+  function fromHash(){navigate({'#orcamentos':'quotes','#clientes':'clients','#criar':'create','#configuracoes':'settings','#financeiro':'finance','#vendas':'sales','#trafego':'traffic'}[location.hash]||'home',false)}
   async function refresh(){
     const serial=++refreshSerial;
     const [list,ops,pdfs,tags,clients]=await Promise.all([S.summaries?S.summaries():S.all('quotes'),S.all('operations'),S.all('pdfs'),EcoAuth.online?EcoCache.get('/api/tags').catch(()=>null):null,EcoAuth.online?EcoCache.get('/api/clients').catch(()=>[]):[]]);

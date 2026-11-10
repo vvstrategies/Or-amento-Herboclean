@@ -74,7 +74,7 @@
     // Tráfego pago: total investido, ROI geral, divisão Meta × Google e um cartão por plataforma (ROAS, ROI, CPA, vendas).
     // ROAS/ROI usam a receita dos orçamentos com origem Meta/Google, não cliques. O gasto não é dividido por serviço/tipo de cliente.
     function traffic(){
-      const go='<button type="button" class="tp-go" data-go="finance" aria-label="Abrir os detalhes do tráfego pago"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg></button>';
+      const go='<button type="button" class="tp-go" data-go="traffic" aria-label="Abrir os detalhes do tráfego pago"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg></button>';
       const head='<div class="tp-head"><span class="tp-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></span><div><h2>Tráfego pago</h2><p>Gasto dividido pelos resultados do período</p></div>'+go+'</div>';
       if(!hasSpend)return head+'<div class="camp-empty"><p>'+(channel==='all'&&d.origin&&d.origin!=='all'?'Essa origem não tem gasto de mídia. Escolha Meta, Google ou Todos para ver o tráfego pago.':connected?'Assim que houver gasto no período, o ROAS, o ROI e o custo por venda aparecem aqui.':'O ROAS, o ROI e o custo por venda usam o gasto real das campanhas. Conecte as contas em Configurações.')+'</p>'+(connected?'':'<button type="button" class="secondary" data-go="settings">Conectar contas</button>')+'</div>';
       const by=id=>d.channels.find(x=>x.origin===id)||{spendCents:0,roas:null,roi:null,costPerCloseCents:null,closed:0};

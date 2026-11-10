@@ -58,9 +58,10 @@
   /** Parâmetros para /api/dashboard e afins. */
   function query(scope,extra={}){const f=get(scope),q=new URLSearchParams();if(f.from)q.set('from',f.from);if(f.to)q.set('to',f.to);if(f.origin!=='all')q.set('origin',f.origin);if(f.services.length)q.set('services',f.services.join(','));if(f.tags.length)q.set('tags',f.tags.join(','));for(const [k,v] of Object.entries(extra))q.set(k,v);return q.toString()}
   /** Um registro passa se atender a todas as dimensões ativas. */
-  function match(scope,{date='',origin='',services=[],tags=[],status=''}){
+  // {period:false}: ignora o período (ex.: "já comprou alguma vez" em Vendas & Receita).
+  function match(scope,{date='',origin='',services=[],tags=[],status=''},{period=true}={}){
     const f=get(scope);
-    if(f.from&&(!date||date<f.from||date>f.to))return false;
+    if(period&&f.from&&(!date||date<f.from||date>f.to))return false;
     const o=originKey(origin);if(f.origin!=='all'&&(f.origin==='none'?!!o:o!==f.origin))return false;
     if(f.services.length&&!services.some(s=>f.services.includes(s)))return false;
     if(f.tags.length&&!(f.tags.includes('__none')&&!tags.length)&&!tags.some(t=>f.tags.includes(t)))return false;
