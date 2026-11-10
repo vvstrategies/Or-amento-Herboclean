@@ -12,13 +12,15 @@
     quotes:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/>',
     clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
     finance:'<path d="M4 20V10M10 20V5M16 20v-7M21 20H3"/>',
+    sales:'<path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+    traffic:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 12h.01"/>',
     plus:'<path d="M12 5v14M5 12h14"/>',
     gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     eyeOff:'<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
     calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 11h18"/>'
   };
-  const VIEWS={'#inicio':'home','#orcamentos':'quotes','#clientes':'clients','#financeiro':'finance','#configuracoes':'settings','#criar':'create'};
+  const VIEWS={'#inicio':'home','#orcamentos':'quotes','#clientes':'clients','#vendas':'sales','#trafego':'traffic','#financeiro':'finance','#configuracoes':'settings','#criar':'create'};
   const viewNow=()=>VIEWS[location.hash]||(location.hash?'home':'home');
   // Reaproveita o botão "Novo orçamento" do menu: o mesmo ouvinte de [data-new] abre o editor.
   const newQuote=()=>{const b=$('.sidebar-new[data-new]')||$('[data-new]');if(b)b.click()};
@@ -28,8 +30,9 @@
   function buildTabbar(){
     if(tabbar||$('.m-tabbar'))return;
     tabbar=document.createElement('nav');tabbar.className='m-tabbar';tabbar.setAttribute('aria-label','Navegação');
-    const tab=(hash,view,icon,label)=>`<a class="m-tab" href="${hash}" data-m-view="${view}">${svg(I[icon])}<span>${label}</span></a>`;
-    tabbar.innerHTML=tab('#inicio','home','home','Início')+tab('#orcamentos','quotes','quotes','Orçamentos')+`<button type="button" class="m-fab" aria-label="Novo orçamento" title="Novo orçamento"><span class="m-fab-in">${svg(I.plus)}</span></button>`+tab('#clientes','clients','clients','Clientes')+tab('#financeiro','finance','finance','Financeiro');
+    // Seis abas (escolha do usuário): rótulo curto na barra, nome inteiro para leitores de tela.
+    const tab=(hash,view,icon,label,full=label)=>`<a class="m-tab" href="${hash}" data-m-view="${view}" aria-label="${full}" title="${full}">${svg(I[icon])}<span aria-hidden="true">${label}</span></a>`;
+    tabbar.innerHTML=tab('#inicio','home','home','Início')+tab('#orcamentos','quotes','quotes','Orçam.','Orçamentos')+tab('#clientes','clients','clients','Clientes')+`<button type="button" class="m-fab" aria-label="Novo orçamento" title="Novo orçamento"><span class="m-fab-in">${svg(I.plus)}</span></button>`+tab('#vendas','sales','sales','Vendas','Vendas e receita')+tab('#trafego','traffic','traffic','Tráfego','Tráfego pago')+tab('#financeiro','finance','finance','Financ.','Financeiro');
     tabbar.querySelector('.m-fab').addEventListener('click',newQuote);
     document.body.appendChild(tabbar);
   }
