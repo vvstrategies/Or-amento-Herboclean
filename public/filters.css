@@ -29,7 +29,7 @@
 .fb-pop{position:fixed;z-index:1000;background:#fff;border:1px solid var(--r-line);border-radius:18px;box-shadow:0 24px 60px -24px rgba(4,40,30,.45);animation:fb-in .16s var(--r-ease)}
 @keyframes fb-in{from{opacity:0;transform:translateY(-4px)}}
 .fb-menu{min-width:210px;max-height:min(360px,70vh);overflow:auto;padding:6px;display:grid;gap:2px}
-.fb-menu button{border:0;background:none;border-radius:11px;padding:9px 11px;font-family:inherit;font-weight:500;font-size:13px;color:var(--r-text);display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer}
+.fb-menu button{border:0;background:none;border-radius:11px;padding:9px 11px;font-family:inherit;font-weight:500;font-size:13px;color:var(--r-text);display:flex;align-items:center;justify-content:flex-start;gap:10px;text-align:left;cursor:pointer}
 .fb-menu button:hover,.fb-menu button:focus-visible{background:var(--r-mint);outline:none}
 .fb-menu [aria-checked=true]{font-weight:700;color:var(--r-ink)}
 .fb-menu [role=menuitemradio][aria-checked=true]{background:var(--r-mint)}
@@ -45,10 +45,10 @@
 .fb-cal-head strong{text-align:center;color:var(--r-ink);font-size:14.5px}
 .fb-cal-head button{height:34px;border-radius:10px;border:1px solid var(--r-line);background:#fff;color:var(--r-ink);font-size:15px;cursor:pointer}
 .fb-cal-head button:hover{background:var(--r-mint)}
-.fb-week,.fb-days{display:grid;grid-template-columns:repeat(7,1fr)}
+.fb-week,.fb-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
 .fb-week span{text-align:center;font-size:11px;color:var(--r-muted);padding:4px 0 8px}
 .fb-days{row-gap:3px}
-.fb-day{height:38px;border:0;background:none;font-family:inherit;font-weight:600;font-size:13px;color:var(--r-text);cursor:pointer;border-radius:0}
+.fb-day{height:38px;min-width:0;padding:0;border:0;background:none;font-family:inherit;font-weight:600;font-size:13px;color:var(--r-text);cursor:pointer;border-radius:0}
 .fb-day.out{color:#adb5bd;font-weight:500}
 .fb-day.in{background:color-mix(in srgb,var(--r-primary) 10%,#fff)}
 .fb-day.edge{background:linear-gradient(135deg,var(--r-primary),var(--r-deep));color:#fff;border-radius:10px;position:relative;z-index:1}

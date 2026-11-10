@@ -94,7 +94,7 @@ async function initSettings(){
    const show=l=>{
     if(!l){geo.textContent='A saída ainda não foi localizada no mapa. Ela é localizada no primeiro cálculo de rota.';return;}
     const vague=PRECISION_TEXT[l.precision];
-    geo.innerHTML=`Entendido pelo mapa como: <b>${esc(l.label||'—')}</b>${vague?`<br><span class="finance-geo-warn">Foi encontrado ${vague}. Inclua o CEP e o número no endereço da empresa e recalcule.</span>`:''}${l.current===false?'<br>Localização feita pela versão anterior; recalcule para conferir.':''}`;
+    geo.innerHTML=`Entendido pelo mapa como: <b>${esc(l.label||'—')}</b>${vague?`<br><span class="finance-geo-warn">Localizado ${vague}. Inclua o CEP e o número no endereço da empresa e recalcule.</span>`:''}${l.current===false?'<br>Localização feita pela versão anterior; recalcule para conferir.':''}`;
    };
    EcoAuth.api('/api/finance/company-location').then(r=>show(r.location)).catch(()=>{geo.textContent='';});
    $('#finance-company-geo-refresh',form).onclick=async e=>{e.target.disabled=true;geo.textContent='Localizando...';try{show({...await EcoAuth.api('/api/finance/company-location/refresh',{method:'POST'}),current:true});}catch(error){geo.textContent=error.message;}finally{e.target.disabled=false}};
@@ -127,11 +127,11 @@ function composition(e){
  <p class="hint">Receita baseada no PIX. O preço do cartão já compensa taxas; nenhuma taxa é descontada novamente aqui. A estimativa não representa dinheiro recebido nem lucro líquido.</p></details>`;
 }
 // Como o geocodificador entendeu cada ponta da rota. Ponto só no bairro/cidade deixa a distância errada.
-const PRECISION_TEXT={neighbourhood:'só o bairro',city:'só a cidade',region:'só a região'};
+const PRECISION_TEXT={neighbourhood:'só pelo bairro',city:'só pela cidade',region:'só pela região'};
 function understood(e){
  const s=e.routeSnapshot;if(!s||e.result.distanceSource!=='automatic'||(!s.originGeocodeLabel&&!s.destinationGeocodeLabel))return '';
  const vague=[['origin','a saída da equipe'],['destination','o endereço do cliente']].filter(([k])=>PRECISION_TEXT[s[k+'Precision']]);
- const warn=vague.length?`<p class="finance-geo-warn" role="status">Atenção: ${vague.map(([k,label])=>`${label} foi localizado por ${PRECISION_TEXT[s[k+'Precision']]}`).join(' e ')}. A distância pode estar errada. Confira o endereço${vague.some(([k])=>k==='origin')?' da empresa em Configurações › Custos e financeiro (inclua o CEP)':' do cliente'} e clique em Recalcular, ou informe a distância manualmente.</p>`:'';
+ const warn=vague.length?`<p class="finance-geo-warn" role="status">Atenção: ${vague.map(([k,label])=>`${label} foi localizado ${PRECISION_TEXT[s[k+'Precision']]}`).join(' e ')}. A distância pode estar errada. Confira o endereço${vague.some(([k])=>k==='origin')?' da empresa em Configurações › Custos e financeiro (inclua o CEP)':' do cliente'} e clique em Recalcular, ou informe a distância manualmente.</p>`:'';
  return `<p class="finance-geo hint">Saída entendida como: <b>${esc(s.originGeocodeLabel||'—')}</b><br>Cliente entendido como: <b>${esc(s.destinationGeocodeLabel||'—')}</b></p>${warn}`;
 }
 function distance(e){

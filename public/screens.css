@@ -198,7 +198,7 @@ i.tr-i-rev{background:#0e7a5a}i.tr-i-inv{background:#a07a00}
 @media(min-width:1151px) and (min-height:700px){
   .settings-view:not([hidden]):has([data-settings-tab=finance][aria-selected=true]){display:flex;flex-direction:column;height:calc(100vh - 32px);box-sizing:border-box}
   .settings-view:has([data-settings-tab=finance][aria-selected=true]) .settings-layout{flex:1;min-height:0;display:flex!important;flex-direction:column}
-  .settings-view:has([data-settings-tab=finance][aria-selected=true]) #financial-settings-slot{flex:1;min-height:0;display:flex;flex-direction:column}
+  .settings-view:has([data-settings-tab=finance][aria-selected=true]) #financial-settings-slot{flex:1;min-height:0;display:flex;flex-direction:column;align-self:stretch}
   .settings-view:has([data-settings-tab=finance][aria-selected=true]) #profit-settings-slot{flex:none;max-height:42px;overflow:hidden;transition:max-height .3s}
   .settings-view:has([data-settings-tab=finance][aria-selected=true]) #profit-settings-slot:focus-within,.settings-view:has([data-settings-tab=finance][aria-selected=true]) #profit-settings-slot:hover{max-height:60vh;overflow:auto}
   .cs{flex:1}.cs-body,.cs-grid{min-height:0}
