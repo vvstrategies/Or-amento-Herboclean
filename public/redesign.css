@@ -1114,3 +1114,9 @@ body:not(.sidebar-collapsed) #profile-chip{justify-content:flex-start}
 .sidebar .nav-item.active .nav-tile{background:linear-gradient(135deg,#e6f59a,var(--r-accent) 70%);border-color:color-mix(in srgb,var(--r-accent) 80%,#fff);color:#0b3d31;box-shadow:0 6px 16px -6px color-mix(in srgb,var(--r-accent) 85%,transparent),inset 0 1px 0 rgba(255,255,255,.5)}
 .sidebar .nav-item.active .nav-tile .ni-hole{fill:#d4f26a}
 body.sidebar-collapsed .sidebar .nav-item .nav-tile{margin:0}
+/* Botão Instalar app (pwa.js) e instruções do iPhone */
+.pwa-install{display:inline-flex;align-items:center;gap:7px;cursor:pointer;border:1px solid color-mix(in srgb,var(--r-accent) 70%,transparent)!important;background:var(--r-soft-accent)!important}
+.pwa-install svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pwa-ios{max-width:min(420px,92vw);border-radius:22px;padding:24px}
+.pwa-ios ol{padding-left:20px;line-height:1.7;font-size:14px}
+.pwa-ios button{width:100%}

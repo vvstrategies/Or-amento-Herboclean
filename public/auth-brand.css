@@ -1,0 +1,35 @@
+/* Tela de acesso com a marca Herboclean (item 1). Só vale enquanto o formulário de senha está à vista;
+   a configuração inicial de empresas novas (onboarding) usa a mesma tela e mantém o visual próprio. */
+.auth-screen:has(#auth-form:not([hidden])){display:grid!important;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);padding:0!important;place-items:stretch;background:#f3f6f4;overflow:auto}
+.auth-screen:not(:has(#auth-form:not([hidden]))) .auth-brand{display:none}
+.auth-brand{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:22px;padding:56px clamp(32px,6vw,88px);color:#e4efe9;
+  background:radial-gradient(520px 380px at 12% 8%,color-mix(in srgb,#a7cf21 30%,transparent),transparent 70%),radial-gradient(640px 420px at 100% 100%,rgba(11,107,82,.65),transparent 70%),linear-gradient(155deg,#0b4a3a 0%,#06261f 60%,#041a15 100%)}
+.auth-brand::after{content:"";position:absolute;inset:auto -120px -160px auto;width:420px;height:420px;border-radius:50%;border:1px solid rgba(167,207,33,.18);box-shadow:0 0 0 60px rgba(167,207,33,.04),0 0 0 120px rgba(167,207,33,.03)}
+.auth-logo{width:min(360px,80%);height:auto}
+.auth-tag{margin:0;font-size:clamp(20px,2.2vw,28px);line-height:1.3;font-weight:700;color:#fff;letter-spacing:-.01em}
+.auth-points{list-style:none;margin:0;padding:0;display:grid;gap:10px;font-size:14px;color:#cfe0d8}
+.auth-points li{display:flex;align-items:center;gap:10px}
+.auth-points li::before{content:"";width:8px;height:8px;border-radius:50%;background:#a7cf21;box-shadow:0 0 0 4px rgba(167,207,33,.18);flex:none}
+.auth-screen:has(#auth-form:not([hidden])) .auth-card{align-self:center;justify-self:center;margin:32px;width:min(400px,calc(100% - 48px));border:1px solid color-mix(in srgb,#044c3a 10%,#fff);border-radius:24px;padding:36px 32px;box-shadow:0 30px 70px -40px rgba(4,40,30,.55);background:#fff}
+.auth-icon{width:64px;height:64px;border-radius:18px;background:linear-gradient(150deg,#0b4a3a,#06261f);padding:8px;box-sizing:border-box;margin-bottom:18px;display:block}
+.auth-screen:has(#auth-form:not([hidden])) h1{font-size:24px;color:#0f1d18;margin:0 0 6px;letter-spacing:-.01em}
+.auth-screen:has(#auth-form:not([hidden])) #auth-note{color:#5b6b64;font-size:13.5px;margin:0 0 18px}
+.auth-screen:has(#auth-form:not([hidden])) label{color:#2d3b35;font-weight:600;font-size:13px}
+.auth-screen:has(#auth-form:not([hidden])) input{border-radius:14px;border:1px solid #d6e2dc;background:#f6f9f7;padding:13px 14px;font-size:15px}
+.auth-screen:has(#auth-form:not([hidden])) input:focus{outline:2px solid #a7cf21;outline-offset:1px;background:#fff}
+.auth-screen:has(#auth-form:not([hidden])) button.primary{background:linear-gradient(135deg,#c4e34a,#a7cf21);border:0;color:#0b3d31;font-weight:800;border-radius:14px;padding:14px;font-size:15px;box-shadow:0 12px 24px -14px #7da316}
+.auth-screen:has(#auth-form:not([hidden])) button.primary:hover{filter:brightness(1.04)}
+#auth-error:empty{display:none}
+#auth-error{color:#b23a2e;font-size:13px}
+@media (max-width:860px){
+  .auth-screen:has(#auth-form:not([hidden])){grid-template-columns:1fr;grid-template-rows:auto 1fr;background:linear-gradient(180deg,#06261f 0 210px,#f3f6f4 210px)}
+  .auth-brand{padding:36px 24px 70px;gap:12px;background:transparent}
+  .auth-brand::after,.auth-points{display:none}
+  .auth-logo{width:220px}
+  .auth-tag{font-size:17px}
+  .auth-screen:has(#auth-form:not([hidden])) .auth-card{margin:-50px auto 24px;padding:28px 22px}
+}
+.auth-card img.auth-icon{width:64px!important;height:64px!important;object-fit:contain;margin-bottom:18px}
+.auth-screen .auth-brand .auth-tag{color:#fff!important}
+.auth-screen .auth-brand li{color:#cfe0d8}
+@media (max-width:860px){.auth-screen:has(#auth-form:not([hidden])){align-content:start}.auth-screen:has(#auth-form:not([hidden])) .auth-card{margin:-40px auto 24px!important}}

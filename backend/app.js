@@ -135,6 +135,11 @@ export function createApp(options={}){
   const assetHash=crypto.createHash('sha256');for(const n of [...allowed].sort())assetHash.update(fs.readFileSync(path.join(root,'public',n)));const assetVersion=assetHash.digest('hex').slice(0,10);
   const indexHtml=fs.readFileSync(path.join(root,'public/index.html'),'utf8').replace(/(src|href)="([a-zA-Z0-9_.-]+\.(?:js|css))"/g,`$1="v/${assetVersion}/$2"`);
   app.get('/',(req,res)=>res.set('Cache-Control','no-cache').type('html').send(indexHtml));
+  // PWA: o manifesto sai pelo Express (fora de public/) para ter o tipo certo também atrás do CDN da Hostinger.
+  const manifest=JSON.stringify({name:'Herboclean · Orçamentos',short_name:'Herboclean',description:'Orçamentos, agenda e financeiro da Herboclean.',lang:'pt-BR',start_url:'/',scope:'/',display:'standalone',orientation:'portrait',background_color:'#06261f',theme_color:'#044c3a',icons:[{src:'/assets/favicon-192.png',sizes:'192x192',type:'image/png',purpose:'any'},{src:'/assets/favicon-512.png',sizes:'512x512',type:'image/png',purpose:'any'},{src:'/assets/favicon-512.png',sizes:'512x512',type:'image/png',purpose:'maskable'}]});
+  app.get('/manifest.webmanifest',(req,res)=>res.set('Cache-Control','no-cache').type('application/manifest+json').send(manifest));
+  // O service worker precisa ficar na raiz (escopo /) e sem a versão no caminho.
+  app.get('/sw.js',(req,res)=>res.set({'Cache-Control':'no-cache','Service-Worker-Allowed':'/'}).type('application/javascript').sendFile(path.join(root,'public/sw.js')));
   app.get('/guia-integracoes',sec.requireAuth,(req,res)=>res.type('text/plain; charset=utf-8').sendFile(path.join(root,'INTEGRATIONS_SETUP.md')));
   app.get('/guia-google',sec.requireAuth,(req,res)=>res.type('text/plain').sendFile(path.join(root,'docs/CONEXAO-GOOGLE.md')));
   // Só a versão atual existe: o conteúdo de /v/<hash>/ nunca muda e pode ficar em cache por um ano.
