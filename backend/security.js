@@ -13,15 +13,22 @@ export function vault(dir,provided,production=false){
   else {if(production)throw Error('Configure GOOGLE_TOKEN_ENCRYPTION_KEY em produção.');const file=path.join(dir,'token-key');if(!fs.existsSync(file))fs.writeFileSync(file,crypto.randomBytes(32),{mode:0o600,flag:'wx'});key=fs.readFileSync(file);if(key.length!==32)throw Error('Chave local inválida.')}
   return {seal(value){const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',key,iv),data=Buffer.concat([cipher.update(JSON.stringify(value),'utf8'),cipher.final()]);return Buffer.concat([iv,cipher.getAuthTag(),data]).toString('base64')},open(value){const data=Buffer.from(value,'base64'),decipher=crypto.createDecipheriv('aes-256-gcm',key,data.subarray(0,12));decipher.setAuthTag(data.subarray(12,28));return JSON.parse(Buffer.concat([decipher.update(data.subarray(28)),decipher.final()]).toString())}};
 }
-export function security(repo,{origin,production=false}){
-  const originURL=new URL(origin),cookieName=production?'__Host-ecoclean':'ecoclean_session';
+export function security(repo,{origin,production=false,legacyHosts=[]}){
+  const originURL=new URL(origin),legacy=new Set(legacyHosts.filter(Boolean)),cookieName=production?'__Host-ecoclean':'ecoclean_session';
   const token=req=>String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='))?.slice(cookieName.length+1);
   const read=req=>{const t=token(req);if(!t||!/^[a-f0-9]{64}$/.test(t))return null;return repo.db.prepare('SELECT * FROM sessions WHERE id=? AND expires>?').get(hash(t),Date.now())};
   function headers(req,res,next){
     res.set({'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'SAMEORIGIN','Permissions-Policy':'camera=(), microphone=(), geolocation=()'});
     if(production)res.set('Strict-Transport-Security','max-age=15552000');
     res.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self' blob:; object-src 'self' blob:; base-uri 'self'; frame-ancestors 'self'; form-action 'self'");
-    if(req.headers.host!==originURL.host)return res.status(421).json({error:'Acesse pelo endereço configurado: '+origin});
+    if(req.headers.host!==originURL.host){
+      // Endereço antigo (troca de domínio): webhooks continuam chegando e páginas redirecionam para o endereço novo.
+      if(legacy.has(req.headers.host)){
+        if(req.method==='POST'&&req.path==='/api/webhooks/asaas'){req.session=null;return next()}
+        if(['GET','HEAD'].includes(req.method))return res.redirect(301,origin+req.originalUrl);
+      }
+      return res.status(421).json({error:'Acesse pelo endereço configurado: '+origin});
+    }
     if(req.path.startsWith('/api/')||req.path.startsWith('/orcamentos/'))res.set('Cache-Control','no-store');
     req.session=read(req);next();
   }

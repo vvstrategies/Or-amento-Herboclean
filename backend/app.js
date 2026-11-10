@@ -27,6 +27,7 @@ import {Service} from './service.js';
 import {modelo} from '../utils/proposta.js';
 import {gerarPDFEcoclean} from '../utils/ecocleanPdf.js';
 import {migrateServiceCatalog} from './service-catalog.js';
+import {registerPublicPages} from './public-pages.js';
 import {initializeInstallation,completed,finishSetup,validateSettings} from './onboarding.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const publicPDF=({storageKey,...pdf})=>pdf;
@@ -40,7 +41,7 @@ export function createApp(options={}){
   migrateServiceCatalog(repo);
   const tokenVault=vault(repo.dir,options.encryptionKey,production);
   const google=options.google||new GoogleIntegration(repo,tokenVault,options.googleConfig,options.fetcher);
-  const service=new Service(repo,google),sec=security(repo,{origin,production}),app=express();
+  const service=new Service(repo,google),sec=security(repo,{origin,production,legacyHosts:options.legacyHosts||[]}),app=express();
   const cepLookup=options.cepLookup||new CepLookupService(repo,{primary:new BrasilApiCepProvider({fetcher:options.fetcher||globalThis.fetch}),fallback:new ViaCepProvider({fetcher:options.fetcher||globalThis.fetch})});
   const geocoder=options.geocoder||new HeiGITPeliasGeocoder(options.routesConfig);
   const finance=new FinanceService(repo,service,options.routeProvider||new HeiGITOpenRouteServiceProvider(options.routesConfig),{dailyLimit:options.routesConfig?.dailyLimit,directionsDailyLimit:options.routesConfig?.directionsDailyLimit,geocodingDailyLimit:options.routesConfig?.geocodingDailyLimit,routeCacheHours:options.routesConfig?.cacheHours,geocoder:options.routeProvider&&options.geocoder===undefined?null:geocoder});
@@ -57,6 +58,8 @@ export function createApp(options={}){
   // A Asaas chama esta rota sem sessão do navegador. O token próprio do webhook é validado no serviço.
   app.post('/api/webhooks/asaas',wrap(async(req,res)=>{await asaas.webhook(req.headers['asaas-access-token'],req.body);res.status(204).end();}));
   app.get('/api/health',(req,res)=>res.json({status:'ok',product:'herboclean'}));
+  // Política de Privacidade e Termos públicos (exigidos pela tela de consentimento do Google).
+  registerPublicPages(app,()=>repo.config('settings')?.company);
   app.get('/api/session',(req,res)=>res.json({...sec.status(req),needsCompanySetup:!!req.session&&!completed(repo)}));
   app.post('/api/setup',sec.sameOrigin,wrap(sec.setup));app.post('/api/login',sec.sameOrigin,wrap(sec.login));
   app.use('/api',sec.requireAuth,sec.csrf,largeJson);app.post('/api/logout',sec.logout);
