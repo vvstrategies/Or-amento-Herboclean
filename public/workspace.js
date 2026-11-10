@@ -12,7 +12,7 @@
   const badge=status=>`<span class="status-badge ${status}">${esc(O.statuses[status])}</span>`;
   const initials=name=>name.trim().split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase()||'OU';
   let picking=false,anchor=null;const picked=new Set();
-  let pipeline='generated',funnel='comercial',tagFilter='',showCancelled=false,tagList=[],clientIndex=new Map(),settled=null,lastCounts={};
+  let pipeline='generated',funnel='comercial',showCancelled=false,tagList=[],clientIndex=new Map(),settled=null,lastCounts={};
   let quotes=[],operations=new Map(),documents=[],demo=false,examples=[],exampleOperations=new Map(),exampleDocs=[],selected=null,view='quotes',refreshSerial=0,viewerURL,review=null,initialized=false;
   const getQuotes=()=>demo?examples:quotes;
   const getOp=id=>O.normalize((demo?exampleOperations:operations).get(id)||{id});
@@ -43,7 +43,8 @@
     quotes=list.sort((a,b)=>(b.updatedAt||b.date).localeCompare(a.updatedAt||a.date));operations=new Map(ops.map(x=>[x.id,x]));documents=pdfs;
     $('#nav-count').textContent=quotes.length;renderLibrary();
   }
-  function filters(){return {search:$('#search').value.trim(),status:'',scheduled:'',from:$('#date-from').value,to:$('#date-to').value}}
+  // Período, origem, serviço, tipo de cliente e status vêm da barra do topo (EcoFilters, escopo 'quotes'); a busca é local.
+  function filters(){return {search:$('#search').value.trim(),status:'',scheduled:'',from:'',to:''}}
   const FUNNELS={
     comercial:[['generated','Gerados'],['scheduled','Agendados'],['completed','Concluídos'],['cancelled','Cancelados']],
     follow:[['f1','1º contato · D+2'],['f2','2º contato · D+7'],['f3','Última tentativa · D+15'],['lost','Perdidos']],
@@ -95,20 +96,19 @@
     if(invalid)return [];
     return all.filter(q=>{const op=getOp(q.id);return O.matches(q,op,{...f,status:op.status})&&passFilter(q)});
   }
-  // Uma opção por vez. Tags (Corporativo/Residencial = tipo de cliente) filtram q.tags; Google Ads/Meta Ads filtram a origem (q.origin).
-  const ORIGIN_ALIASES={google:'google',google_ads:'google','google-ads':'google',googleads:'google',meta:'meta',meta_ads:'meta','meta-ads':'meta',facebook:'meta',facebook_ads:'meta',instagram:'meta'};
-  const originOf=q=>ORIGIN_ALIASES[String(q.origin||'').toLowerCase().replace(/\s+/g,'')]||q.origin||'';
-  const ORIGIN_FILTERS=[['origin:google','Google Ads'],['origin:meta','Meta Ads']];
-  function passFilter(q){if(!tagFilter)return true;if(tagFilter.startsWith('origin:'))return originOf(q)===tagFilter.slice(7);return tagFilter==='__none'?!(q.tags||[]).length:(q.tags||[]).includes(tagFilter)}
+  // Filtros combináveis: tags (Corporativo/Residencial = tipo de cliente) filtram q.tags; origem filtra q.origin; status, a etapa.
+  function passFilter(q){
+    return EcoFilters.match('quotes',{date:q.date,origin:q.origin,services:q.items.map(i=>i.service),tags:q.tags||[],status:getOp(q.id).status});
+  }
+  const cancelledShown=()=>showCancelled||EcoFilters.get('quotes').statuses.includes('cancelled');
   function renderLibrary(){
     const all=getQuotes(),list=visible();
     $('#demo-banner').hidden=!demo;$('#show-demo').hidden=demo;
     const counts={comercial:list.filter(q=>getOp(q.id).status!=='cancelled').length,follow:0,pos:0},saved=funnel;
     for(const name of ['follow','pos']){funnel=name;counts[name]=list.filter(q=>stageOf(q,getOp(q.id))).length}funnel=saved;
     for(const name of ['comercial','follow','pos'])$('#count-'+name).textContent=counts[name];
-    $('#tag-filter').innerHTML=[['','Todas'],...tagList.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()]),...ORIGIN_FILTERS,...(all.some(q=>!(q.tags||[]).length)?[['__none','Sem tag']]:[])].map(([id,label])=>`<button type="button" data-tag-filter="${esc(id)}" aria-pressed="${tagFilter===id}"${id.startsWith('origin:')?' class="origin-filter"':''}>${id.startsWith('origin:')?EcoIcons.brandIcon(id.slice(7),'sm'):''}${esc(label)}</button>`).join('');
-    $('#show-cancelled').hidden=funnel!=='comercial';$('#show-cancelled').setAttribute('aria-pressed',String(showCancelled));
-    const cols=FUNNELS[funnel].filter(([id])=>id!=='cancelled'||showCancelled);
+    $('#show-cancelled').hidden=funnel!=='comercial';$('#show-cancelled').setAttribute('aria-pressed',String(cancelledShown()));
+    const cols=FUNNELS[funnel].filter(([id])=>id!=='cancelled'||cancelledShown());
     if(!all.length){$('#board').innerHTML=`<div class="empty-library"><span class="feature-icon">${icon('folder')}</span><h3>Seu próximo atendimento começa aqui.</h3><p>Crie sua primeira proposta com a identidade da empresa. Depois, acompanhe a aprovação e prepare o atendimento por aqui.</p><div class="empty-actions"><button class="primary" data-new>＋ Criar orçamento</button><button class="secondary" data-demo>Ver demonstração</button></div></div>`;$('#library-count-note').textContent='';return}
     // Conversão entre etapas (opção 1 da faixa): selo no encontro das colunas, sem cobrir o conteúdo.
     const n=id=>list.filter(q=>stageOf(q,getOp(q.id))===id).length,total=n('generated')+n('scheduled')+n('completed'),reached=n('scheduled')+n('completed');
@@ -382,7 +382,7 @@
     $('#pdf-view-actions').innerHTML=`<span>Documento guardado em ${date(document.generatedAt)}</span><button class="secondary" data-download-pdf="${esc(id)}">Baixar PDF</button><a href="${viewerURL}" target="_blank" rel="noopener">Abrir em outra aba ↗</a>`;
     $('#pdf-frame').src=viewerURL;$('#pdf-dialog').showModal();
   }
-  function clearFilters(){for(const id of ['search','date-from','date-to'])$('#'+id).value='';tagFilter='';renderLibrary()}
+  function clearFilters(){$('#search').value='';renderLibrary()}
   function makeExamples(){
     if(examples.length)return;
     const today=new Date(O.localDate()+'T12:00:00Z');
@@ -407,7 +407,6 @@
     if(button.classList.contains('proposal-card')&&(picking||e.ctrlKey||e.metaKey)){togglePick(button.dataset.detail);return}
     if(button.dataset.close){$('#'+button.dataset.close).close();return}
     if(button.dataset.funnel){funnel=button.dataset.funnel;syncPipelines();renderLibrary();return}
-    if(button.dataset.tagFilter!==undefined){tagFilter=button.dataset.tagFilter;renderLibrary();return}
     if(button.id==='show-cancelled'){showCancelled=!showCancelled;renderLibrary();return}
     if(button.id==='sidebar-toggle'){setCollapsed(!document.body.classList.contains('sidebar-collapsed'));return}
     if(button.dataset.nav){navigate(button.dataset.nav);return}
@@ -475,9 +474,8 @@
     const photo=document.createElement('dialog');photo.id='photo-dialog';photo.innerHTML='<div class="dialog-head"><h2>Foto do serviço</h2><button class="icon-button" data-close="photo-dialog" aria-label="Fechar foto">×</button></div><img id="photo-preview" class="photo-dialog-image" alt="Foto do item orçado">';document.body.appendChild(photo);
     document.addEventListener('click',e=>onClick(e).catch(error=>notify(error.message)));
     $('.skip-link').onclick=e=>{e.preventDefault();$('#content-start').focus();$('#content-start').scrollIntoView()};
-    let typing=0;$('#search').addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(renderLibrary,120)});for(const id of ['date-from','date-to'])$('#'+id).addEventListener('input',renderLibrary);bindBoard();bindBulk();bindSidebar();
-    $('#period-toggle').onclick=()=>{const expanded=$('#period-toggle').getAttribute('aria-expanded')==='true';$('#period-toggle').setAttribute('aria-expanded',String(!expanded));$('#period-fields').hidden=expanded};
-    $('#clear-filters').onclick=clearFilters;$('#show-demo').onclick=enterDemo;$('#exit-demo').onclick=exitDemo;
+    let typing=0;$('#search').addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(renderLibrary,120)});EcoFilters.mount($('#quotes-filters'),{scope:'quotes',dims:['origin','period','service','tag','status'],allowAll:true,onChange:()=>renderLibrary()});bindBoard();bindBulk();bindSidebar();
+    $('#show-demo').onclick=enterDemo;$('#exit-demo').onclick=exitDemo;
     await refreshGoogle();
     $('#logout').onclick=()=>confirmAction('Sair do espaço','Salve as alterações antes de sair.','Sair',async()=>{await EcoAuth.api('/api/logout',{method:'POST',body:'{}'});location.reload()});
     $('#migrate-local').onclick=()=>confirmAction('Importar dados deste navegador','As propostas, fotos, PDFs locais serão copiados para o servidor. Os originais serão preservados. Agendamentos antigos precisarão de nova confirmação.','Importar meus dados',async()=>{

@@ -85,7 +85,8 @@
   .m-quick>:active span{background:var(--r-mint)}
   .m-quick>:focus-visible span{outline:2px solid var(--r-primary);outline-offset:2px}
   .home-top{padding:0!important;gap:8px!important}
-  .home-top>div:first-child{display:none}
+  .home-top .fbar-slot{width:100%}
+  .home-tools{display:none!important}
   .home-tools{width:100%;flex-wrap:nowrap!important;gap:8px!important}
   .home-period{flex:1;min-width:0!important}
   .home-period .bsel-btn{min-height:44px}
@@ -245,3 +246,5 @@
   .kanban .kcol[data-col=completed] .kcol-head .t{color:#fff!important}
 }
 @media (max-width:760px){.kanban>.kcol{flex:0 0 calc((100% - 16px) / 3)!important}}
+/* Barra de filtros única no topo do Financeiro (celular): ocupa a primeira linha inteira */
+@media (max-width:760px){.dre-top.fin-top>.fbar-slot{grid-column:1 / -1!important;grid-row:1;width:100%;min-width:0}}

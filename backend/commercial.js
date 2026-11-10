@@ -175,7 +175,7 @@ export class CommercialService{
     const today=localDate(),done=list.filter(x=>x.completedAt),dates=list.map(x=>x.date).filter(Boolean).sort();
     const lastServiceDate=done.map(x=>x.completedAt).sort().at(-1)||null,nextServiceDate=list.filter(x=>x.op.status==='scheduled'&&x.start>=today).map(x=>x.start).sort()[0]||null;
     return {...c,proposalIds:this.history(list).map(x=>x.id),quoteCount:list.length,closedCount:done.length,closedCents:total(done),
-      lastServiceDate,nextServiceDate,lastService:lastServiceDate?{date:lastServiceDate,status:'completed'}:null,nextService:nextServiceDate?{date:nextServiceDate,status:'scheduled'}:null,firstDate:dates[0]||null};
+      lastServiceDate,nextServiceDate,facets:list.map(x=>({date:x.date,origin:x.origin,services:[...new Set(x.items.map(i=>i.service).filter(Boolean))],status:x.op.status||'generated',tags:x.tags})),lastService:lastServiceDate?{date:lastServiceDate,status:'completed'}:null,nextService:nextServiceDate?{date:nextServiceDate,status:'scheduled'}:null,firstDate:dates[0]||null};
   }
   clients(){
     const groups=new Map();for(const q of this.quotes(' AND l.client_id IS NOT NULL')){if(!groups.has(q.clientId))groups.set(q.clientId,[]);groups.get(q.clientId).push(q)}
@@ -213,24 +213,31 @@ export class CommercialService{
       closed:done.length,revenueCents:revenue,ticketCents:done.length?Math.round(revenue/done.length):null,
       campaign:campaignMetrics({spendCents:spend,quotes:cohort.length,closed:done.length,revenueCents:revenue,paidRevenueCents:paidRevenue})};
   }
-  dashboard({from,to,channel='all'}={}){
+  // Filtros combináveis da barra do topo: origem (qualquer uma), serviços e tags (tipo de cliente). Vazio = todos.
+  static filterRows(rows,{origin='all',services=[],tags=[]}={}){
+    return rows.filter(r=>(origin==='all'||(origin==='none'?!r.origin:r.origin===origin))&&(!services.length||r.items.some(i=>services.includes(i.service)))&&(!tags.length||(tags.includes('__none')&&!(r.tags||[]).length)||(r.tags||[]).some(t=>tags.includes(t))));
+  }
+  dashboard({from,to,channel='all',origin,services:serviceFilter=[],tags=[]}={}){
+    origin=origin||channel||'all';channel=has(CHANNEL_PROVIDER,origin)?origin:'all';
+    if(origin!=='all'&&origin!=='none'&&!has(ORIGINS,origin))throw fail(400,'Canal inválido.');
+    const list=v=>(Array.isArray(v)?v:String(v||'').split(',')).map(x=>String(x).trim()).filter(Boolean).slice(0,40);serviceFilter=list(serviceFilter);tags=list(tags);
     from=date(from,false);to=date(to,false);if(from>to)throw fail(400,'A data inicial deve ser anterior à final.');
     if(spanDays(from,to)>731)throw fail(400,'Escolha um período de até 2 anos.');
-    if(channel!=='all'&&!has(CHANNEL_PROVIDER,channel))throw fail(400,'Canal inválido.');
     const days=spanDays(from,to),prevTo=addDays(from,-1),prevFrom=addDays(from,-days);
-    const all=this.quotes(),rows=channel==='all'?all:all.filter(r=>r.origin===channel),spendNow=this.spendTotals(from,to),spendPrev=this.spendTotals(prevFrom,prevTo);
-    const current=this.period(rows,from,to,this.spendFor(spendNow,channel),channel),previous=this.period(rows,prevFrom,prevTo,this.spendFor(spendPrev,channel),channel);
+    const all=this.quotes(),rows=CommercialService.filterRows(all,{origin,services:serviceFilter,tags}),spendNow=this.spendTotals(from,to),spendPrev=this.spendTotals(prevFrom,prevTo);
+    const unpaid=origin!=='all'&&channel==='all',spendOf=t=>unpaid?0:this.spendFor(t,channel);
+    const current=this.period(rows,from,to,spendOf(spendNow),channel),previous=this.period(rows,prevFrom,prevTo,spendOf(spendPrev),channel);
     const byDay=new Map();for(const r of rows)if(r.completedAt)byDay.set(r.completedAt,(byDay.get(r.completedAt)||0)+r.pix);
     const series=f=>{let acc=0;return Array.from({length:days},(_,i)=>acc+=byDay.get(addDays(f,i))||0)};
-    const services=new Map();for(const r of rows)if(between(r.completedAt,from,to))for(const it of r.items){const s=services.get(it.service)||{service:it.service,revenueCents:0,count:0};s.revenueCents+=itemCents(it);s.count+=1;services.set(it.service,s)}
+    const services=new Map();for(const r of rows)if(between(r.completedAt,from,to))for(const it of r.items){if(serviceFilter.length&&!serviceFilter.includes(it.service))continue;const s=services.get(it.service)||{service:it.service,revenueCents:0,count:0};s.revenueCents+=itemCents(it);s.count+=1;services.set(it.service,s)}
     const today=localDate(),week=addDays(today,7),scheduled=rows.filter(r=>r.op.status==='scheduled'&&r.start>=today);
     const upcoming=scheduled.filter(r=>r.start<=week).sort((a,b)=>a.op.schedule.start.localeCompare(b.op.schedule.start)).slice(0,8)
       .map(r=>({id:r.id,client:r.client,start:r.op.schedule.start,end:r.op.schedule.end,services:r.items.map(i=>`${i.service}${i.quantity>1||i.unit==='m²'?' ('+Number(i.quantity).toLocaleString('pt-BR')+(i.unit==='m²'?' m²':'')+')':''}`),place:r.addressNeighborhood||placeOf(r).city,pixCents:r.pix,tags:r.tags}));
     // A receber: agendados a partir de hoje, independentemente de quando o orçamento foi criado.
     const toReceiveCents=total(scheduled);
-    const channels=[...Object.keys(ORIGINS),''].map(origin=>{const paid=has(CHANNEL_PROVIDER,origin),p=this.period(all.filter(r=>r.origin===origin),from,to,paid?this.spendFor(spendNow,origin):0,origin);return {origin,label:has(ORIGINS,origin)?ORIGINS[origin]:'Sem origem',paid,...p.campaign}}).filter(c=>c.paid||c.quotes||c.closed);
+    const scoped=CommercialService.filterRows(all,{services:serviceFilter,tags}),channels=[...Object.keys(ORIGINS),''].map(origin=>{const paid=has(CHANNEL_PROVIDER,origin),p=this.period(scoped.filter(r=>r.origin===origin),from,to,paid?this.spendFor(spendNow,origin):0,origin);return {origin,label:has(ORIGINS,origin)?ORIGINS[origin]:'Sem origem',paid,...p.campaign}}).filter(c=>c.paid||c.quotes||c.closed);
     const byTag=this.tagBreakdown(all,from,to);
-    return {from,to,channel,previous:{from:prevFrom,to:prevTo,...previous},current,byTag,
+    return {from,to,channel,origin,filters:{origin,services:serviceFilter,tags},spendScope:serviceFilter.length||tags.length?'platform':'filtered',previous:{from:prevFrom,to:prevTo,...previous},current,byTag,
       series:{current:series(from),previous:series(prevFrom)},
       services:[...services.values()].sort((a,b)=>b.revenueCents-a.revenueCents),
       upcoming,toReceiveCents,forecastCents:toReceiveCents,spend:{totalCents:this.spendFor(spendNow,'all'),providers:spendNow,connected:this.connectedProviders()},channels};
@@ -336,7 +343,7 @@ export class CommercialService{
 const validPartnerId=v=>typeof v==='string'&&/^[a-zA-Z0-9-]{8,60}$/.test(v)?v:null;
 
 export function registerCommercial(app,commercial,wrap){
-  app.get('/api/dashboard',(req,res)=>res.json(commercial.dashboard({from:req.query.from,to:req.query.to,channel:req.query.channel||'all'})));
+  app.get('/api/dashboard',(req,res)=>res.json(commercial.dashboard({from:req.query.from,to:req.query.to,channel:req.query.channel||'all',origin:req.query.origin,services:req.query.services,tags:req.query.tags})));
   app.get('/api/tags',(req,res)=>res.json(commercial.tags()));
   app.put('/api/finance/campaign-tags',(req,res)=>res.json(commercial.saveCampaignTags(req.body)));
   app.put('/api/tags',(req,res)=>res.json(commercial.saveTags(req.body)));

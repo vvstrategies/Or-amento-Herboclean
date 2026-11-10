@@ -16,10 +16,12 @@
   const tagClass=id=>{const i=tags.findIndex(t=>t.id===id);return 't'+(i<0?3:Math.min(i,3))};
   const tagChips=list=>(list||[]).map(id=>`<span class="tag ${tagClass(id)}">${esc(tagLabel(id))}</span>`).join('');
   function shell(){
-    $('#clients-view').innerHTML=`<div class="page-heading"><div><h1>Clientes</h1><p>Criados automaticamente a cada orçamento. Complete a ficha para reabordar depois.</p></div><div class="page-actions"><button type="button" class="primary" id="client-new">＋ Novo cliente</button></div></div>
-      <div class="board-tools"><label class="search-control"><span class="sr-only">Buscar cliente</span><span data-icon="search"></span><input id="client-search" type="search" placeholder="Buscar por nome, telefone ou bairro"></label><div class="seg" id="client-filter" role="group" aria-label="Filtrar clientes"></div></div>
+    // Sem título grande: a barra de filtros única ocupa o topo (origem, período, serviço, tipo de cliente e status dos orçamentos).
+    $('#clients-view').innerHTML=`<div class="page-heading page-heading-bar"><h1 class="sr-only">Clientes</h1><div class="fbar-slot" id="clients-filters"></div></div>
+      <div class="board-tools"><label class="search-control"><span class="sr-only">Buscar cliente</span><span data-icon="search"></span><input id="client-search" type="search" placeholder="Buscar por nome, telefone ou bairro"></label><div class="seg" id="client-filter" role="group" aria-label="Atalhos de clientes"></div><button type="button" class="primary" id="client-new">＋ Novo cliente</button></div>
       <div class="clients-layout"><div class="clients-table-wrap"><table class="clients-table"><thead><tr><th>Cliente</th><th>Tipo</th><th><abbr title="Orçamentos">Orç.</abbr></th><th>Total fechado</th><th>Último serviço</th><th>Aniversário</th></tr></thead><tbody id="client-rows"><tr><td colspan="6" class="hint">Carregando clientes...</td></tr></tbody></table></div><aside class="client-profile" id="client-profile" aria-live="polite"></aside></div>`;
     const icon=root.EcoWorkspace?.icon;if(icon)for(const el of $('#clients-view').querySelectorAll('[data-icon]'))el.innerHTML=icon(el.dataset.icon);
+    EcoFilters.mount($('#clients-filters'),{scope:'clients',dims:['origin','period','service','tag','status'],allowAll:true,onChange:()=>renderList()});
     $('#client-search').addEventListener('input',e=>{query=e.target.value.trim().toLowerCase();renderList()});
     $('#client-filter').addEventListener('click',e=>{const b=e.target.closest('button');if(b){filter=b.dataset.f;renderList()}});
     $('#client-rows').addEventListener('click',e=>{if(e.target.closest('[data-retry-clients]'))return load().catch(()=>null);const tr=e.target.closest('tr[data-id]');if(tr)select(tr.dataset.id)});
@@ -37,12 +39,20 @@
   }
   function matches(c){
     const hay=[c.name,c.phone,c.email,c.neighborhood,c.city,c.address].join(' ').toLowerCase();if(query&&!hay.includes(query))return false;
-    if(filter==='birthday'){const n=daysToBirthday(c.birthday);return n!==null&&n<=30}
-    if(filter!=='all')return (c.tags||[]).includes(filter);return true;
+    if(filter==='birthday'){const n=daysToBirthday(c.birthday);if(n===null||n>30)return false}
+    return barMatch(c);
+  }
+  // Um cliente aparece se pelo menos um orçamento dele atende a todos os filtros da barra.
+  // O tipo de cliente é a tag da ficha. Sem filtros ativos, aparecem todos, inclusive os sem orçamento.
+  function barMatch(c){
+    if(!EcoFilters.active('clients'))return true;
+    const f=EcoFilters.get('clients'),tags=c.tags||[];
+    if(!(c.facets||[]).length)return f.origin==='all'&&!f.services.length&&!f.statuses.length&&!f.from&&EcoFilters.match('clients',{tags});
+    return c.facets.some(x=>EcoFilters.match('clients',{...x,tags}));
   }
   function renderList(){
-    const counts={all:clients.length,birthday:clients.filter(c=>{const n=daysToBirthday(c.birthday);return n!==null&&n<=30}).length};for(const t of tags)counts[t.id]=clients.filter(c=>(c.tags||[]).includes(t.id)).length;
-    $('#client-filter').innerHTML=[['all','Todos'],...tags.map(t=>[t.id,t.label.charAt(0)+t.label.slice(1).toLowerCase()]),['birthday','Aniversariantes']].map(([id,l])=>`<button type="button" data-f="${esc(id)}" aria-pressed="${filter===id}">${esc(l)} <span class="n">${counts[id]||0}</span></button>`).join('');
+    const shown=clients.filter(barMatch),counts={all:shown.length,birthday:shown.filter(c=>{const n=daysToBirthday(c.birthday);return n!==null&&n<=30}).length};for(const t of tags)counts[t.id]=clients.filter(c=>(c.tags||[]).includes(t.id)).length;
+    $('#client-filter').innerHTML=[['all','Todos'],['birthday','Aniversariantes']].map(([id,l])=>`<button type="button" data-f="${esc(id)}" aria-pressed="${filter===id}">${esc(l)} <span class="n">${counts[id]||0}</span></button>`).join('');
     const list=clients.filter(matches);
     $('#client-rows').innerHTML=list.length?list.map(c=>{const n=daysToBirthday(c.birthday);return `<tr data-id="${esc(c.id)}" tabindex="0" class="${c.id===selected?'sel':''}" aria-selected="${c.id===selected}"><td><div class="who2"><span class="av">${esc(initials(c.name))}${EcoAuth.online?EcoAvatar.img('clients',c.id):''}</span><div><b>${esc(c.name)}</b><small>${esc(c.neighborhood||c.city||c.phone||'')}</small></div></div></td><td>${tagChips(c.tags)||'<span class="muted">—</span>'}</td><td>${c.quoteCount}</td><td><b>${c.closedCents?money(c.closedCents):'—'}</b></td><td>${c.lastServiceDate?br(c.lastServiceDate):'—'}${c.nextServiceDate?`<small class="muted next">próximo ${br(c.nextServiceDate)}</small>`:''}</td><td>${n!==null&&n<=30?'<span class="bday" title="Aniversário em breve" aria-label="Aniversário em breve">🎂</span> ':''}${bday(c.birthday)}</td></tr>`}).join(''):`<tr><td colspan="6" class="hint">${clients.length?'Nenhum cliente encontrado.':'Os clientes aparecem aqui assim que você salvar o primeiro orçamento.'}</td></tr>`;
   }

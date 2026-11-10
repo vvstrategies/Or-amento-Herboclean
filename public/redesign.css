@@ -977,3 +977,91 @@ body.sidebar-collapsed .sidebar .sidebar-new{width:48px;padding:0;justify-conten
 .sidebar-toggle:active{transform:scale(.92);background:color-mix(in srgb,var(--r-accent) 18%,transparent)!important;box-shadow:0 0 0 1.5px color-mix(in srgb,var(--r-accent) 70%,transparent),inset 0 2px 5px rgba(0,0,0,.3)}
 @media(prefers-reduced-motion:reduce){.sidebar .sidebar-new,.sidebar-toggle{transition:none}}
 .sidebar-toggle .chev{stroke:currentColor;stroke-width:1.8}
+
+/* ---------- Início: barra de filtros no lugar do título ---------- */
+.home-top{padding:2px 0 0;align-items:center}
+.home-top .fbar-slot{flex:1 1 auto;justify-content:flex-start}
+.home-range{color:var(--r-muted);font-size:12px;max-width:360px;text-align:right}
+/* ---------- Início: card Tráfego pago (antes "Campanhas") ---------- */
+.camp.tp{display:flex;flex-direction:column;gap:10px;background:radial-gradient(420px 260px at 0% 0%,color-mix(in srgb,var(--r-primary) 70%,#0b6b52),transparent 70%),linear-gradient(160deg,#0b3d31 0%,#06261f 55%,#041a15 100%)}
+.tp-head{display:flex;align-items:center;gap:12px}
+.tp-head>div{flex:1;min-width:0}
+.tp-head h2{margin:0;font-size:12.5px!important;letter-spacing:.14em;text-transform:uppercase;color:#e7d38a!important}
+.tp-head p{margin:2px 0 0;color:var(--r-on-dark-muted);font-size:12px}
+.tp-ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);flex:none}
+.tp-ic svg{width:20px;height:20px;fill:none;stroke:#e7d38a;stroke-width:1.8}
+.tp-go{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);display:grid;place-items:center;cursor:pointer;flex:none;transition:background .18s}
+.tp-go:hover{background:rgba(255,255,255,.15)}
+.tp-go svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round}
+.tp-total{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.tp-total small,.tp-roi small{display:block;color:var(--r-on-dark-muted);font-size:11.5px}
+.tp-total strong{display:block;font-size:30px;font-weight:800;line-height:1.1;color:#f3dd96;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tp-roi{text-align:right}
+.tp-roi .tp-pill{font-size:14px;padding:5px 11px;margin-top:4px}
+.tp-pill{display:inline-block;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;background:rgba(255,255,255,.1);color:#fff}
+.tp-pill.up{background:rgba(94,196,182,.18);color:#8fe3d6}
+.tp-pill.down{background:rgba(242,120,104,.18);color:#ffb3a7}
+.tp-split{display:flex;gap:4px;height:8px}
+.tp-split i{display:block;width:var(--w);min-width:4px;border-radius:99px;transform-origin:left;animation:r-grow .9s var(--r-ease) both}
+.tp-bar-meta{background:linear-gradient(90deg,#3fb5a3,#7fd8c8)}
+.tp-bar-google{background:linear-gradient(90deg,#b9934a,#ecd18a)}
+.tp-legend{display:flex;justify-content:space-between;gap:10px;font:500 11.5px/1.3 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--r-on-dark-muted);margin-top:-4px}
+.tp-cards{flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tp-cards.one{grid-template-columns:1fr}
+.tp-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:var(--r-md);padding:12px 14px;display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0}
+.tp-card-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tp-name{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:#fff;font-size:13.5px}
+.tp-name .brand-chip.sm{width:18px;height:18px;background:#fff;border-radius:6px;padding:2px}
+.tp-roas{margin:0;font-size:22px;font-weight:800;color:#f3dd96;line-height:1.15;font-variant-numeric:tabular-nums}
+.tp-roas.low{color:#ffb3a7}
+.tp-roas small{font-size:11.5px;font-weight:500;color:var(--r-on-dark-muted);margin-left:6px}
+.tp-meta{margin:0;font:500 11.5px/1.4 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--r-on-dark-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tp-note{margin:0;font-size:11px;color:var(--r-on-dark-muted)}
+/* ---------- Início: cada serviço com sua cor ---------- */
+.hcard .svc .t svg{color:var(--svc,var(--r-primary));background:color-mix(in srgb,var(--svc,var(--r-primary)) 13%,#fff)}
+.hcard .svc .bar{background:color-mix(in srgb,var(--svc,var(--r-primary)) 9%,#fff)}
+.hcard .svc .bar b{width:var(--w);background:linear-gradient(90deg,color-mix(in srgb,var(--svc,var(--r-primary)) 55%,#fff),var(--svc,var(--r-primary)));transform-origin:left;animation:r-grow .9s var(--r-ease) .15s both}
+.funnel .bar b{transform-origin:left;animation:r-grow .9s var(--r-ease) .1s both}
+@keyframes r-grow{from{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.tp-split i,.hcard .svc .bar b,.funnel .bar b{animation:none}}
+@media (max-width:760px){.home-range{display:none}.tp-total strong{font-size:24px}.tp-roas{font-size:18px}.tp-card{padding:10px 12px}}
+.home-top{flex-wrap:nowrap}
+.home-top .fbar-slot{flex:0 1 auto}
+.home-tools{flex:none}
+.icon-only{width:42px;height:42px;padding:0!important;display:inline-grid;place-items:center;border-radius:50%!important}
+.icon-only svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.home-top{flex-wrap:nowrap}
+.home-top .fbar-slot{flex:0 1 auto}
+.home-tools{flex:none}
+.icon-only{width:42px;height:42px;padding:0!important;display:inline-grid;place-items:center;border-radius:50%!important}
+.icon-only svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* Título grande removido: a barra de filtros ocupa o topo das telas */
+.page-heading-bar{align-items:center;margin-bottom:12px;flex-wrap:nowrap}
+.page-heading-bar .fbar-slot{flex:0 1 auto;min-width:0;justify-content:flex-start}
+.page-heading-bar .page-actions{flex:none}
+@media (max-width:1100px){.page-heading-bar{flex-wrap:wrap}.page-heading-bar .fbar-slot{order:2;flex-basis:100%}}
+/* ---------- Kanban (item 6): base das colunas sem corte seco ----------
+   A coluna recorta o conteúdo no próprio arredondamento; o fim da lista ganha um degradê
+   em vez do corte reto do card. O hover (056a643) continua com folga lateral e no topo. */
+.kanban .kcol-body{margin-bottom:0;padding-bottom:28px;-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 30px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 30px),transparent)}
+.kanban .kcol-body:not(:has(.proposal-card:nth-child(2))){-webkit-mask-image:none;mask-image:none}
+/* Orçamentos ocupa a altura da janela: só as colunas rolam por dentro */
+@media(min-width:1151px) and (min-height:700px){
+  .library-view:not([hidden]){display:flex;flex-direction:column;height:calc(100vh - 32px);box-sizing:border-box}
+  .library-view .kanban{flex:1;min-height:0;grid-template-rows:minmax(0,1fr)}
+  .library-view .kcol{max-height:100%}
+  .library-view .library-footnote{margin-top:8px}
+}
+/* Toast acima da barra de seleção em massa */
+body:has(#bulk-bar:not([hidden])) #toast{bottom:104px}
+/* Clientes ocupa a altura da janela: a tabela e a ficha rolam por dentro */
+@media(min-width:1151px) and (min-height:700px){
+  .clients-view:not([hidden]){display:flex;flex-direction:column;height:calc(100vh - 32px);box-sizing:border-box}
+  .clients-view .clients-layout{flex:1;min-height:0;align-items:stretch}
+  .clients-view .clients-table-wrap{overflow:auto;min-height:0;scrollbar-width:thin}
+  .clients-view .clients-table thead th{position:sticky;top:0;z-index:2;background:var(--r-paper)}
+  .clients-view .client-profile{position:static;overflow:auto;min-height:0;scrollbar-width:thin;padding-bottom:4px}
+}
+.dre-top.fin-top{flex-wrap:nowrap;margin-bottom:14px}
+.dre-top.fin-top .fbar-slot{flex:0 1 auto;min-width:0;justify-content:flex-start}
+.dre-top.fin-top .dre-actions{flex:none;flex-wrap:nowrap}

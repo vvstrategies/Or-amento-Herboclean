@@ -83,10 +83,22 @@ fixture.stdout.on('data',async data=>{if(!data.toString().includes('Fixture read
 
   // Kanban: filtros
   await evaluate("location.hash='#orcamentos'");await until("document.querySelectorAll('#board .proposal-card').length===6");
-  const count=async f=>{await click(`[data-tag-filter="${f}"]`);await pause(150);return evaluate("[...document.querySelectorAll('#board .proposal-card b')].map(b=>b.textContent).sort().join('|')")};
-  assert.equal(await count('origin:google'),'Corp Google|Res Google|Versão Dois');assert.equal(await count('origin:meta'),'Corp Meta|Res Meta');
-  assert.equal(await count('corporativo'),'Corp Google|Corp Meta');assert.equal(await count('residencial'),'Res Google|Res Meta|Versão Dois');
-  await count('origin:google');await screenshot('kanban-filtro-google');assert.equal((await count('')).split('|').length,6);
+  // Barra única de filtros (filters.js): origem e tipo de cliente combináveis.
+  const names=()=>evaluate("[...document.querySelectorAll('#board .proposal-card b')].map(b=>b.textContent).sort().join('|')");
+  const origin=async id=>{await click(`#quotes-filters [data-fb-origin="${id}"]`);await pause(150);return names()};
+  const tag=async id=>{await click('#quotes-filters [data-fb-menu="tag"]');await until("!!document.querySelector('.fb-menu')");await click(`.fb-menu [data-id="${id}"]`);await evaluate("document.body.click()");await pause(150);return names()};
+  assert.equal(await origin('google'),'Corp Google|Res Google|Versão Dois');assert.equal(await origin('meta'),'Corp Meta|Res Meta');
+  await origin('all');assert.equal(await tag('corporativo'),'Corp Google|Corp Meta');
+  assert.equal(await origin('google'),'Corp Google','filtros combinados: Google + Corporativo');await screenshot('kanban-filtro-google-corporativo');
+  assert.equal(await tag('corporativo'),'Corp Google|Res Google|Versão Dois','desmarcar o tipo mantém a origem');
+  assert.equal(await tag('residencial'),'Res Google|Versão Dois');await tag('residencial');
+  assert.equal((await origin('all')).split('|').length,6);
+  // Calendário de intervalo: dois cliques + Aplicar viram o período personalizado; "Tudo" volta a mostrar todos.
+  await click('#quotes-filters [data-fb-calendar]');await until("!!document.querySelector('.fb-calendar')");
+  const days=await evaluate("[...document.querySelectorAll('.fb-calendar .fb-day:not(.out)')].map(b=>b.dataset.day)");
+  await click(`.fb-calendar [data-day="${days[0]}"]`);await click(`.fb-calendar [data-day="${days.at(-1)}"]`);await screenshot('calendario-intervalo');await click('.fb-calendar [data-apply]');
+  const range=await evaluate("EcoFilters.get('quotes')");assert.equal(range.preset,'custom');assert.equal(range.from,days[0]);assert.equal(range.to,days.at(-1));
+  await click('#quotes-filters [data-fb-preset="all"]');await pause(150);assert.equal((await names()).split('|').length,6);
 
   // Excluir pelo card: versão atual → anterior promovida; versão única → arquivada; sem refresh manual.
   await click('#select-mode');await evaluate("document.querySelector('[data-pick]').closest('.proposal-card')&&[...document.querySelectorAll('#board .proposal-card')].find(c=>c.textContent.includes('Versão Dois')).querySelector('[data-pick]').click()");
