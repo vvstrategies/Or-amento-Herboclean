@@ -161,10 +161,40 @@ async function expenseList(loadSerial=serial){
  $('#dre-search-apply').onclick=()=>{filters={search:$('#dre-search').value,category:$('#dre-category-filter').value,status:$('#dre-status-filter').value,scope:$('#dre-scope-filter').value};page=1;load();};
  $('#dre-prev').onclick=()=>{page--;load()};$('#dre-next').onclick=()=>{page++;load()};host.querySelectorAll('[data-edit-expense]').forEach(b=>b.onclick=()=>expenseForm(b.dataset.editExpense));
 }
+// Comprovante (foto ou PDF): o servidor guarda o arquivo e lê valor, data, fornecedor e categoria.
+// Os campos lidos ficam destacados para revisão; nada é salvo sem clicar em Salvar.
+function receiptBlock(e){
+ const has=!!e.receiptId,link=has?'<a class="dre-receipt-link" href="/api/finance/receipts/'+encodeURIComponent(e.receiptId)+'" target="_blank" rel="noopener">Ver comprovante</a>':'';
+ return '<div class="dre-receipt wide"><input type="hidden" name="receiptId" value="'+esc(e.receiptId||'')+'">'
+  +'<label class="dre-receipt-drop"><input type="file" id="dre-receipt-file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden><span class="dre-receipt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h4"/></svg></span><span><b>'+(has?'Trocar comprovante':'Anexar comprovante')+'</b><small>Foto ou PDF até 10 MB · preenchemos os campos para você conferir</small></span></label>'
+  +link+'<p class="dre-receipt-status" role="status" aria-live="polite"></p></div>';
+}
+function bindReceipt(d){
+ const input=$('#dre-receipt-file',d);if(!input)return;const f=$('form',d),status=$('.dre-receipt-status',d);
+ input.onchange=async()=>{
+  const file=input.files[0];if(!file)return;
+  if(file.size>10*1024*1024){status.textContent='O comprovante deve ter até 10 MB.';return}
+  status.className='dre-receipt-status busy';status.textContent='Lendo o comprovante… (pode levar alguns segundos)';
+  try{
+   const dataUrl=await new Promise((ok,fail)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=fail;r.readAsDataURL(file)});
+   const out=await EcoAuth.api('/api/finance/receipts',{method:'POST',body:JSON.stringify({name:file.name,dataUrl})});
+   f.elements.receiptId.value=out.receipt.id;const x=out.fields,filled=[];
+   const put=(name,v)=>{const el=f.elements[name];if(!el||v==null||v==='')return;el.value=v;el.classList.add('from-receipt');filled.push(name)};
+   put('amount',x.amountCents!=null?value(x.amountCents):null);put('competence',x.competence);put('supplier',x.supplier);
+   if(!f.elements.description.value.trim())put('description',x.description);
+   if(x.categoryId&&[...f.elements.categoryId.options].some(o=>o.value===x.categoryId))put('categoryId',x.categoryId);
+   if(x.date&&f.elements.dueDate)put('dueDate',x.date);
+   const link=d.querySelector('.dre-receipt-link')||Object.assign(document.createElement('a'),{className:'dre-receipt-link',target:'_blank',rel:'noopener',textContent:'Ver comprovante'});link.href='/api/finance/receipts/'+encodeURIComponent(out.receipt.id);status.before(link);
+   status.className='dre-receipt-status '+(out.warning?'warn':'ok');
+   status.textContent=out.warning||('Lido do comprovante: '+[x.amountCents!=null&&'valor'+(x.amountHow==='maior valor'?' (maior valor encontrado)':''),x.date&&'data',x.supplier&&'fornecedor',x.categoryId&&'categoria'].filter(Boolean).join(', ')+'. Confira os campos destacados antes de salvar.');
+  }catch(err){status.className='dre-receipt-status warn';status.textContent=err.message}
+ };
+}
 async function expenseForm(id){
  if(demo)return;try{
  const e=id?await api('/expenses/'+id):{description:'',amountCents:0,competence:from,status:'planned',nature:'operating',costType:'fixed'};
- const cats=categories.filter(c=>c.active||c.id===e.categoryId),d=dialog(id?'Detalhes da despesa':'Nova despesa','<form class="dre-form">'+field('description','Descrição',e.description,'text','required maxlength="240"')+select('categoryId','Categoria',cats.map(c=>[c.id,c.name]),e.categoryId)+field('amount','Valor (R$)',value(e.amountCents),'text','required inputmode="decimal"')+field('competence','Competência',e.competence,'month','required')+select('nature','Classificação',[['operating','Despesa operacional'],['investment','Investimento'],['deduction','Dedução de receita']],e.nature)+select('costType','Comportamento',[['fixed','Fixa'],['variable','Variável']],e.costType)+select('status','Status',Object.entries(labels).filter(([k])=>['planned','confirmed','paid','cancelled'].includes(k)),e.status)+field('dueDate','Vencimento (opcional)',e.dueDate||'','date')+field('paidAt','Data de pagamento',e.paidAt||'','date')+field('supplier','Fornecedor (opcional)',e.supplier||'','text','maxlength="240"')+select('deductionType','Tipo de dedução',[['discount','Desconto concedido'],['refund','Estorno'],['other','Outra dedução justificada']],e.deductionType||'discount')+select('vehicleComponent','Componente de veículo (se aplicável)',[['','Não se aplica'],...Object.entries(components)],e.vehicleComponent||'')+'<label class="wide">Observações<textarea name="notes" maxlength="2000">'+esc(e.notes)+'</textarea></label>'+(id?field('reason','Motivo da alteração','','text','required maxlength="500"'):'')+'<p class="dre-note wide">Reconhecida: obrigação da competência, ainda que paga em outro mês. Investimentos ficam fora do resultado operacional. Deduções devem reduzir a receita, não representar despesas comuns.</p><p id="dre-duplicate-warning" class="dre-alert wide" hidden></p>'+footer(id?'Salvar alteração':'Cadastrar despesa')+'</form>');
+ const cats=categories.filter(c=>c.active||c.id===e.categoryId),d=dialog(id?'Detalhes da despesa':'Nova despesa','<form class="dre-form">'+receiptBlock(e)+field('description','Descrição',e.description,'text','required maxlength="240"')+select('categoryId','Categoria',cats.map(c=>[c.id,c.name]),e.categoryId)+field('amount','Valor (R$)',value(e.amountCents),'text','required inputmode="decimal"')+field('competence','Competência',e.competence,'month','required')+select('nature','Classificação',[['operating','Despesa operacional'],['investment','Investimento'],['deduction','Dedução de receita']],e.nature)+select('costType','Comportamento',[['fixed','Fixa'],['variable','Variável']],e.costType)+select('status','Status',Object.entries(labels).filter(([k])=>['planned','confirmed','paid','cancelled'].includes(k)),e.status)+field('dueDate','Vencimento (opcional)',e.dueDate||'','date')+field('paidAt','Data de pagamento',e.paidAt||'','date')+field('supplier','Fornecedor (opcional)',e.supplier||'','text','maxlength="240"')+select('deductionType','Tipo de dedução',[['discount','Desconto concedido'],['refund','Estorno'],['other','Outra dedução justificada']],e.deductionType||'discount')+select('vehicleComponent','Componente de veículo (se aplicável)',[['','Não se aplica'],...Object.entries(components)],e.vehicleComponent||'')+'<label class="wide">Observações<textarea name="notes" maxlength="2000">'+esc(e.notes)+'</textarea></label>'+(id?field('reason','Motivo da alteração','','text','required maxlength="500"'):'')+'<p class="dre-note wide">Reconhecida: obrigação da competência, ainda que paga em outro mês. Investimentos ficam fora do resultado operacional. Deduções devem reduzir a receita, não representar despesas comuns.</p><p id="dre-duplicate-warning" class="dre-alert wide" hidden></p>'+footer(id?'Salvar alteração':'Cadastrar despesa')+'</form>');
+ bindReceipt(d);
  const f=$('form',d),toggle=()=>{const paid=f.elements.status.value==='paid';f.elements.paidAt.parentElement.hidden=!paid;f.elements.paidAt.required=paid;if(!paid)f.elements.paidAt.value='';f.elements.deductionType.parentElement.hidden=f.elements.nature.value!=='deduction';};f.elements.status.onchange=toggle;f.elements.nature.onchange=toggle;toggle();
  const settings=await api('/settings');f.elements.vehicleComponent.onchange=()=>{const warn=$('#dre-duplicate-warning',d);warn.hidden=!settings.vehicleComponents.includes(f.elements.vehicleComponent.value);warn.textContent='Este componente já está incluído no custo por km. Confira se lançar esta despesa duplicaria o mesmo custo.';};f.elements.vehicleComponent.onchange();
  if(e.status==='cancelled'){for(const el of f.elements)el.disabled=true;$('.dre-note',d).textContent='Lançamento cancelado, preservado para consulta.';return;}

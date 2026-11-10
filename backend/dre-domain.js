@@ -18,7 +18,7 @@ export function expenseInput(raw){
  if(nature==='deduction'&&!['discount','refund','other'].includes(deductionType))throw fail(400,'Classifique a dedução de receita.');
  const notes=text(raw.notes,2000);if(nature==='deduction'&&deductionType==='other'&&!notes)throw fail(400,'Justifique a dedução de receita em observações.');
  const paidAt=date(raw.paidAt);if(status==='paid'&&!paidAt)throw fail(400,'Informe a data de pagamento.');if(status!=='paid'&&paidAt)throw fail(400,'Use o status Paga para informar pagamento.');
- return {description,categoryId:text(raw.categoryId,140),amountCents:cents(raw.amountCents),competence:month(raw.competence),dueDate:date(raw.dueDate),paidAt,status,nature,costType,deductionType,notes,supplier:text(raw.supplier,240),vehicleComponent:text(raw.vehicleComponent,80)};
+ return {description,categoryId:text(raw.categoryId,140),amountCents:cents(raw.amountCents),competence:month(raw.competence),dueDate:date(raw.dueDate),paidAt,status,nature,costType,deductionType,notes,supplier:text(raw.supplier,240),vehicleComponent:text(raw.vehicleComponent,80),...(raw.receiptId?{receiptId:text(raw.receiptId,64)}:{})};
 }
 export function aggregate(services,expenses,tax){
  const gross=sum(services.map(s=>s.revenue)),deductionEntries=expenses.filter(e=>e.nature==='deduction'),otherDeductions=sum(deductionEntries.map(e=>e.amountCents));

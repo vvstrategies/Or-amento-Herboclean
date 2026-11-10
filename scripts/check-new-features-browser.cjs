@@ -28,6 +28,8 @@ fixture.stdout.on('data',async data=>{if(!data.toString().includes('Fixture read
   await set('#auth-password','novidades-browser-test');await evaluate("document.querySelector('#auth-form').requestSubmit()");await until("!!document.querySelector('#company-onboarding')");
   await set('#company-onboarding [name=name]','Herbo Teste');await set('#company-onboarding [name=location]','Santo André');await set('#company-onboarding [name=phone]','11999990000');await set('#company-onboarding [name=proposalPrefix]','HERBO');
   await evaluate("document.querySelector('#company-onboarding').requestSubmit()");await until("document.body.dataset.workspaceReady==='true'");
+  // A tela de acesso (com a marca) precisa sumir de fato depois do login: nada pode cobrir o app.
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('#auth-screen')).display"),'none','tela de acesso escondida após entrar');
   // Orçamentos de teste: Residencial/Corporativo × Google/Meta, um sem origem e um com duas versões.
   await evaluate(`(async()=>{const s=await EcoAuth.api('/api/settings');const mk=async(client,tags,origin,phone)=>{const q=EcoModel.quote(s);Object.assign(q,{client,address:'Rua A, 1 - Santo André',clientContact:phone,tags,origin});q.items=[{...EcoModel.item(),price:150}];return EcoAuth.api('/api/proposals/'+q.id,{method:'PUT',body:JSON.stringify(q)})};
     await mk('Res Google',['residencial'],'google','(11) 91111-0001');await mk('Res Meta',['residencial'],'meta','(11) 91111-0002');await mk('Corp Google',['corporativo'],'google','(11) 91111-0003');await mk('Corp Meta',['corporativo'],'meta','(11) 91111-0004');await mk('Sem Origem',[],'','(11) 91111-0005');

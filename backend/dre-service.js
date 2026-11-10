@@ -36,7 +36,9 @@ export class DreService{
 
   if(old&&JSON.stringify({...old,...input})!==JSON.stringify(old)&&!text(raw.reason))throw fail(400,'Informe o motivo da alteração para o histórico.');
   const value={...input,id:old?.id||crypto.randomUUID(),revision:(old?.revision||0)+1,ruleId:old?.ruleId||null,createdAt:old?.createdAt||now(),updatedAt:now(),createdBy:old?.createdBy||'administrator',updatedBy:'administrator'};
-  this.repo.transaction(()=>{this.writeExpense(value);this.audit('expense',value.id,old,{...value,reason:text(raw.reason)});});
+  // Comprovante (foto/PDF) enviado antes: precisa existir e passa a pertencer a esta despesa.
+  if(value.receiptId&&!this.receipts?.get(value.receiptId))throw fail(400,'Comprovante não encontrado. Envie o arquivo de novo.');
+  this.repo.transaction(()=>{this.writeExpense(value);if(value.receiptId)this.receipts.attach(value.receiptId,value.id);this.audit('expense',value.id,old,{...value,reason:text(raw.reason)});});
   return {...value,warnings:this.warnings(value)};
  }
  warnings(e){const s=this.settings(),warnings=[];if(e.vehicleComponent&&s.vehicleComponents.includes(e.vehicleComponent))warnings.push('Este componente já está no custo por km. Confira se há duplicidade com custos dos atendimentos.');if(e.nature==='operating'&&/imposto|tributo|das\b/i.test(e.description)&&s.taxRateBps>0)warnings.push('Há imposto gerencial configurado. Confira se este lançamento repetiria a mesma dedução.');return [...warnings,...(this.externalWarnings?.(e)||[])];}

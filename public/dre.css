@@ -49,3 +49,18 @@ i.mc-r{background:#0e7a5a}i.mc-s{background:#7a9a00}
 @media (prefers-reduced-motion:reduce){.mc-pos i,.mc-neg i{animation:none}}
 .mc-pos i b{font-style:normal}.mc-col i{font-style:normal}
 .fin-tabs-row{flex-wrap:nowrap!important;min-width:0}.fin-tabs-row .dre-note{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fin-tabs-row .dre-tabs{flex:none}
+/* Comprovante na despesa (item 8) */
+.dre-receipt{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:12px;border:1.5px dashed color-mix(in srgb,var(--r-primary,#044c3a) 25%,#fff);border-radius:16px;background:color-mix(in srgb,var(--r-accent,#a7cf21) 7%,#fff)}
+.dre-receipt-drop{display:flex!important;align-items:center;gap:12px;cursor:pointer;flex:1;min-width:220px;margin:0!important}
+.dre-receipt-drop b{display:block;font-size:13.5px;color:var(--r-ink,#0f1d18)}
+.dre-receipt-drop small{display:block;font-size:11.5px;color:var(--r-muted,#64748b);font-weight:400}
+.dre-receipt-drop:focus-within{outline:2px solid var(--r-accent,#a7cf21);outline-offset:4px;border-radius:12px}
+.dre-receipt-ic{width:40px;height:40px;border-radius:12px;background:var(--r-primary,#044c3a);display:grid;place-items:center;flex:none}
+.dre-receipt-ic svg{width:20px;height:20px;fill:none;stroke:#d4f26a;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.dre-receipt-link{font-weight:700;font-size:12.5px;color:var(--r-primary,#044c3a)}
+.dre-receipt-status{flex-basis:100%;margin:0;font-size:12px;color:var(--r-muted,#64748b)}
+.dre-receipt-status:empty{display:none}
+.dre-receipt-status.ok{color:#1f7a4a}.dre-receipt-status.warn{color:#946500}
+.dre-receipt-status.busy::before{content:"";display:inline-block;width:10px;height:10px;margin-right:8px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:dre-spin .8s linear infinite;vertical-align:-1px}
+@keyframes dre-spin{to{transform:rotate(360deg)}}
+.dre-form .from-receipt{box-shadow:0 0 0 2px color-mix(in srgb,var(--r-accent,#a7cf21) 80%,transparent);background:color-mix(in srgb,var(--r-accent,#a7cf21) 9%,#fff)}

@@ -10,6 +10,7 @@ import {registerProfit} from './profit-routes.js';
 import {CommercialService,registerCommercial} from './commercial.js';
 import {AvatarService,registerAvatars} from './avatars.js';
 import {DreService} from './dre-service.js';
+import {ReceiptStore,registerReceipts} from './receipts.js';
 import {registerDre} from './dre-routes.js';
 import {financialDemo} from './finance-demo.js';
 import {FinanceService} from './finance-service.js';
@@ -73,7 +74,7 @@ export function createApp(options={}){
   app.post('/api/onboarding',wrap(async(req,res)=>{const value=await finishSetup(repo,keepLogo(req.body,repo.config('companySetupDraft')));await finance.rememberCompanyAddress(value.company?.location||'').catch(()=>null);res.json(value)}));
   app.use('/api',(req,res,next)=>completed(repo)?next():res.status(428).json({code:'COMPANY_SETUP_REQUIRED',error:'Configure a empresa para continuar.'}));
   registerAsaas(app,asaas,wrap);
-  registerDre(app,dre,wrap);
+  dre.receipts=new ReceiptStore(repo);registerReceipts(app,{store:dre.receipts,dre},wrap);registerDre(app,dre,wrap);
   registerIntegrations(app,integrations,wrap);
   registerProfit(app,profit,wrap);
   registerCommercial(app,commercial,wrap);registerAvatars(app,new AvatarService(repo,commercial),wrap);
