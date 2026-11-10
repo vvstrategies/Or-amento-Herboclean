@@ -1,3 +1,46 @@
 .profit-private{min-width:0}.profit-actions,.profit-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}.profit-tabs{border-bottom:1px solid var(--border,#e2e8f0);padding-bottom:10px}.profit-tabs button{padding:9px 12px;border-radius:8px;border:1px solid transparent;background:transparent;cursor:pointer}.profit-tabs button[aria-pressed=true]{border-color:var(--green,#2563eb);color:var(--green,#2563eb);background:var(--pale,#f1f5f9)}.profit-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) auto;gap:10px;align-items:end}.profit-filters label{display:grid;gap:5px;font-size:12px}.profit-filters select{max-width:100%;min-width:0}.profit-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:18px 0}.profit-metric{padding:22px;border:1px solid var(--border,#dbe2eb);border-radius:15px;text-align:left;background:white;cursor:pointer;display:grid;gap:10px;min-width:0}.profit-metric small{color:var(--muted,#64748b)}.profit-metric strong{font-size:24px;color:var(--green,#2563eb)}.profit-private .dre-panel{margin:16px 0}.profit-private td small{display:block;font-size:11px;margin:5px 0}.profit-goal{border-top:1px solid var(--border,#e2e8f0);padding:16px 0}.profit-components{display:grid;grid-template-columns:1fr 1fr;gap:12px}.profit-components[hidden]{display:none}.profit-other-row{display:grid;grid-template-columns:2fr 1fr auto;align-items:end;gap:10px;margin:12px 0}.profit-private .dre-table{white-space:nowrap}.profit-private input,.profit-private select{box-sizing:border-box;max-width:100%}#profit-settings-slot{margin-top:26px;padding-top:24px;border-top:1px solid var(--border,#ddd)}#profit-dialog{z-index:1200;max-height:90dvh;overflow:auto}#profit-dialog form footer{position:static}.profit-private .dre-table-wrap{max-width:100%;overflow:auto}@media(max-width:900px){.profit-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.profit-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.profit-metric{padding:15px}.profit-metric strong{font-size:20px}.profit-components{grid-template-columns:1fr}.profit-other-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}.profit-actions>*{flex:1}.profit-tabs{gap:4px}.profit-tabs button{padding:9px;font-size:12px}.profit-private .dre-grid{grid-template-columns:1fr}#profit-dialog{width:calc(100% - 24px);max-width:calc(100% - 24px);padding:18px}.profit-metrics{gap:8px}}@media print{.profit-private,#profit-dialog{display:none!important}}
 
 .profit-chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:16px 0}.profit-chart{display:block;width:100%;color:var(--green,#2563eb)}.profit-chart text{font-size:10px;fill:#64748b}.profit-chart-grid strong{font-size:12px}@media(max-width:520px){.profit-chart-grid{grid-template-columns:1fr}}
+
+/* Inteligência (itens 9 e 13): filtros compactos numa linha com as abas, visão geral em grade que cabe na janela */
+.profit-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--r-line,#e2e8f0);border-radius:999px;padding:5px 6px 5px 12px;box-shadow:0 10px 26px -18px color-mix(in srgb,var(--r-primary,#044c3a) 70%,transparent)}
+.profit-toolbar .profit-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.profit-toolbar .profit-filters label{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--r-muted,#64748b);font-weight:600}
+.profit-toolbar .profit-filters select{border:1px solid var(--r-line,#e2e8f0);border-radius:999px;padding:6px 26px 6px 10px;font-size:12.5px;font-weight:600;color:var(--r-ink,#0f1d18);background-color:var(--r-mint,#eef5f2);min-height:0;height:auto;width:auto;max-width:180px}
+.profit-toolbar .profit-tabs{margin:0 0 0 auto;border:0;padding:0;gap:2px;background:var(--r-mint,#eef5f2);border-radius:999px;padding:3px}
+.profit-toolbar .profit-tabs button{border:0;background:none;border-radius:999px;padding:7px 12px;font-size:12.5px;font-weight:600;color:var(--r-muted,#64748b);cursor:pointer}
+.profit-toolbar .profit-tabs button[aria-pressed=true]{background:var(--r-primary,#044c3a);color:#fff}
+.profit-coverage{margin:8px 4px 10px!important;font-size:12px}
+.profit-overview{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px}
+.profit-overview>.dre-panel,.po-side>.dre-panel{margin:0;padding:16px 18px}
+.profit-overview h3{margin:0 0 10px;font-size:14px}
+.po-metrics .profit-metrics{margin:0;gap:10px}
+.po-metrics .profit-metric{padding:12px 14px;gap:4px;border-radius:14px;background:color-mix(in srgb,var(--r-primary,#044c3a) 3%,#fff)}
+.po-metrics .profit-metric strong{font-size:20px;color:var(--r-ink,#0f1d18)}
+.po-metrics .profit-metric small{font-size:11.5px}
+.po-metrics>.dre-note{margin:10px 0 0;font-size:11.5px}
+.po-side{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:14px;min-height:0}
+.po-break strong{font-size:22px;color:var(--r-ink,#0f1d18)}
+.po-break p,.po-insights p{font-size:12.5px;margin:6px 0 0}
+@media(min-width:1151px) and (min-height:700px){
+ .dre-view:not([hidden]):has(#dre-content.profit-private){display:flex;flex-direction:column;height:calc(100vh - 32px);box-sizing:border-box}
+ .dre-view:has(#dre-content.profit-private) #dre-content{flex:1;min-height:0;display:flex;flex-direction:column}
+ #dre-content.profit-private #profit-analysis{flex:1;min-height:0;overflow:auto;scrollbar-width:thin}
+ #dre-content.profit-private:has(.profit-overview) #profit-analysis{overflow:hidden}
+ .profit-overview{height:100%;grid-template-rows:auto minmax(0,1fr)}
+ .po-insights,.po-trend,.po-goals{overflow:auto;min-height:0;scrollbar-width:thin}
+ #dre-content.profit-private>.dre-note:last-of-type,#profit-export{margin:6px 4px 0}
+}
+@media(max-width:1150px){.profit-overview{grid-template-columns:1fr}.profit-toolbar{border-radius:20px}.profit-toolbar .profit-tabs{margin-left:0;overflow-x:auto;max-width:100%}}
+/* ajuste: abas em cima, filtros compactos embaixo, sem caixa em pílula; grade com duas linhas proporcionais */
+.profit-toolbar{flex-direction:column;align-items:flex-start;gap:8px;background:none;border:0;box-shadow:none;padding:0;border-radius:0}
+.profit-toolbar .profit-tabs{order:-1;margin:0}
+.profit-toolbar .profit-filters label{font-size:11px}
+@media(min-width:1151px) and (min-height:700px){
+ .profit-overview{grid-template-rows:minmax(0,.95fr) minmax(0,1.05fr)}
+ .po-metrics{overflow:auto;min-height:0}
+ .po-metrics .profit-metric{padding:9px 12px}
+ .po-metrics .profit-metric strong{font-size:18px}
+}
+.profit-toolbar .profit-filters label{white-space:nowrap}
+@media(min-width:1151px) and (min-height:700px){.po-side{grid-template-rows:minmax(0,1fr) minmax(0,1fr)}.po-break{overflow:auto;min-height:0}.po-break strong{font-size:20px}}

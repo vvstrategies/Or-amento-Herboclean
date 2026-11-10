@@ -5,3 +5,47 @@
 @media print{.dre-view,.dre-dialog,.dre-settings{display:none!important}}
 
 @media(max-width:560px){.sidebar .nav-item{font-size:10px;padding:9px 6px;min-width:0}.sidebar .nav-item .ui-icon{display:none}}
+/* DRE detalhada: subabas no cabeçalho do card; a DRE ocupa a tela e rola por dentro (item 10) */
+.dre-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.dre-panel-head h2{margin:0}
+.dre-subtabs button{font-size:12.5px}
+@media(min-width:1151px) and (min-height:700px){
+ .dre-view:not([hidden]):has(.dre-statement){display:flex;flex-direction:column;height:calc(100vh - 32px);box-sizing:border-box}
+ .dre-view:has(.dre-statement) #dre-content{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px}
+ .dre-statement{flex:1;min-height:0;display:flex;flex-direction:column;margin:0}
+ .dre-statement>.dre-table-wrap{flex:1;min-height:0;overflow:auto}
+ .dre-statement .dre-table thead th{position:sticky;top:0;background:#fff;z-index:1}
+ .dre-evo-grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:16px}
+ .dre-evo-grid>.dre-panel{min-height:0;overflow:auto;margin:0}
+}
+.dre-evo-grid{display:grid;gap:16px}
+@media(max-width:1150px){.dre-evo-grid{grid-template-columns:1fr}}
+.dre-evo-grid>.dre-panel{box-shadow:none;border:1px solid color-mix(in srgb,var(--r-primary) 10%,#fff)}
+.dre-monthly{display:flex;flex-direction:column}
+.dre-monthly .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.dre-monthly h2{margin:0 0 2px}
+.mc-legend{display:flex;gap:14px;font-size:12px;color:var(--r-muted)}
+.mc-legend span,.mc-tip span{display:inline-flex;align-items:center;gap:6px}
+.mc-legend i,.mc-tip i{width:10px;height:10px;border-radius:3px;display:inline-block}
+i.mc-r{background:#0e7a5a}i.mc-s{background:#7a9a00}
+.mchart{flex:1;min-height:220px;display:grid;grid-template-columns:auto 1fr;gap:10px;margin-top:14px;padding-bottom:22px}
+.mc-axis{position:relative;width:64px;font-size:11px;color:var(--r-muted);font-variant-numeric:tabular-nums}
+.mc-axis span{position:absolute;right:0;transform:translateY(-50%);white-space:nowrap}
+.mc-plot{position:relative;display:flex;gap:6px;align-items:stretch;background:linear-gradient(to bottom,transparent calc(var(--zero) - 1px),color-mix(in srgb,var(--r-primary) 35%,#fff) calc(var(--zero) - 1px),color-mix(in srgb,var(--r-primary) 35%,#fff) var(--zero),transparent var(--zero)),repeating-linear-gradient(to bottom,color-mix(in srgb,var(--r-primary) 7%,#fff) 0 1px,transparent 1px 25%)}
+.mc-col{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;border-radius:8px;outline:none;cursor:default}
+.mc-col:hover,.mc-col:focus-visible{background:color-mix(in srgb,var(--r-primary) 5%,transparent)}
+.mc-col:focus-visible{box-shadow:inset 0 0 0 2px var(--r-accent)}
+.mc-pos,.mc-neg{display:flex;justify-content:center;gap:2px;padding:0 18%}
+.mc-pos{align-items:flex-end}.mc-neg{align-items:flex-start}
+.mc-pos i,.mc-neg i{flex:1;max-width:26px;position:relative;transform-origin:bottom;animation:r-grow-y .8s var(--r-ease,ease) both}
+.mc-pos i{border-radius:4px 4px 0 0}.mc-neg i{border-radius:0 0 4px 4px;transform-origin:top}
+.mc-pos i b{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:10.5px;color:var(--r-ink,#0f1d18);white-space:nowrap;padding-bottom:3px;font-weight:700}
+.mc-pos i.mc-s b{bottom:100%;}
+.mc-x{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--r-muted)}
+.mc-tip{position:absolute;top:6px;transform:translateX(-50%);background:#fff;border:1px solid var(--r-line);border-radius:12px;box-shadow:0 14px 30px -16px rgba(4,40,30,.45);padding:8px 11px;font-size:12px;display:flex;flex-direction:column;gap:3px;pointer-events:none;z-index:3;white-space:nowrap}
+.mc-tip[hidden]{display:none}
+.mc-tip em{font-style:normal;font-weight:700}
+@keyframes r-grow-y{from{transform:scaleY(0)}}
+@media (prefers-reduced-motion:reduce){.mc-pos i,.mc-neg i{animation:none}}
+.mc-pos i b{font-style:normal}.mc-col i{font-style:normal}
+.fin-tabs-row{flex-wrap:nowrap!important;min-width:0}.fin-tabs-row .dre-note{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fin-tabs-row .dre-tabs{flex:none}

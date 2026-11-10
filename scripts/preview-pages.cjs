@@ -42,7 +42,9 @@ fixture.stdout.on('data',async data=>{if(!data.toString().includes('Preview read
   for(const page of pages){
    for(const [w,h,mobile,tag] of onlyDesktop?[[1440,900,false,'desktop']]:[[1440,900,false,'desktop'],[390,844,true,'mobile']]){
     await size(w,h,mobile);await evaluate(`EcoWorkspace.navigate(${JSON.stringify(page)})`);await pause(900);
-    const file=await shot(page+'-'+tag);
+    // PREVIEW_AFTER: JS executado antes da foto (ex.: abrir uma aba); PREVIEW_TAG muda o nome do arquivo.
+    if(process.env.PREVIEW_AFTER){await evaluate(`(async()=>{${process.env.PREVIEW_AFTER}})()`);await pause(1200);}
+    const file=await shot(page+(process.env.PREVIEW_TAG?'-'+process.env.PREVIEW_TAG:'')+'-'+tag);
     const scroll=await evaluate("({doc:document.scrollingElement.scrollHeight-innerHeight,main:[...document.querySelectorAll('main.page-view:not([hidden])')].map(m=>m.scrollHeight-m.clientHeight)[0]||0})");
     report.push(`${page} ${tag}: ${file} · rolagem da página ${scroll.doc}px · main ${scroll.main}px`);
     if(process.env.PREVIEW_EVAL)report.push('  eval: '+JSON.stringify(await evaluate(process.env.PREVIEW_EVAL)));

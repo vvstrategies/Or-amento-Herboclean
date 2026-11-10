@@ -28,6 +28,8 @@ module.exports=async function({evaluate,click,set,until,screenshot,send,download
  await screenshot('dre-overview-desktop');
  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('dre-overview-mobile');
  await click('[data-dre-tab="statement"]');await until("!!document.querySelector('.dre-result')");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await evaluate("document.querySelector('.dre-result').scrollIntoView({block:'center'})");await screenshot('dre-statement-mobile');
+ // Subabas da DRE detalhada: categorias e o gráfico mensal ficam em "Despesas e evolução".
+ await click('[data-sub="evolution"]');await until("!!document.querySelector('.mchart .mc-col')");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('dre-evolution-mobile');
  await click('[data-category-drill]');await until("document.querySelector('#dre-dialog').open");assert.equal(await evaluate("document.querySelector('#dre-dialog').scrollWidth<=390"),true);await screenshot('dre-drill-mobile');await click('#dre-dialog [data-close]');
  await click('#dre-demo');await until("!document.querySelector('#dre-new-expense').disabled");
  await click('#dre-new-expense');await until("document.querySelector('#dre-dialog').open");assert.equal(await evaluate("document.querySelector('#dre-dialog').scrollWidth<=390"),true);await screenshot('dre-expense-mobile');await click('#dre-dialog [data-close]');
