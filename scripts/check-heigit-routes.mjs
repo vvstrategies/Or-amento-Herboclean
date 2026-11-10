@@ -6,6 +6,7 @@ import {Repository,hash} from '../backend/database.js';
 import {migrateFinance} from '../backend/finance-migration.js';
 import {RouteCache} from '../backend/route-cache.js';
 import {HeiGITPeliasGeocoder,HeiGITOpenRouteServiceProvider} from '../backend/routes-provider.js';
+import {GEOCODER_VERSION,sameStreet,streetCore} from '../backend/geocode-address.js';
 import {addressKey,calculateEstimate,defaultEstimateInput,defaultFinancialSettings,snapshotAssumptions} from '../backend/finance-domain.js';
 import {modelo} from '../utils/proposta.js';
 import {settings as company,fees} from './test-company.mjs';
@@ -51,7 +52,7 @@ try{
  const retryCache=new RouteCache(repo,retryProvider,{geocoder:retryGeocoder,directionsDailyLimit:10,geocodingDailyLimit:10});
  const retried=await retryCache.get(retryOrigin,retryDestination,{originRef:{type:'company',id:'retry-company'},destinationRef:{type:'proposal',id:'retry-proposal'}});
  assert.equal(retried.distanceMeters,9600);assert.equal(retryDirections,2);assert.equal(retryGeocodes,4);
- const cachedDestination='Cliente Cache, Rua Cinco, 50, Osasco - SP, Brasil',cachedKey=hash(JSON.stringify([retryProvider.id,'geocoder-2',addressKey(retryOrigin),addressKey(cachedDestination),{profile:'driving-car'}]));
+ const cachedDestination='Cliente Cache, Rua Cinco, 50, Osasco - SP, Brasil',cachedKey=hash(JSON.stringify([retryProvider.id,'geocoder-'+GEOCODER_VERSION,addressKey(retryOrigin),addressKey(cachedDestination),{profile:'driving-car'}]));
  repo.db.prepare('INSERT INTO finance_routes VALUES (?,?,?,?)').run('legacy-zero-route',cachedKey,JSON.stringify({id:'legacy-zero-route',distanceMeters:0,durationSeconds:0}),new Date().toISOString());
  const rebuilt=await retryCache.get(retryOrigin,cachedDestination,{originRef:{type:'company',id:'retry-company'},destinationRef:{type:'proposal',id:'retry-cache'}});
  assert.equal(rebuilt.distanceMeters,9600);assert.equal(retryDirections,3);assert.equal(repo.db.prepare('SELECT id FROM finance_routes WHERE id=?').get('legacy-zero-route'),undefined);
@@ -64,6 +65,8 @@ try{
   let features=[];
   if(text.startsWith('Estrada Fazendinha, 476'))features=[feature(-46.8309,-23.5329,{layer:'locality',locality:'Carapicuíba',region_a:'SP',label:'Carapicuíba, SP, Brasil',confidence:0.6,match_type:'fallback'})];
   else if(address==='Estrada Fazendinha 476')features=[feature(-46.70,-23.50,{layer:'street',street:'Estrada da Fazendinha',locality:'São Paulo',region_a:'SP',label:'Estrada da Fazendinha, São Paulo'}),feature(-46.8721,-23.5602,{layer:'street',street:'Estrada da Fazendinha',locality:'Carapicuíba',region_a:'SP',label:'Estrada da Fazendinha, Carapicuíba, SP, Brasil'})];
+  else if(text==='Fazendinha, Carapicuíba - SP'&&url.searchParams.get('layers')==='street')features=[feature(-46.70,-23.50,{layer:'street',name:'Rua Fazendinha',locality:'Cotia',region_a:'SP',label:'Rua Fazendinha, Cotia'}),feature(-46.8721,-23.5602,{layer:'street',name:'Estrada da Fazendinha',locality:'Carapicuíba',region_a:'SP',label:'Estrada da Fazendinha, Carapicuíba, SP, Brasil'})];
+  else if(text.startsWith('Estrada Fazendinha, 500')||address==='Estrada Fazendinha 500')features=[feature(-46.8309,-23.5329,{layer:'locality',locality:'Aldeia de Carapicuíba',region_a:'SP',label:'Aldeia de Carapicuíba, SP, Brasil',confidence:0.6,match_type:'fallback'})];
   else if(text.startsWith('Rua Dos Ciprestes, 342, Jardim Irene, Santo André - SP'))features=[feature(-46.5121,-23.7143,{layer:'address',street:'Rua dos Ciprestes',housenumber:'342',locality:'Santo André',region_a:'SP',neighbourhood:'Jardim Irene',label:'Rua dos Ciprestes 342, Santo André, SP'})];
   else if(text.startsWith('Avenida Doutor Altino Arantes'))features=[feature(-46.6502,-23.6026,{layer:'street',street:'Avenida Doutor Altino Arantes',locality:'São Paulo',region_a:'SP',label:'Avenida Doutor Altino Arantes, São Paulo'})];
   else if(text.startsWith('Rua das Flores, 10, Centro, Diadema'))features=[feature(-49.27,-25.43,{layer:'street',street:'Rua das Flores',locality:'Curitiba',region_a:'PR',label:'Rua das Flores, Curitiba, PR',confidence:0.9})];
@@ -77,6 +80,13 @@ try{
  assert.equal(fazendinha.precision,'street');assert.equal(fazendinha.query,'structured');assert.equal(fazendinha.label,'Estrada da Fazendinha, Carapicuíba, SP, Brasil','rua homônima em outra cidade não vence');
  assert.ok(!seen[0].includes('casa'),'complemento fica fora da busca');assert.ok(seen[0].includes('focus.point.lat=-23.7143'),'destino usa a sede como referência');
  assert.ok(seen[1].startsWith('/pelias/v1/search/structured')&&seen[1].includes('locality=Carapicuíba')&&seen[1].includes('postalcode=06364-000'));
+ // Caso real: texto e busca estruturada só acham a cidade; o nome da rua na cidade acha "Estrada da Fazendinha".
+ seen.length=0;
+ const real=await smart.geocode('Estrada Fazendinha, 500 - casa, Jardim Ana Estela, Carapicuíba - SP, 06364-000, Brasil',{near:sede.coordinates});
+ assert.equal(real.precision,'street');assert.equal(real.query,'street-name');assert.equal(real.label,'Estrada da Fazendinha, Carapicuíba, SP, Brasil');assert.equal(real.approximate,false);
+ assert.ok(seen.at(-1).includes('layers=street')&&seen.at(-1).includes('text=Fazendinha, Carapicuíba - SP'),'busca só o nome da rua, entre ruas');
+ assert.ok(sameStreet('Estrada Fazendinha','Estrada da Fazendinha')&&sameStreet('R. das Flores','Rua Flores')&&!sameStreet('Rua das Flores','Rua dos Pinheiros'));
+ assert.equal(streetCore('Estrada Fazendinha'),'Fazendinha');assert.equal(streetCore('Avenida Paulista'),'Paulista');
  const abbreviated=await smart.geocode('Av. Dr. Altino Arantes, Vila Clementino, São Paulo - SP, 04042-030, Brasil');
  assert.equal(abbreviated.precision,'street');
  await assert.rejects(smart.geocode('Rua das Flores, 10, Centro, Diadema - SP'),e=>e.status===400&&/Curitiba/.test(e.message),'ponto em outra cidade é recusado');
@@ -88,7 +98,7 @@ try{
  const legacyAddress='Estrada Fazendinha, 476, Carapicuíba - SP';
  repo.db.prepare('INSERT INTO finance_geocodes VALUES (?,?,?,?,?,?)').run('old-geo',addressKey(legacyAddress),'proposal','legacy-proposal',JSON.stringify({addressKey:addressKey(legacyAddress),coordinates:{longitude:-46.83,latitude:-23.53},label:'Carapicuíba, SP'}),new Date().toISOString());
  const refreshed=await legacyCache.get('Empresa Legacy, Rua Um, 1, Santo André - SP',legacyAddress,{originRef:{type:'company',id:'legacy-company'},destinationRef:{type:'proposal',id:'legacy-proposal'}});
- assert.equal(legacyCalls,2);assert.equal(refreshed.destinationGeocodeLabel,'Estrada da Fazendinha, Carapicuíba');assert.equal(refreshed.destinationPrecision,'street');assert.equal(refreshed.geocoderVersion,2);
+ assert.equal(legacyCalls,2);assert.equal(refreshed.destinationGeocodeLabel,'Estrada da Fazendinha, Carapicuíba');assert.equal(refreshed.destinationPrecision,'street');assert.equal(refreshed.geocoderVersion,GEOCODER_VERSION);
  await legacyCache.get('Empresa Legacy, Rua Um, 1, Santo André - SP',legacyAddress,{force:true,originRef:{type:'company',id:'legacy-company'},destinationRef:{type:'proposal',id:'legacy-proposal'}});
  assert.equal(legacyCalls,3,'Recalcular refaz o ponto do cliente, não o da sede');
  console.log('PASS: HeiGIT Pelias/openrouteservice, ordem longitude-latitude, cache, recálculo, quotas, erros e ida/volta.');

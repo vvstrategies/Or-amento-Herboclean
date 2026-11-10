@@ -234,13 +234,15 @@ export class CommercialService{
     const upcoming=scheduled.filter(r=>r.start<=week).sort((a,b)=>a.op.schedule.start.localeCompare(b.op.schedule.start)).slice(0,8)
       .map(r=>({id:r.id,client:r.client,start:r.op.schedule.start,end:r.op.schedule.end,services:r.items.map(i=>`${i.service}${i.quantity>1||i.unit==='m²'?' ('+Number(i.quantity).toLocaleString('pt-BR')+(i.unit==='m²'?' m²':'')+')':''}`),place:r.addressNeighborhood||placeOf(r).city,pixCents:r.pix,tags:r.tags}));
     // A receber: agendados a partir de hoje, independentemente de quando o orçamento foi criado.
-    const toReceiveCents=total(scheduled);
+    // Agendados com horário vencido ficam fora do valor (aguardam ser marcados como concluídos), mas são contados à parte.
+    const toReceiveCents=total(scheduled),toReceiveCount=scheduled.length,overdueCount=rows.filter(r=>r.op.status==='scheduled'&&!(r.start>=today)).length;
     const scoped=CommercialService.filterRows(all,{services:serviceFilter,tags}),channels=[...Object.keys(ORIGINS),''].map(origin=>{const paid=has(CHANNEL_PROVIDER,origin),p=this.period(scoped.filter(r=>r.origin===origin),from,to,paid?this.spendFor(spendNow,origin):0,origin);return {origin,label:has(ORIGINS,origin)?ORIGINS[origin]:'Sem origem',paid,...p.campaign}}).filter(c=>c.paid||c.quotes||c.closed);
-    const byTag=this.tagBreakdown(all,from,to);
+    // Custo por tag segue a origem escolhida na barra: só orçamentos daquela origem e, se paga, só as campanhas da plataforma.
+    const byTag=this.tagBreakdown(CommercialService.filterRows(all,{origin}),from,to,origin==='all'?null:(CHANNEL_PROVIDER[origin]||''));
     return {from,to,channel,origin,filters:{origin,services:serviceFilter,tags},spendScope:serviceFilter.length||tags.length?'platform':'filtered',previous:{from:prevFrom,to:prevTo,...previous},current,byTag,
       series:{current:series(from),previous:series(prevFrom)},
       services:[...services.values()].sort((a,b)=>b.revenueCents-a.revenueCents),
-      upcoming,toReceiveCents,forecastCents:toReceiveCents,spend:{totalCents:this.spendFor(spendNow,'all'),providers:spendNow,connected:this.connectedProviders()},channels};
+      upcoming,toReceiveCents,toReceiveCount,overdueCount,forecastCents:toReceiveCents,spend:{totalCents:this.spendFor(spendNow,'all'),providers:spendNow,connected:this.connectedProviders()},channels};
   }
   /* ---------- Custo por tag ---------- */
   // Mesma metodologia do painel (campaignMetrics): coorte de orçamentos criados no período e fechamentos concluídos no período.
@@ -263,8 +265,9 @@ export class CommercialService{
     if(!this.repo.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ad_spend_daily'").get())return [];
     return this.repo.db.prepare("SELECT provider,campaign_id campaignId,MAX(json_extract(data,'$.campaignName')) campaignName,SUM(spend_cents) cents FROM ad_spend_daily WHERE day>=? AND day<=? AND currency='BRL' GROUP BY provider,campaign_id ORDER BY cents DESC").all(from,to).map(r=>({provider:r.provider,campaignId:r.campaignId,campaignName:r.campaignName||r.campaignId,spendCents:Number(r.cents)||0}));
   }
-  tagBreakdown(all,from,to){
-    const map=this.campaignTagMap(),campaigns=this.campaignSpend(from,to).map(c=>({...c,tag:map[c.provider+':'+c.campaignId]||''}));
+  // provider: null = todas as plataformas; '' = origem sem mídia paga (nenhuma campanha); 'google-ads'/'meta-ads' = só ela.
+  tagBreakdown(all,from,to,provider=null){
+    const map=this.campaignTagMap(),campaigns=this.campaignSpend(from,to).filter(c=>provider==null||c.provider===provider).map(c=>({...c,tag:map[c.provider+':'+c.campaignId]||''}));
     const spendBy=new Map();for(const c of campaigns)if(c.tag)spendBy.set(c.tag,(spendBy.get(c.tag)||0)+c.spendCents);
     const paid=r=>has(CHANNEL_PROVIDER,r.origin),hasTag=(r,id)=>id===''?!(r.tags||[]).length:(r.tags||[]).includes(id);
     const cohort=all.filter(r=>between(r.date,from,to)),done=all.filter(r=>between(r.completedAt,from,to));

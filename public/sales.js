@@ -44,20 +44,21 @@
       const [dash,clients,tags]=await Promise.all([EcoAuth.api('/api/dashboard?'+EcoFilters.query('sales')),EcoCache.get('/api/clients'),EcoCache.get('/api/tags').catch(()=>[])]);
       if(id!==serial)return;data={dash,clients,tags:tags||[]};
       renderKpis();renderMain();
-      const list=view==='list'?listRows():data.clients;
-      if(!selected||!data.clients.some(c=>c.id===selected))selected=list[0]?.id||null;
+      const list=view==='list'?listRows():boardRows();
+      if(!selected||!list.some(c=>c.id===selected))selected=list[0]?.id||null;
       if(selected)await select(selected,true);else renderProfile();
     }catch(error){if(id===serial)$('#sales-main').innerHTML=`<p class="hint">Não foi possível carregar: ${esc(error.message)}</p>`}
   }
   function delta(cur,prev){if(cur==null||prev==null)return '';if(!prev)return cur?'<span class="pill up">novo</span>':'';const d=(cur-prev)/prev*100;return `<span class="pill ${d>=0?'up':'down'}">${d>=0?'+':'−'}${Math.abs(d).toLocaleString('pt-BR',{maximumFractionDigits:0})}%</span>`}
   function renderKpis(){
     const c=data.dash.current,p=data.dash.previous,b=buyers(),{from}=f(),repeat=b.filter(x=>done(x).some(y=>y.completedAt<from)).length;
-    const scheduled=data.clients.reduce((n,x)=>n+(x.facets||[]).filter(y=>y.status==='scheduled').length,0);
+    const scheduled=data.dash.toReceiveCount||0,overdue=data.dash.overdueCount||0;
+    const receiveSub=`${scheduled} agendado${scheduled===1?'':'s'} a partir de hoje${overdue?` · ${overdue} com horário vencido`:''}`;
     const kpi=(label,val,sub,extra='',hero=false)=>`<div class="sk${hero?' hero':''}"><small>${label}</small><strong>${val}</strong>${extra}<span>${sub}</span></div>`;
     $('#sales-kpis').innerHTML=kpi('Receita no período',money(c.revenueCents),`vs. período anterior (${money(p.revenueCents)})`,delta(c.revenueCents,p.revenueCents),true)
       +kpi('Vendas',c.closed,'atendimentos concluídos')+kpi('Ticket médio',c.ticketCents==null?'—':money(c.ticketCents),'receita ÷ vendas')
       +kpi('Clientes que compraram',b.length,repeat?`${repeat} já tinham comprado antes`:'nenhum recorrente no período')
-      +kpi('A receber',money(data.dash.toReceiveCents),`${scheduled} atendimento${scheduled===1?'':'s'} agendado${scheduled===1?'':'s'}`);
+      +kpi('A receber',money(data.dash.toReceiveCents),receiveSub);
   }
   function listRows(){
     const base=quick==='reach'?data.clients.filter(toReach):quick==='birthday'?data.clients.filter(birthdayMonth):buyers();
@@ -81,9 +82,11 @@
       </tbody></table></div><p class="sales-foot">${b.length} cliente${b.length===1?'':'s'} · ${money(data.dash.current.revenueCents)} no período. “Reabordar” = sem compra há mais de 90 dias e sem atendimento agendado.</p>`;
   }
   // Quadro: colunas por tempo desde a última compra (os filtros de origem, serviço e tipo continuam valendo).
+  // Clientes do quadro, do mais recente ao mais antigo (a ordem em que as colunas aparecem).
+  const boardRows=()=>data.clients.filter(c=>c.closedCount>0&&anyMatch(c)&&(!query||[c.name,c.phone].join(' ').toLowerCase().includes(query))).sort((a,b)=>String(b.lastServiceDate||'').localeCompare(String(a.lastServiceDate||'')));
   function renderBoard(box){
     const cols=[['Últimos 3 meses',0,90],['Há 3 a 6 meses',91,180],['Há 6 a 12 meses',181,365],['Mais de 1 ano',366,1e9]];
-    const all=data.clients.filter(c=>c.closedCount>0&&anyMatch(c)&&(!query||[c.name,c.phone].join(' ').toLowerCase().includes(query)));
+    const all=boardRows();
     box.innerHTML=`<div class="ph"><div><h2>Reabordagem</h2><p>Clientes pelo tempo desde a última compra. “Reabordar” abre a ficha ao lado.</p></div><div class="sb-tools">${switcher()}<label class="search-control"><span class="sr-only">Buscar</span><input id="sales-search" type="search" placeholder="Buscar nome ou telefone" value="${esc(query)}"></label></div></div>
       <div class="sales-board">${cols.map(([label,min,max],i)=>{const list=all.filter(c=>{const d=daysSince(c.lastServiceDate);return d!=null&&d>=min&&d<=max}).sort((a,b)=>String(b.lastServiceDate).localeCompare(String(a.lastServiceDate)));
         return `<section class="sb-col${i===0?' fresh':''}"><header><b>${label}</b><span class="n">${list.length}</span></header><div class="sb-list">${list.map(c=>{const last=lastDone(c),bd=c.birthday&&c.birthday.slice(0,2)===today().slice(5,7);
@@ -104,7 +107,7 @@
       <div class="sp-stats"><div><small>Compras</small><b>${c.closedCount}</b></div><div><small>Total</small><b>${money(c.closedCents)}</b></div><div><small>Ticket</small><b>${ticket==null?'—':money(ticket)}</b></div></div>
       <form class="sp-form" id="sales-form" data-id="${esc(c.id)}" autocomplete="off">
         <label>Telefone<input name="phone" maxlength="60" inputmode="tel" value="${esc(c.phone)}"></label>
-        <label>Aniversário <small>DD/MM${bdDays!=null?` · em ${bdDays} dia${bdDays===1?'':'s'}`:''}</small><input name="birthday" maxlength="5" placeholder="14/11" value="${esc(c.birthday?c.birthday.slice(3)+'/'+c.birthday.slice(0,2):'')}"></label>
+        <label><span>Aniversário <small>DD/MM${bdDays!=null?` · em ${bdDays} dia${bdDays===1?'':'s'}`:''}</small></span><input name="birthday" maxlength="5" placeholder="14/11" value="${esc(c.birthday?c.birthday.slice(3)+'/'+c.birthday.slice(0,2):'')}"></label>
         <label class="wide">E-mail<input name="email" type="email" maxlength="240" value="${esc(c.email)}"></label>
         <label class="wide">Observações<textarea name="notes" rows="3" maxlength="3000" placeholder="Preferências, animais, tecido, horário…">${esc(c.notes)}</textarea></label>
         <div class="wide sp-custom"><span>Campos personalizados</span>${custom.map((x,i)=>`<div class="sp-cf"><input data-cf-label="${i}" maxlength="60" value="${esc(x.label)}" aria-label="Nome do campo"><input data-cf-value="${i}" maxlength="240" value="${esc(x.value)}" aria-label="Valor"></div>`).join('')}<button type="button" class="text-button" data-add-field>+ Adicionar campo</button></div>

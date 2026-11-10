@@ -185,7 +185,7 @@ try{
   assert.deepEqual([c.closed,c.revenueCents,c.ticketCents],[2,50000,25000]);assert.ok(c.conversion<=1&&dash.previous.conversion<=1);
   assert.deepEqual([c.campaign.spendCents,c.campaign.quotes,c.campaign.costPerQuoteCents,c.campaign.paidRevenueCents,c.campaign.roas,c.campaign.roasTotal,c.campaign.roiTotal],[10000,5,2000,10000,1,5,4]);
   // A receber: agendados de hoje em diante, mesmo criados antes do período; agenda vencida não conta.
-  assert.equal(dash.toReceiveCents,50000);assert.equal(dash.forecastCents,50000);
+  assert.equal(dash.toReceiveCents,50000);assert.equal(dash.forecastCents,50000);assert.equal(dash.toReceiveCount,2,'só os de hoje em diante');assert.equal(dash.overdueCount,1,'agenda vencida contada à parte');
   assert.deepEqual(dash.upcoming.map(u=>[u.client,u.place]),[['Novo agendado','Santo André']]);
   // Período anterior com as mesmas definições.
   const p=dash.previous;assert.deepEqual([p.generated,p.reachedSchedule,p.completed,p.conversion,p.cohortRevenueCents,p.revenueCents,p.campaign.spendCents],[2,2,1,0.5,40000,0,0]);

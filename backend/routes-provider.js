@@ -1,5 +1,5 @@
 import {integrationError} from './integration-domain.js';
-import {fold,parseAddress,pickBest,precisionOf,searchText} from './geocode-address.js';
+import {fold,parseAddress,pickBest,precisionOf,searchText,streetCore} from './geocode-address.js';
 
 const scoreMatches=(a,b)=>fold(a)===fold(b)||fold(a).includes(fold(b))||fold(b).includes(fold(a));
 
@@ -77,6 +77,9 @@ export class HeiGITPeliasGeocoder extends GeocodingProvider {
   if(parsed.street&&parsed.city){
    attempts.push({path:'search/structured',params:{address:[parsed.street,parsed.number].filter(Boolean).join(' '),neighbourhood:parsed.neighborhood,locality:parsed.city,region:parsed.state,postalcode:parsed.postalCode,country:'BRA'},kind:'structured'});
    attempts.push({path:'search',params:{text:[parsed.street,parsed.city+(parsed.state?' - '+parsed.state:'')].join(', ')},kind:'street'});
+   // Último recurso: só o nome da rua na cidade, entre ruas ("Fazendinha" acha "Estrada da Fazendinha").
+   const core=streetCore(parsed.street);
+   if(core&&fold(core)!==fold(parsed.street))attempts.push({path:'search',params:{text:[core,parsed.city+(parsed.state?' - '+parsed.state:'')].join(', '),layers:'street'},kind:'street-name'});
   }
   let best=null,lastQuota=null,requests=0;
   for(const attempt of attempts){

@@ -1,7 +1,8 @@
 // Normaliza endereços brasileiros e escolhe o melhor resultado do Pelias.
 // Usado só no servidor; nada aqui chama a rede.
 
-export const GEOCODER_VERSION=2;
+// v3: nomes de rua comparados sem "da/do/de" e sem o tipo, e busca pelo nome da rua na cidade (camada street).
+export const GEOCODER_VERSION=3;
 
 const UF=new Set('AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' '));
 const ABBREVIATIONS=[
@@ -60,6 +61,14 @@ export function searchText(parsed){
 const PRECISION={address:4,street:3,venue:3,neighbourhood:2,borough:2,macrohood:2,postalcode:2,locality:1,localadmin:1,county:1};
 export const precisionOf=layer=>({4:'address',3:'street',2:'neighbourhood',1:'city'})[PRECISION[layer]||0]||'region';
 const same=(a,b)=>!!a&&!!b&&(fold(a)===fold(b)||fold(a).includes(fold(b))||fold(b).includes(fold(a)));
+const STREET_TYPES=new Set('rua avenida estrada alameda travessa rodovia praca largo viaduto beco ladeira passagem'.split(' '));
+const CONNECTIVES=new Set('da do de das dos e d'.split(' '));
+/** Palavras que identificam a rua, sem o tipo inicial e sem "da/do/de": "Estrada da Fazendinha" → ["fazendinha"]. */
+export const streetWords=value=>{const words=fold(value).split(' ').filter(Boolean);if(words.length>1&&STREET_TYPES.has(words[0]))words.shift();return words.filter(w=>!CONNECTIVES.has(w));};
+/** Nome da rua para buscar só pela rua na cidade ("Estrada Fazendinha" → "Fazendinha"). */
+export const streetCore=value=>{const words=clean(value).split(' ');if(words.length>1&&STREET_TYPES.has(fold(words[0])))words.shift();return words.join(' ');};
+/** Mesma rua apesar de "Estrada Fazendinha" × "Estrada da Fazendinha". */
+export const sameStreet=(a,b)=>{if(same(a,b))return true;const x=streetWords(a),y=streetWords(b);if(!x.length||!y.length)return false;const [small,big]=x.length<=y.length?[x,y]:[y,x];return small.every(w=>big.includes(w));};
 const distance=(a,b)=>Math.hypot(a.longitude-b.longitude,a.latitude-b.latitude);
 
 /** Pontua um candidato do Pelias pelo que o texto do endereço diz. */
@@ -70,7 +79,8 @@ export function scoreCandidate(candidate,parsed,{near=null}={}){
  if(parsed.city){if(same(city,parsed.city))score+=8;else if(city)score-=25;}
  if(parsed.state&&p.region_a){if(fold(p.region_a)===fold(parsed.state))score+=2;else score-=25;}
  if(parsed.neighborhood&&same(p.neighbourhood,parsed.neighborhood))score+=3;
- if(parsed.street&&p.street&&same(p.street,parsed.street))score+=4;
+ const street=p.street||(p.layer==='street'?p.name:'');
+ if(parsed.street&&street&&sameStreet(street,parsed.street))score+=4;
  if(parsed.number&&p.housenumber&&String(p.housenumber)===String(parsed.number))score+=2;
  if(parsed.postalCode&&p.postalcode&&String(p.postalcode).replace(/\D/g,'')===parsed.postalCode.replace(/\D/g,''))score+=2;
  if(p.match_type==='fallback')score-=2;

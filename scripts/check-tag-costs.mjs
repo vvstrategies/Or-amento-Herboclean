@@ -41,6 +41,9 @@ try{
   assert.equal(row('residencial').costPerQuoteCents,10000);assert.equal(row('residencial').costPerCloseCents,30000);
   assert.equal(row('comercial').costPerQuoteCents,10000);assert.equal(row('comercial').costPerCloseCents,20000);
   assert.equal(row('corporativo').attributable,false);assert.equal(d.byTag.unattributedSpendCents,10000);
+  // Origem escolhida na barra: só orçamentos e campanhas daquela plataforma.
+  const g=s.dashboard({from:today,to:today,origin:'google'}).byTag;assert.ok(g.campaigns.every(c=>c.provider==='google-ads'),'só campanhas do Google');assert.equal(g.rows.find(r=>r.tag==='comercial').quotes,0,'Comercial só veio do Meta');assert.equal(g.rows.find(r=>r.tag==='residencial').quotes,3,'R1, R2 e Dupla');
+  const o=s.dashboard({from:today,to:today,origin:'indicacao'}).byTag;assert.equal(o.campaigns.length,0,'origem sem mídia não tem campanha');
   // Tag sem orçamentos com gasto vinculado: nunca NaN/Infinity.
   s.saveCampaignTags({'google-ads:33':'corporativo','google-ads:11':''});repo.setConfig('quote-tags',[...s.tags(),{id:'vazia',label:'VAZIA'}]);s.saveCampaignTags({'google-ads:33':'vazia'});
   d=s.dashboard({from:today,to:today});assert.equal(row('vazia').quotes,0);assert.equal(row('vazia').costPerQuoteCents,null);assert.equal(row('vazia').costPerCloseCents,null);assert.equal(row('residencial').attributable,false);
