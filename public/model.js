@@ -12,10 +12,12 @@
   // Número da proposta: PREFIXO-AAAAMMDD-XXXX. O prefixo vem só de company.proposalPrefix (Configurações);
   // números já emitidos nunca são reescritos. `taken` permite evitar colisão com números existentes.
   const proposalNumber = (settings = {}, taken = null) => { const prefix=settings.company?.proposalPrefix||'ORC', day=today().replaceAll('-',''); for (let i=0;i<20;i++) { const n=`${prefix}-${day}-${root.crypto.getRandomValues(new Uint16Array(1))[0].toString(16).toUpperCase().padStart(4,'0')}`; if (!taken||!taken(n)) return n; } return `${prefix}-${day}-${id().slice(0,8).toUpperCase()}`; };
-  const quote = (settings = {}, taken = null) => ({ id: id(), number: proposalNumber(settings, taken), date: today(), client: '', address: '', postalCode: '', addressStreet: '', addressNumber: '', addressComplement: '', addressNeighborhood: '', addressCity: '', addressState: '', addressIbgeCode: '', addressSource: '', clientContact: '', clientEmail: '', clientBirthday: '', origin: '', tags: [], company: { ...company(), ...settings.company }, terms: { ...terms(), ...settings.terms }, items: [item()], updatedAt: new Date().toISOString() });
+  const quote = (settings = {}, taken = null) => ({ id: id(), number: proposalNumber(settings, taken), date: today(), client: '', address: '', postalCode: '', addressStreet: '', addressNumber: '', addressComplement: '', addressNeighborhood: '', addressCity: '', addressState: '', addressIbgeCode: '', addressSource: '', clientContact: '', clientEmail: '', clientLegalName: '', clientCnpj: '', clientBirthday: '', origin: '', tags: [], company: { ...company(), ...settings.company }, terms: { ...terms(), ...settings.terms }, items: [item()], updatedAt: new Date().toISOString() });
   const text = (v, n = 2000) => typeof v === 'string' ? v.slice(0,n) : '';
   const digits = value => String(value ?? '').replace(/\D/g, '').slice(0,8);
   const formatPostalCode = value => { const clean=digits(value); return clean.length>5 ? clean.slice(0,5)+'-'+clean.slice(5) : clean; };
+  const formatCnpj = value => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,14).replace(/^(.{2})(.)/,'$1.$2').replace(/^(.{6})(.)/,'$1.$2').replace(/^(.{10})(.)/,'$1/$2').replace(/^(.{15})(.)/,'$1-$2');
+  const corporateDetails = q => q?.tags?.includes('corporativo') ? [['RAZÃO SOCIAL',text(q.clientLegalName,240).trim()],['CNPJ',formatCnpj(q.clientCnpj)]].filter(([,value])=>value) : [];
   function addressFromFields(raw={}) {
     const street=text(raw.addressStreet,240).trim(),number=text(raw.addressNumber,80).trim(),complement=text(raw.addressComplement,160).trim(),neighborhood=text(raw.addressNeighborhood,160).trim(),city=text(raw.addressCity,160).trim(),state=text(raw.addressState,2).trim().toUpperCase(),postalCode=digits(raw.postalCode);
     const first=[street,number].filter(Boolean).join(', ')+(complement?' - '+complement:'');
@@ -45,6 +47,8 @@
   function normalize(raw) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items) || !raw.items.length || raw.items.length > 100) throw Error('A proposta precisa ter entre 1 e 100 serviços.');
     const q = quote();
+    q.clientLegalName=text(raw.clientLegalName,240);
+    q.clientCnpj=formatCnpj(raw.clientCnpj);
     for (const key of ['id','number','client','address','clientContact','date','updatedAt','versionId']) if (typeof raw[key] === 'string') q[key] = text(raw[key],key==='address'?800:240);
     for (const key of ['addressStreet','addressNumber','addressComplement','addressNeighborhood','addressCity','addressState','addressIbgeCode']) if (typeof raw[key] === 'string') q[key] = text(raw[key],key==='addressNumber'?80:240);
     q.postalCode=digits(raw.postalCode);
@@ -110,5 +114,5 @@
     });
     return q;
   }
-  root.EcoModel = { origins,proposalNumber,toPublicProposal:normalize,services,company,terms,item,quote,normalize,normalizeCompany,normalizeTerms,configure,totals,validate,today,image,digits,formatPostalCode,addressFromFields,proposalFilename };
+  root.EcoModel = { origins,proposalNumber,toPublicProposal:normalize,services,company,terms,item,quote,normalize,normalizeCompany,normalizeTerms,configure,totals,validate,today,image,digits,formatPostalCode,formatCnpj,corporateDetails,addressFromFields,proposalFilename };
 })(globalThis);

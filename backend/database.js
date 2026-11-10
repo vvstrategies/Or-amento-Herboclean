@@ -14,7 +14,7 @@ export const proposalFilename=q=>{
 export function documentHash(q){
   const {number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms}=q;
   const items=q.items.map(({service,description,unit,quantity,price,photos})=>({service,description,unit,quantity,price,photos}));
-  return hash(JSON.stringify({number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms,items}));
+  return hash(JSON.stringify({number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms,items,...(modelo.corporateDetails(q).length?{corporate:modelo.corporateDetails(q)}:{})}));
 }
 export function cleanQuote(raw,strict=false){
   if(!raw||!validId(raw.id))throw fail(400,'Identificador do orçamento inválido.');
