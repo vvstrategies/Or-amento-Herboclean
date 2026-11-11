@@ -105,10 +105,11 @@
   const cancelledShown=()=>showCancelled||EcoFilters.get('quotes').statuses.includes('cancelled');
   function renderLibrary(){
     const all=getQuotes(),list=visible();
-    $('#demo-banner').hidden=!demo;$('#show-demo').hidden=demo;
+    $('#demo-banner').hidden=!demo;
     const counts={comercial:list.filter(q=>getOp(q.id).status!=='cancelled').length,follow:0,pos:0},saved=funnel;
     for(const name of ['follow','pos']){funnel=name;counts[name]=list.filter(q=>stageOf(q,getOp(q.id))).length}funnel=saved;
     for(const name of ['comercial','follow','pos'])$('#count-'+name).textContent=counts[name];
+    $('#funnel-label').textContent={comercial:'Comercial',follow:'Follow-up',pos:'Pós-venda'}[funnel];$('#funnel-count').textContent=counts[funnel];
     $('#show-cancelled').hidden=funnel!=='comercial';$('#show-cancelled').setAttribute('aria-pressed',String(cancelledShown()));
     const cols=FUNNELS[funnel].filter(([id])=>id!=='cancelled'||cancelledShown());
     if(!all.length){$('#board').innerHTML=`<div class="empty-library"><span class="feature-icon">${icon('folder')}</span><h3>Seu próximo atendimento começa aqui.</h3><p>Crie sua primeira proposta com a identidade da empresa. Depois, acompanhe a aprovação e prepare o atendimento por aqui.</p><div class="empty-actions"><button class="primary" data-new>＋ Criar orçamento</button><button class="secondary" data-demo>Ver demonstração</button></div></div>`;$('#library-count-note').textContent='';return}
@@ -408,7 +409,8 @@
     if(button.classList.contains('proposal-card')&&e.shiftKey){pickRange(button.dataset.detail);return}
     if(button.classList.contains('proposal-card')&&(picking||e.ctrlKey||e.metaKey)){togglePick(button.dataset.detail);return}
     if(button.dataset.close){$('#'+button.dataset.close).close();return}
-    if(button.dataset.funnel){funnel=button.dataset.funnel;syncPipelines();renderLibrary();return}
+    if(button.id==='funnel-btn'){toggleFunnelMenu();return}
+    if(button.dataset.funnel){funnel=button.dataset.funnel;closeFunnelMenu();syncPipelines();renderLibrary();return}
     if(button.id==='show-cancelled'){showCancelled=!showCancelled;renderLibrary();return}
     if(button.id==='sidebar-toggle'){setCollapsed(!document.body.classList.contains('sidebar-collapsed'));return}
     if(button.dataset.nav){navigate(button.dataset.nav);return}
@@ -449,7 +451,15 @@
     }
     if(button.dataset.viewPhoto){const [i,p]=button.dataset.viewPhoto.split(':').map(Number),photo=findQuote(selected)?.items[i]?.photos[p];if(photo){$('#photo-preview').src=photo;$('#photo-dialog').showModal()}}
   }
-  function syncPipelines(){for(const b of $$('[data-funnel]'))b.setAttribute('aria-pressed',String(b.dataset.funnel===funnel))}
+  function syncPipelines(){for(const b of $$('[data-funnel]')){b.setAttribute('aria-pressed',String(b.dataset.funnel===funnel));b.setAttribute('aria-checked',String(b.dataset.funnel===funnel))}}
+  // Funil em menu suspenso na segunda linha da barra do topo. O menu fica no body (a barra recorta o que passa dela).
+  function closeFunnelMenu(){const m=$('#funnel-menu');if(!m||m.hidden)return;m.hidden=true;$('#funnel-btn').setAttribute('aria-expanded','false')}
+  function toggleFunnelMenu(){
+    const m=$('#funnel-menu'),b=$('#funnel-btn');if(!m.hidden)return closeFunnelMenu();
+    if(m.parentElement!==document.body)document.body.append(m);
+    m.hidden=false;const r=b.getBoundingClientRect();m.style.left=Math.max(8,Math.min(innerWidth-m.offsetWidth-8,r.left))+'px';m.style.top=(r.bottom+8)+'px';
+    b.setAttribute('aria-expanded','true');m.querySelector('[aria-pressed=true]')?.focus();
+  }
   const remember=(key,value)=>{try{if(value===undefined)return localStorage.getItem(key);localStorage.setItem(key,value)}catch{return null}};
   function setCollapsed(collapsed){document.body.classList.toggle('sidebar-collapsed',collapsed);const label=collapsed?'Expandir menu':'Recolher menu',t=$('#sidebar-toggle');t.setAttribute('aria-label',label);t.title=label;t.setAttribute('aria-expanded',String(!collapsed));remember('hc-sidebar-collapsed',collapsed?'1':'0')}
   function bindSidebar(){
@@ -476,8 +486,10 @@
     const photo=document.createElement('dialog');photo.id='photo-dialog';photo.innerHTML='<div class="dialog-head"><h2>Foto do serviço</h2><button class="icon-button" data-close="photo-dialog" aria-label="Fechar foto">×</button></div><img id="photo-preview" class="photo-dialog-image" alt="Foto do item orçado">';document.body.appendChild(photo);
     document.addEventListener('click',e=>onClick(e).catch(error=>notify(error.message)));
     $('.skip-link').onclick=e=>{e.preventDefault();$('#content-start').focus();$('#content-start').scrollIntoView()};
-    let typing=0;$('#search').addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(renderLibrary,120)});EcoFilters.mount($('#quotes-filters'),{scope:'quotes',dims:['origin','period','service','tag','status'],allowAll:true,onChange:()=>renderLibrary()});bindBoard();bindBulk();bindSidebar();
-    $('#show-demo').onclick=enterDemo;$('#exit-demo').onclick=exitDemo;
+    let typing=0;$('#search').addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(renderLibrary,120)});EcoFilters.mount($('#quotes-filters'),{scope:'quotes',dims:['origin','period','service','tag','status'],allowAll:true,onChange:()=>renderLibrary()});EcoFilters.extraRow($('#quotes-filters')).append(...$('#board-tools').childNodes);$('#board-tools').remove();
+    document.addEventListener('click',e=>{if(!e.target.closest('#funnel-menu,#funnel-btn'))closeFunnelMenu()});addEventListener('resize',closeFunnelMenu);$('#funnel-menu').addEventListener('keydown',e=>{if(e.key==='Escape'){closeFunnelMenu();$('#funnel-btn').focus()}});
+    bindBoard();bindBulk();bindSidebar();
+    $('#exit-demo').onclick=exitDemo;
     await refreshGoogle();
     $('#logout').onclick=()=>confirmAction('Sair do espaço','Salve as alterações antes de sair.','Sair',async()=>{await EcoAuth.api('/api/logout',{method:'POST',body:'{}'});location.reload()});
     $('#migrate-local').onclick=()=>confirmAction('Importar dados deste navegador','As propostas, fotos, PDFs locais serão copiados para o servidor. Os originais serão preservados. Agendamentos antigos precisarão de nova confirmação.','Importar meus dados',async()=>{
@@ -500,6 +512,7 @@
     window.addEventListener('eco:quotes-changed',()=>refresh().catch(error=>notify(error.message)));
     await refresh();hydrateIcons();fromHash();document.body.dataset.workspaceReady='true';window.UniversalFinance?.initSettings();window.UniversalDre?.initSettings();window.UniversalProfit?.initSettings();window.UniversalIntegrations?.init();window.EcoSettings?.init();
   }
-  window.EcoWorkspace={navigate,refresh,openDetail,icon,money,confirm:confirmAction};
+  // demo(): clientes fictícios para testes e prévias (o botão "Ver demonstração" saiu da tela).
+  window.EcoWorkspace={navigate,refresh,openDetail,icon,money,confirm:confirmAction,demo:enterDemo};
   if(window.EcoStudio)init().catch(error=>console.error(error));else window.addEventListener('eco:ready',()=>init().catch(error=>console.error(error)),{once:true});
 })();

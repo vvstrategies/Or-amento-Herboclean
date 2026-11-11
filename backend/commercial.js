@@ -64,10 +64,13 @@ export class CommercialService{
       CREATE TABLE IF NOT EXISTS profit_distributions (id TEXT PRIMARY KEY,period_from TEXT NOT NULL,period_to TEXT NOT NULL,data TEXT NOT NULL,created_at TEXT NOT NULL);`);
     this.seedPartners();
   }
+  // Orçamento sem tag própria herda o tipo marcado na ficha do cliente (orçamentos antigos, de antes das tags,
+  // ou cujo tipo foi definido só no cadastro). Assim "Sem tag" só sobra quando nem o cliente tem tipo.
   quotes(where='',...params){
+    let clientTags=null;const inherited=id=>{if(!id)return [];clientTags??=new Map(this.repo.db.prepare('SELECT id,data FROM clients').all().map(c=>{try{const t=JSON.parse(c.data).tags;return [c.id,Array.isArray(t)?t:[]]}catch{return [c.id,[]]}}));return clientTags.get(id)||[]};
     return this.repo.db.prepare(QUOTES+where).all(...params).map(r=>{
-      const items=JSON.parse(r.items),op=r.op?JSON.parse(r.op):{id:r.id,status:'generated',schedule:null};
-      return {id:r.id,number:r.number||'',date:r.date||'',client:r.client||'',origin:r.origin||'',tags:r.tags?JSON.parse(r.tags):[],address:r.address||'',addressNeighborhood:r.addressNeighborhood||'',addressCity:r.addressCity||'',addressState:r.addressState||'',
+      const items=JSON.parse(r.items),op=r.op?JSON.parse(r.op):{id:r.id,status:'generated',schedule:null},own=r.tags?JSON.parse(r.tags):[];
+      return {id:r.id,number:r.number||'',date:r.date||'',client:r.client||'',origin:r.origin||'',tags:Array.isArray(own)&&own.length?own:inherited(r.clientId),address:r.address||'',addressNeighborhood:r.addressNeighborhood||'',addressCity:r.addressCity||'',addressState:r.addressState||'',
         items,op,clientId:r.clientId,pix:items.reduce((s,i)=>s+itemCents(i),0),start:day(op.schedule?.start),completedAt:op.status==='completed'?day(op.serviceCompletedAt||op.schedule?.end):null};
     });
   }
@@ -168,6 +171,27 @@ export class CommercialService{
     return {name,phone:text(raw.phone??old.phone,60),email,contactName:text(raw.contactName??old.contactName,240),address:text(raw.address??old.address,800),city:text(raw.city??old.city,160),neighborhood:text(raw.neighborhood??old.neighborhood,160),birthday:birthday(raw.birthday??old.birthday),notes:text(raw.notes??old.notes,3000),custom:this.customFields(raw.custom,old.custom),tags,origin,...(old.avatar?{avatar:old.avatar}:{})};
   }
   createClient(raw){const id=crypto.randomUUID();return this.writeClient(id,this.clientInput(raw))}
+  // Importação em lote (Google Contatos, .vcf ou .csv). Telefone ou e-mail já cadastrado: só completa os campos vazios.
+  importClients(raw){
+    const list=raw?.clients;if(!Array.isArray(list)||!list.length||list.length>500)throw fail(400,'Envie de 1 a 500 clientes por vez.');
+    const byPhone=new Map(),byEmail=new Map(),index=c=>{const p=phoneOf(c.phone);if(p)byPhone.set(p,c);if(c.email)byEmail.set(c.email.toLowerCase(),c)};
+    for(const c of this.clientRows())index(c);
+    const FILL=['phone','email','contactName','address','city','neighborhood','birthday','notes','origin'];
+    let created=0,updated=0,skipped=0;const errors=[];
+    this.repo.transaction(()=>{for(const item of list){try{
+      if(!item||typeof item!=='object')throw fail(400,'Cliente inválido.');
+      // Tag desconhecida não impede importar o contato: entra sem ela.
+      let input;try{input=this.clientInput(item)}catch(error){if(!Array.isArray(item.tags)||!item.tags.length)throw error;input=this.clientInput({...item,tags:[]})}
+      const p=phoneOf(input.phone),e=input.email.toLowerCase(),old=(p&&byPhone.get(p))||(e&&byEmail.get(e));
+      if(!old){const c=this.writeClient(crypto.randomUUID(),input);index(c);created++;continue}
+      const next={...old};let changed=false;
+      for(const k of FILL)if(!old[k]&&input[k]){next[k]=input[k];changed=true}
+      const tags=[...new Set([...(old.tags||[]),...input.tags])].slice(0,10);if(tags.length!==(old.tags||[]).length){next.tags=tags;changed=true}
+      if(!changed){skipped++;continue}
+      index(this.writeClient(old.id,this.clientInput(next,old),old.createdAt));updated++;
+    }catch(error){errors.push({name:String(item?.name||'').slice(0,80),message:error.message})}}});
+    return {created,updated,skipped,failed:errors.length,errors:errors.slice(0,20)};
+  }
   updateClient(id,raw){const old=this.client(id);if(!old)throw fail(404,'Cliente não encontrado.');return this.writeClient(id,this.clientInput(raw,old),old.createdAt)}
   history(list){return list.map(x=>({id:x.id,number:x.number,date:x.date,status:x.op.status,serviceDate:x.op.status==='completed'?x.completedAt:x.start,pixCents:x.pix,services:x.items.map(i=>i.service)})).sort((a,b)=>b.date.localeCompare(a.date))}
   // Último serviço = atendimento concluído; próximo = agendamento a partir de hoje.
@@ -354,6 +378,7 @@ export function registerCommercial(app,commercial,wrap){
   app.post('/api/proposals/:id/crm',(req,res)=>res.json(commercial.setStage(req.params.id,req.body)));
   app.get('/api/clients',(req,res)=>res.json(commercial.clients()));
   app.post('/api/clients',(req,res)=>res.json(commercial.createClient(req.body)));
+  app.post('/api/clients/import',(req,res)=>res.json(commercial.importClients(req.body)));
   app.get('/api/clients/:id',(req,res)=>res.json(commercial.clientDetail(req.params.id)));
   app.put('/api/clients/:id',(req,res)=>res.json(commercial.updateClient(req.params.id,req.body)));
   app.get('/api/partners',(req,res)=>res.json(commercial.partners()));

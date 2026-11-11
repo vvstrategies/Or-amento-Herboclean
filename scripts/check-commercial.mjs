@@ -195,3 +195,25 @@ try{
   assert.ok(dash.channels.find(x=>x.origin==='organico'&&x.revenueCents===40000&&x.quotes===0));
 }finally{cohortRepo.close();fs.rmSync(cohortDir,{recursive:true,force:true})}
 console.log('PASS: comercial — funil por coorte, receita por conclusão, a receber, ROAS pago/total, cidade pelo endereço e moeda robusta.');
+
+// Importação de clientes em lote (Google Contatos / arquivo): cria, completa sem duplicar e ignora tag desconhecida.
+const importDir=fs.mkdtempSync(path.join(os.tmpdir(),'herboclean-import-')),importRepo=new Repository(importDir);
+try{
+  const s=new CommercialService(importRepo);
+  const first=s.createClient({name:'Ana Souza',phone:'(11) 98888-7777'});
+  const r=s.importClients({clients:[
+    {name:'Ana S.',phone:'+55 11 98888-7777',email:'ana@example.com',birthday:'03-18',tags:['residencial']},
+    {name:'Bruno Lima',phone:'(11) 97777-6666',tags:['nao-existe']},
+    {name:'Carla Dias',email:'carla@example.com'},
+    {name:'',phone:'123'},
+  ]});
+  assert.deepEqual([r.created,r.updated,r.skipped,r.failed],[2,1,0,1]);
+  const ana=s.client(first.id);
+  assert.equal(ana.name,'Ana Souza');assert.equal(ana.email,'ana@example.com');assert.equal(ana.birthday,'03-18');assert.deepEqual(ana.tags,['residencial']);
+  assert.equal(s.clientRows().length,3);
+  assert.deepEqual(s.clientRows().find(c=>c.name==='Bruno Lima').tags,[]);
+  const again=s.importClients({clients:[{name:'Ana Souza',phone:'11988887777'}]});
+  assert.deepEqual([again.created,again.updated,again.skipped],[0,0,1]);
+  assert.throws(()=>s.importClients({clients:[]}),/1 a 500/);
+}finally{importRepo.close();fs.rmSync(importDir,{recursive:true,force:true})}
+console.log('PASS: importação de clientes — cria, completa a ficha existente pelo telefone/e-mail sem duplicar, ignora tag desconhecida e recusa sem nome.');

@@ -1,7 +1,7 @@
 (function(root){
   'use strict';
   // Pílulas deslizantes: um indicador por grupo viaja até a opção ativa, inclusive quando o grupo é redesenhado.
-  const GROUPS='.seg,.dre-tabs,.dre-mode,.profit-tabs';
+  const GROUPS='.seg,.dre-tabs,.dre-mode,.profit-tabs,.fbar .fb-group';
   const ACTIVE=':scope>button[aria-pressed="true"],:scope>button[aria-selected="true"]';
   const last=new Map();let frame=0;
   const sizes=new ResizeObserver(()=>schedule());
@@ -27,18 +27,41 @@
   for(const name of ['eco:data-changed','eco:quotes-changed'])addEventListener(name,clearCache);
   root.EcoCache={get:cached,clear:clearCache};
   // Ícones oficiais das integrações (arquivos locais; a CSP só permite imagens do próprio servidor).
-  const ICONS={'meta-ads':['int-meta.svg','Meta Ads'],meta:['int-meta.svg','Meta Ads'],'google-ads':['int-googleads.svg','Google Ads'],google:['int-googleads.svg','Google Ads'],'google-calendar':['int-googlecalendar.svg','Google Agenda'],'google-drive':['int-googledrive.svg','Google Drive'],'google-contacts':['int-contacts.svg','Google Contatos'],'heigit-routes':['int-openstreetmap.svg','Rotas · OpenStreetMap'],asaas:['int-asaas.png','Asaas'],pix:['int-pix.svg','Pix']};
+  const ICONS={'meta-ads':['int-meta.svg','Meta Ads'],meta:['int-meta.svg','Meta Ads'],'google-ads':['int-googleads-color.svg','Google Ads'],google:['int-googleads-color.svg','Google Ads'],'google-calendar':['int-googlecalendar.svg','Google Agenda'],'google-drive':['int-googledrive.svg','Google Drive'],'google-contacts':['int-contacts.svg','Google Contatos'],'heigit-routes':['int-openstreetmap.svg','Rotas · OpenStreetMap'],asaas:['int-asaas.png','Asaas'],pix:['int-pix.svg','Pix']};
   const brandIcon=(id,size='')=>ICONS[id]?`<span class="brand-chip ${size}" aria-hidden="true"><img src="assets/${ICONS[id][0]}" alt="" loading="lazy"></span>`:'';
   // Ícones das origens que não são plataformas (traço no padrão da marca) e da tag.
   const LINE={indicacao:'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2.5 19a5.5 5.5 0 0 1 11 0M16 11a3 3 0 1 0 0-6M17.5 14c2.4.5 4 2.3 4 5',organico:'M5 19c0-8 6-13 14-14-1 8-6 14-14 14zM5 19c3-4 6-6 9-8',cliente:'M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5',none:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12h8',tag:'M3 12V4h8l10 10-8 8L3 12zM7.5 8.5h.01'};
   const optionIcon=id=>ICONS[id]?brandIcon(id,'sm'):LINE[id]?`<svg class="opt-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="${LINE[id]}"/></svg>`:'';
   root.EcoIcons={brandIcon,optionIcon,label:id=>ICONS[id]?.[1]||id};
+  // Cada serviço com seu ícone e sua cor, iguais no menu de filtro, no Início e em Vendas.
+  // As cores são distribuídas sobre o catálogo inteiro (não só sobre o que aparece na tela), para não mudarem de uma tela para outra.
+  const SVC_ICONS={sofa:'<path d="M5 11V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3"/><path d="M3 13a2 2 0 0 1 4 0v1h10v-1a2 2 0 0 1 4 0v4H3z"/><path d="M5 17v2M19 17v2"/>',
+    cadeira:'<path d="M7 3h10v8H7z"/><path d="M6 11h12v4H6zM7 15l-1 6M17 15l1 6"/>',colchao:'<rect x="3" y="8" width="18" height="9" rx="2.5"/><path d="M3 12h18M7 8v4M12 8v4M17 8v4"/>',
+    tapete:'<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 7h6v10H9z"/>',carpete:'<path d="M4 7a3 3 0 0 1 6 0v12H4z"/><path d="M10 9h10v10H7"/><circle cx="7" cy="7" r="1"/>',
+    imper:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9.5 14.5l1.8 1.8 3.4-3.6"/>',
+    cortina:'<path d="M3 3h18M5 3v18M19 3v18M5 3c3 5 3 12 0 18M19 3c-3 5-3 12 0 18"/>',persiana:'<path d="M3 3h18M5 3v15h14V3M5 7h14M5 11h14M5 15h14M12 18v3"/>',
+    carro:'<path d="M5 17h14v-5l-2-5H7l-2 5z"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/>',
+    poltrona:'<path d="M6 12V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v5"/><path d="M4 12a2 2 0 0 1 4 0v2h8v-2a2 2 0 0 1 4 0v5H4z"/><path d="M6 17v2M18 17v2"/>',outro:'<path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/>'};
+  const SVC_COLORS={sofa:'#1c7ed6',tapete:'#e8590c',carpete:'#b35c00',cortina:'#7048e8',persiana:'#9c36b5',colchao:'#0ca678',cadeira:'#f08c00',imper:'#1098ad',carro:'#e03131',poltrona:'#d6336c',outro:'#5c940d'};
+  const SVC_PALETTE=['#1c7ed6','#e8590c','#7048e8','#0ca678','#f08c00','#1098ad','#e03131','#d6336c','#5c940d','#9c36b5','#b35c00','#495057'];
+  const svcKey=name=>{const n=String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    return /sofa/.test(n)?'sofa':/cadeira/.test(n)?'cadeira':/colch/.test(n)?'colchao':/carpete/.test(n)?'carpete':/tapete/.test(n)?'tapete':/imperme/.test(n)?'imper':/persiana/.test(n)?'persiana':/cortina/.test(n)?'cortina':/automot|carro|banco/.test(n)?'carro':/poltrona/.test(n)?'poltrona':'outro'};
+  let svcCatalog=[];
+  function svcColors(names){
+    const all=[...new Set([...svcCatalog,...names])],used=new Set(),out={};
+    // Primeiro quem tem cor própria, depois os demais com as cores que sobraram.
+    for(const n of all){const c=SVC_COLORS[svcKey(n)];if(c&&!used.has(c)){used.add(c);out[n]=c}}
+    for(const n of all)if(!out[n]){const c=SVC_PALETTE.find(p=>!used.has(p))||SVC_PALETTE[all.indexOf(n)%SVC_PALETTE.length];used.add(c);out[n]=c}
+    return out;
+  }
+  root.EcoServices={key:svcKey,icon:name=>`<svg viewBox="0 0 24 24" aria-hidden="true">${SVC_ICONS[svcKey(name)]}</svg>`,colors:svcColors,color:name=>svcColors([name])[name],setCatalog(list){svcCatalog=[...list]}};
   // Configurações em abas: agrupa as seções existentes sem mudar seus formulários.
-  const SETTINGS_TABS=[['company','Empresa'],['integrations','Integrações'],['commercial','Comercial'],['finance','Custos e financeiro'],['data','Dados']];
+  const SETTINGS_TABS=[['company','Empresa'],['integrations','Integrações'],['commercial','Comercial'],['finance','Custos e financeiro'],['intelligence','Inteligência e precificação'],['data','Dados']];
   function settingsPanelOf(section){
     if(section.dataset.panel)return section.dataset.panel;
     if(section.matches('#integrations-center'))return 'integrations';
     if(section.matches('#commercial-settings'))return 'commercial';
+    if(section.matches('#profit-settings-slot'))return 'intelligence';
     if(section.matches('#financial-settings-slot,#dre-settings-slot,.profit-private'))return 'finance';
     if(section.matches('.backup-card')||section.querySelector('#migrate-local'))return 'data';
     return 'company';

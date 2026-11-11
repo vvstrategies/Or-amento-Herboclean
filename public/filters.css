@@ -1,7 +1,39 @@
 /* Barra de filtros única do topo (filters.js). Pílula branca com grupos separados por divisores. */
 .fbar-slot{min-width:0;display:flex;justify-content:center}
-.fbar{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--r-line);border-radius:999px;padding:5px;box-shadow:0 10px 26px -18px color-mix(in srgb,var(--r-primary) 70%,transparent);max-width:100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.fbar::-webkit-scrollbar{display:none}
+/* Cartão com a linha de filtros (.fb-main) e, em algumas telas, linhas extras (.fb-grow) que se abrem ao entrar na tela. */
+.fbar{display:grid;grid-template-columns:minmax(0,1fr);background:#fff;border:1px solid var(--r-line);border-radius:24px;padding:5px;box-shadow:0 10px 26px -18px color-mix(in srgb,var(--r-primary) 70%,transparent);max-width:100%;min-width:0}
+.fb-line{display:flex;align-items:center;min-width:0}
+.fb-line>.fb-main{flex:0 1 auto}
+.fb-tail{display:flex;align-items:center;gap:4px;flex:none}
+.fb-tail:empty{display:none}
+.fb-still,.fb-still .fb-extra{animation:none}
+.fb-row{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.fb-row::-webkit-scrollbar{display:none}
+.fb-grow{display:grid;grid-template-rows:1fr;animation:fb-grow .45s var(--r-ease) both}
+.fb-inner{min-height:0;overflow:hidden}
+.fb-extra{border-top:1px solid var(--r-line);margin-top:5px;padding:5px 0 0;animation:fb-row-in .4s var(--r-ease) .12s both}
+@keyframes fb-grow{from{grid-template-rows:0fr}}
+@keyframes fb-row-in{from{opacity:0;transform:translateY(-6px)}}
+/* Controles das telas dentro da barra (Orçamentos, Clientes, Financeiro › Inteligência) */
+.fb-extra>*{flex:none}
+.fb-dd{border:1px solid var(--r-line);background:var(--r-mint);border-radius:999px;padding:6px 10px 6px 13px;font:inherit;font-weight:700;font-size:12.5px;line-height:1.2;color:var(--r-ink);display:inline-flex;align-items:center;gap:7px;white-space:nowrap;cursor:pointer;transition:background .18s,border-color .18s}
+.fb-dd:hover,.fb-dd[aria-expanded=true]{border-color:var(--r-primary);background:#fff}
+.fb-dd-lbl{font-weight:600;color:var(--r-muted)}
+.fb-n{min-width:20px;height:18px;border-radius:999px;background:color-mix(in srgb,var(--r-primary) 10%,#fff);color:var(--r-ink);font-size:10.5px;font-weight:700;display:inline-grid;place-items:center;padding:0 6px;font-variant-numeric:tabular-nums}
+.fb-dd .fb-n{background:var(--r-primary);color:#fff}
+.app-shell .fb-extra .fb-search{flex:1 1 240px;min-width:180px;max-width:none;height:32px;background:var(--r-paper);border:1px solid transparent;transition:border-color .18s,background .18s}
+.app-shell .fb-extra .fb-search:focus-within{background:#fff;border-color:var(--r-primary)}
+.app-shell .fb-extra .fb-search input{padding:6px 0;font-size:12.5px}
+.fb-tog{border:1px solid var(--r-line);background:#fff;border-radius:999px;padding:6px 13px;font:inherit;font-weight:600;font-size:12.5px;line-height:1.2;color:var(--r-muted);white-space:nowrap;cursor:pointer;transition:background .18s,color .18s,border-color .18s}
+.fb-tog:hover{color:var(--r-ink);background:var(--r-mint)}
+.fb-tog[aria-pressed=true]{background:var(--r-primary)!important;border-color:var(--r-primary)!important;color:#fff!important}
+.fb-dd:focus-visible,.fb-tog:focus-visible{outline:2px solid var(--r-accent);outline-offset:2px}
+.fb-funnel-menu{min-width:220px}
+.fb-funnel-menu button{justify-content:space-between}
+.fb-funnel-menu button[aria-pressed=true]{background:var(--r-mint);font-weight:700;color:var(--r-ink)}
+/* Pílula deslizante (EcoSegment em ui-kit.js) */
+.fbar .fb-group>.seg-ind{background:linear-gradient(135deg,var(--r-primary),var(--r-deep))}
+.fbar .has-ind>.fb-pill[aria-pressed=true]{box-shadow:none}
 .fb-group{display:flex;align-items:center;gap:2px;flex:none}
 .fb-div{width:1px;height:22px;background:var(--r-line);margin:0 4px;flex:none}
 .fb-pill,.fb-menu-btn{border:0;background:none;border-radius:999px;padding:7px 11px;font-family:inherit;font-weight:600;font-size:12.5px;line-height:1.2;color:var(--r-muted);display:inline-flex;align-items:center;gap:7px;white-space:nowrap;cursor:pointer;transition:background .18s var(--r-ease),color .18s var(--r-ease)}
@@ -24,11 +56,20 @@
 .fb-oico .opt-ico{width:16px;height:16px;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .fb-o-organico .opt-ico{stroke:#2f9e44}.fb-o-indicacao .opt-ico{stroke:#e8590c}.fb-o-cliente .opt-ico{stroke:#7048e8}.fb-o-none .opt-ico{stroke:#868e96}
 .fb-pill[aria-pressed=true] .fb-o-organico .opt-ico{stroke:#8ce99a}
-.fb-pill[aria-pressed=true] .brand-chip.sm{background:#fff;border-radius:50%;padding:1px}
+.fb-oico .brand-chip.sm,.fb-pill[aria-pressed=true] .brand-chip.sm{background:none;border-radius:0;padding:0;box-shadow:none}
 /* Menus e calendário flutuantes */
 .fb-pop{position:fixed;z-index:1000;background:#fff;border:1px solid var(--r-line);border-radius:18px;box-shadow:0 24px 60px -24px rgba(4,40,30,.45);animation:fb-in .16s var(--r-ease)}
 @keyframes fb-in{from{opacity:0;transform:translateY(-4px)}}
 .fb-menu{min-width:210px;max-height:min(360px,70vh);overflow:auto;padding:6px;display:grid;gap:2px}
+.fb-menu-service,.fb-menu-tag{max-height:min(640px,calc(100vh - 110px))}
+.fb-menu-wide{grid-template-columns:repeat(2,minmax(200px,1fr));column-gap:4px}
+.fb-menu-wide .fb-menu-clear{grid-column:1 / -1}
+/* Ícones coloridos nas opções de serviço e tipo de cliente */
+.fb-mico{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;color:var(--svc,var(--r-primary));background:color-mix(in srgb,var(--svc,var(--r-primary)) 13%,#fff)}
+.fb-mico svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.fb-t-corporativo{--svc:#044c3a;background:#044c3a;color:#d4f26a}
+.fb-t-residencial{--svc:#6b8f00;background:color-mix(in srgb,var(--r-accent) 26%,#fff);color:#4d6a00}
+.fb-t-__none,.fb-t-other{--svc:#868e96}
 .fb-menu button{border:0;background:none;border-radius:11px;padding:9px 11px;font-family:inherit;font-weight:500;font-size:13px;color:var(--r-text);display:flex;align-items:center;justify-content:flex-start;gap:10px;text-align:left;cursor:pointer}
 .fb-menu button:hover,.fb-menu button:focus-visible{background:var(--r-mint);outline:none}
 .fb-menu [aria-checked=true]{font-weight:700;color:var(--r-ink)}
@@ -58,9 +99,54 @@
 .fb-cal-range{text-align:center;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--r-muted);margin:12px 0}
 .fb-cal-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:10px}
 .fb-cal-actions button{height:42px;border-radius:13px}
+/* A barra fica no meio do topo em todas as telas */
+.home-top .fbar-slot,.page-heading-bar .fbar-slot,.dre-top.fin-top .fbar-slot{flex:1 1 auto;justify-content:center}
 @media (max-width:760px){
-  .fbar-slot{justify-content:flex-start;width:100%}
+  .fbar-slot,.home-top .fbar-slot,.page-heading-bar .fbar-slot,.dre-top.fin-top .fbar-slot{justify-content:flex-start;width:100%}
   .fbar{border-radius:18px;width:100%}
   .fb-pill,.fb-menu-btn{padding:7px 11px}
 }
-@media (prefers-reduced-motion:reduce){.fb-pop{animation:none}.fb-pill,.fb-menu-btn{transition:none}}
+@media (prefers-reduced-motion:reduce){.fb-pop,.fb-grow,.fb-extra{animation:none}.fb-pill,.fb-menu-btn{transition:none}}
+/* Atalhos (.seg) e botões das telas dentro da barra: mesmo desenho das pílulas de filtro */
+.fb-extra .fb-seg{background:none;border:0;box-shadow:none;padding:0;flex-wrap:nowrap;gap:2px}
+.fb-extra .fb-seg button{padding:6px 11px}
+.fb-extra .fb-seg>.seg-ind{background:linear-gradient(135deg,var(--r-primary),var(--r-deep))}
+.fb-spacer{flex:1 1 0;min-width:4px}
+.fb-extra .fb-cta{border-radius:999px;padding:7px 15px;font-size:12.5px;font-weight:700;white-space:nowrap;min-height:0;height:auto;line-height:1.2}
+.fb-tog .fb-chev{margin-left:4px;vertical-align:-2px}
+/* Menu Importar (clients-io.js) */
+.cio-menu{min-width:280px}
+.cio-menu button,.cio-menu label{align-items:flex-start}
+.cio-menu label{border-radius:11px;padding:9px 11px;display:flex;gap:10px;cursor:pointer;font-size:13px;color:var(--r-text)}
+.cio-menu label:hover,.cio-menu label:focus-visible{background:var(--r-mint);outline:none}
+.cio-menu b{display:block;font-weight:700;color:var(--r-ink)}
+.cio-menu small{display:block;color:var(--r-muted);font-size:11.5px;margin-top:2px}
+.cio-menu img{flex:none;margin-top:1px}
+.cio-file-ic svg{width:18px;height:18px;fill:none;stroke:var(--r-primary);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cio-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:10px 0 6px;font-size:13px}
+.cio-all{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--r-ink);cursor:pointer}
+.cio-count{color:var(--r-muted);font-variant-numeric:tabular-nums}
+.cio-item{display:flex!important;align-items:center;gap:12px;cursor:pointer}
+.cio-item>span{display:grid;min-width:0;flex:1}
+.cio-item input{width:17px;height:17px;flex:none;accent-color:var(--r-primary)}
+.cio-dup{font-style:normal;font-size:11px;font-weight:700;color:var(--r-muted);background:var(--r-paper);border-radius:999px;padding:2px 8px;flex:none}
+.cio-result{margin:0;padding-left:18px;line-height:1.8}
+/* Financeiro: ••• e filtros da Inteligência na barra */
+.fb-more{border:0;background:none;border-radius:999px;padding:7px 12px;font:inherit;font-weight:800;font-size:13px;letter-spacing:.08em;color:var(--r-muted);cursor:pointer;min-height:0;box-shadow:none}
+.fb-more:hover,.fb-more[aria-expanded=true]{background:var(--r-mint);color:var(--r-ink)}
+.fbar .fb-tail .fb-seg button{padding:7px 12px;font-size:12.5px}
+.fbar .dre-mode.is-off{opacity:.45;pointer-events:none}
+.fb-form,.profit-filters.fb-form{display:flex;align-items:center;gap:2px;margin:0;flex:none}
+.fb-sel,.profit-filters.fb-form label.fb-sel{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:0 2px 0 11px;font-size:12.5px;font-weight:600;color:var(--r-muted);white-space:nowrap;flex:none;cursor:pointer;transition:background .18s;margin:0}
+.fb-sel:hover,.fb-sel:focus-within{background:var(--r-mint)}
+.app-shell .fb-sel select,.app-shell .profit-filters.fb-form .fb-sel select{appearance:none;-webkit-appearance:none;border:0!important;box-shadow:none!important;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2303362a' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center/12px!important;font:inherit;font-weight:700;color:var(--r-ink);padding:7px 26px 7px 0!important;height:auto!important;min-height:0!important;width:auto!important;max-width:190px;cursor:pointer;border-radius:0!important;outline:none}
+.fb-sel-view{background:var(--r-mint);border:1px solid var(--r-line)}
+.fb-sel-view:hover,.fb-sel-view:focus-within{border-color:var(--r-primary);background:#fff}
+.fb-sel:focus-within{outline:2px solid var(--r-accent);outline-offset:1px}
+/* Seletores da marca (brand-select.js) dentro da barra: texto em negrito, sem caixa; a lista abre fixa */
+.fbar .fb-sel .bsel{width:auto}
+.fbar .fb-sel .bsel-btn{background:transparent;border:0;min-height:0;padding:6px 10px 6px 0;gap:6px;border-radius:999px;font-weight:700;font-size:12.5px;color:var(--r-ink);box-shadow:none}
+.fbar .fb-sel .bsel-btn:hover,.fbar .fb-sel .bsel-btn[aria-expanded=true]{background:transparent;box-shadow:none}
+.fbar .fb-sel .bsel-btn span{max-width:170px}
+.fbar .fb-sel .bsel-btn svg{width:12px;height:12px}
+.bsel-list.fixed{position:fixed;right:auto;width:max-content;max-width:min(320px,calc(100vw - 16px))}

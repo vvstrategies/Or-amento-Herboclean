@@ -13,10 +13,8 @@
   let data=null,serial=0,observer=null;
   const filters=()=>root.EcoFilters.get('home');
   const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // Cada serviço com sua cor (ícone e barra), para identificar de relance. Cores distintas, saturação parecida.
-  const SERVICE_COLORS={sofa:'#1c7ed6',tapete:'#e8590c',cortina:'#7048e8',colchao:'#0ca678',cadeira:'#f08c00',imper:'#1098ad',carro:'#e03131',poltrona:'#d6336c',outro:'#5c940d'};
-  const PALETTE=['#1c7ed6','#e8590c','#7048e8','#0ca678','#f08c00','#1098ad','#e03131','#d6336c','#5c940d','#495057'];
-  function serviceColors(names){const used=new Set(),out={};for(const n of names){let c=SERVICE_COLORS[keyFor(n)];if(!c||used.has(c))c=PALETTE.find(p=>!used.has(p))||PALETTE[0];used.add(c);out[n]=c}return out}
+  // Cor e ícone de cada serviço vêm de EcoServices (ui-kit.js): os mesmos no menu de filtro e nos cards.
+  const serviceColors=names=>root.EcoServices.colors(names);
   // Números sobem até o valor final ao carregar (count-up). Sem animação com movimento reduzido.
   function countUp(scope){
     const els=scope.querySelectorAll('[data-count]');if(reduced())return;
@@ -28,14 +26,7 @@
       el.innerHTML=show(0);requestAnimationFrame(step);
     }
   }
-  const ICONS={sofa:'<path d="M5 11V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3"/><path d="M3 13a2 2 0 0 1 4 0v1h10v-1a2 2 0 0 1 4 0v4H3z"/><path d="M5 17v2M19 17v2"/>',
-    cadeira:'<path d="M7 3h10v8H7z"/><path d="M6 11h12v4H6zM7 15l-1 6M17 15l1 6"/>',colchao:'<rect x="3" y="8" width="18" height="9" rx="2.5"/><path d="M3 12h18M7 8v4M12 8v4M17 8v4"/>',
-    tapete:'<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 7h6v10H9z"/>',imper:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9.5 14.5l1.8 1.8 3.4-3.6"/>',
-    cortina:'<path d="M3 3h18M5 3v18M19 3v18M5 3c3 5 3 12 0 18M19 3c-3 5-3 12 0 18"/>',carro:'<path d="M5 17h14v-5l-2-5H7l-2 5z"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/>',
-    poltrona:'<path d="M6 12V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v5"/><path d="M4 12a2 2 0 0 1 4 0v2h8v-2a2 2 0 0 1 4 0v5H4z"/><path d="M6 17v2M18 17v2"/>',outro:'<path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/>'};
-  function keyFor(name){const n=String(name).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
-    return /sofa/.test(n)?'sofa':/cadeira/.test(n)?'cadeira':/colch/.test(n)?'colchao':/tapete|carpete/.test(n)?'tapete':/imperme/.test(n)?'imper':/cortina|persiana/.test(n)?'cortina':/automot|carro|banco/.test(n)?'carro':/poltrona/.test(n)?'poltrona':'outro'}
-  function iconFor(name){return `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[keyFor(name)]}</svg>`}
+  const iconFor=name=>root.EcoServices.icon(name);
   function delta(cur,prev,kind='pct'){
     if(cur==null||prev==null)return '<span class="pill">—</span>';
     if(kind==='pp'){const d=(cur-prev)*100;return `<span class="pill ${d>=0?'up':'down'}">${d>=0?'↑':'↓'} ${num(Math.abs(d),1)} p.p.</span>`}

@@ -23,10 +23,13 @@
     Object.defineProperty(select,'value',{configurable:true,get(){return proto.get.call(this)},set(v){proto.set.call(this,v);sync()}});
     Object.defineProperty(select,'selectedIndex',{configurable:true,get(){return protoIndex.get.call(this)},set(v){protoIndex.set.call(this,v);sync()}});
     const items=()=>[...list.children];
-    const mark=()=>items().forEach((li,i)=>{li.classList.toggle('hl',i===hl);if(i===hl)li.scrollIntoView({block:'nearest'})});
+    const mark=()=>items().forEach((li,i)=>{li.classList.toggle('hl',i===hl);if(i===hl){/* Rola só a lista: scrollIntoView também rolaria a linha da barra do topo. */if(li.offsetTop<list.scrollTop)list.scrollTop=li.offsetTop;else if(li.offsetTop+li.offsetHeight>list.scrollTop+list.clientHeight)list.scrollTop=li.offsetTop+li.offsetHeight-list.clientHeight}});
     const build=()=>{list.innerHTML=[...select.options].map((o,i)=>`<li role="option" data-i="${i}" aria-selected="${i===select.selectedIndex}"${o.disabled?' aria-disabled="true"':''}${o.hidden?' hidden':''}><span class="ck">✓</span>${icon(o)}${esc(o.textContent)}</li>`).join('')};
     // Abre para cima quando não há espaço embaixo (ex.: barra fixa no rodapé).
-    const show=()=>{if(select.disabled)return;close();build();list.hidden=false;const r=btn.getBoundingClientRect(),below=innerHeight-r.bottom;list.classList.toggle('up',below<list.offsetHeight+12&&r.top>below);btn.setAttribute('aria-expanded','true');open={list,btn};hl=select.selectedIndex;mark()};
+    const show=()=>{if(select.disabled)return;close();build();list.hidden=false;const r=btn.getBoundingClientRect(),below=innerHeight-r.bottom;
+      // Dentro da barra do topo a linha recorta o que passa dela: a lista abre fixa na tela, logo abaixo do botão.
+      if(btn.closest('.fbar')){list.classList.add('fixed');list.style.minWidth=Math.max(r.width,200)+'px';list.style.left=Math.max(8,Math.min(innerWidth-list.offsetWidth-8,r.left))+'px';list.style.top=(r.bottom+6)+'px';}
+      else list.classList.toggle('up',below<list.offsetHeight+12&&r.top>below);btn.setAttribute('aria-expanded','true');open={list,btn};hl=select.selectedIndex;mark()};
     const pick=i=>{const o=select.options[i];if(!o||o.disabled)return;const changed=select.selectedIndex!==i;protoIndex.set.call(select,i);sync();close(true);if(changed){select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}))}};
     btn.addEventListener('click',e=>{e.stopPropagation();list.hidden?show():close()});
     list.addEventListener('mousedown',e=>e.preventDefault());

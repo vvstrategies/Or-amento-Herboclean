@@ -1,4 +1,6 @@
 module.exports=async function({evaluate,click,set,until,screenshot,send,downloadFile}){
+ // A análise (Visão geral, Serviços...) é escolhida no seletor "Ver" da barra do topo.
+ const view=async name=>{await until("!!document.querySelector('#profit-view-select')");await evaluate("{const s=document.querySelector('#profit-view-select');s.value="+JSON.stringify(name)+";s.dispatchEvent(new Event('change',{bubbles:true}))}")};
  const assert=require('node:assert/strict'),fs=require('node:fs');
  await send('Emulation.setDeviceMetricsOverride',{width:1512,height:1100,deviceScaleFactor:1,mobile:false});
  await evaluate("UniversalProfit.initSettings()");await until("!!document.querySelector('#profit-settings-form')");
@@ -30,12 +32,12 @@ module.exports=async function({evaluate,click,set,until,screenshot,send,download
  assert.ok(await evaluate("document.querySelector('#profit-analysis')?.textContent.includes('105,00')"));
  await click('[data-goal]');await until("document.querySelector('#profit-dialog').open");await set('#profit-dialog [name=revenue]','1000');await set('#profit-dialog [name=marginBps]','60');await evaluate("document.querySelector('#profit-dialog form').requestSubmit()");await until("!document.querySelector('#profit-dialog').open");await until("document.querySelector('.profit-goal').textContent.includes('1.000,00')");
  await screenshot('profit-overview-desktop');await click('.profit-metric');await until("document.querySelector('#profit-dialog').open");await screenshot('profit-drill-desktop');await click('#profit-dialog [data-close]');
- for(const name of ['byService','byCity','byClient','accuracy','pricing']){await click('[data-profit-view="'+name+'"]');await until("!document.querySelector('#dre-content').classList.contains('dre-updating') && document.querySelector('[data-profit-view="+name+"]')?.getAttribute('aria-pressed')==='true'");await screenshot('profit-'+name+'-desktop');}
- await click('[data-profit-view="overview"]');await until("!!document.querySelector('.profit-metrics')");
+ for(const name of ['byService','byCity','byClient','accuracy','pricing']){await view(name);await until("!document.querySelector('#dre-content').classList.contains('dre-updating') && document.querySelector('#profit-view-select')?.value==='"+name+"' && !!document.querySelector('#profit-analysis')");await screenshot('profit-'+name+'-desktop');}
+ await view('overview');await until("!!document.querySelector('.profit-metrics')");
  await click('#profit-export');const file=await downloadFile('rentabilidade-interna-'+await evaluate("EcoFilters.get('finance').from.slice(0,7)")+'.csv');assert.ok(fs.readFileSync(file,'utf8').includes('Santo André'));
  await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await evaluate("document.querySelector('#profit-analysis').scrollIntoView({block:'start'})");await screenshot('profit-overview-mobile');
- await click('[data-profit-view="byService"]');await until("!!document.querySelector('#profit-analysis .dre-table')");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('profit-services-mobile');
- await click('#dre-demo');await until("document.querySelector('#dre-content').textContent.includes('Seis atendimentos fictícios')");await click('[data-profit-view="accuracy"]');await until("document.querySelector('#profit-analysis')?.textContent.includes('Precisão das estimativas')");await screenshot('profit-demo-mobile');
- await click('#dre-demo');await until("!document.querySelector('#dre-new-expense').disabled");await click('[data-nav="settings"]');
+ await view('byService');await until("!!document.querySelector('#profit-analysis .dre-table')");assert.equal(await evaluate('document.documentElement.scrollWidth<=390'),true);await screenshot('profit-services-mobile');
+ await evaluate('UniversalDre.toggleDemo()');await until("document.querySelector('#dre-content').textContent.includes('Seis atendimentos fictícios')");await view('accuracy');await until("document.querySelector('#profit-analysis')?.textContent.includes('Precisão das estimativas')");await screenshot('profit-demo-mobile');
+ await evaluate('UniversalDre.toggleDemo()');await until("!document.querySelector('#dre-new-expense').disabled");await click('[data-nav="settings"]');
  console.log('PASS: Fase 3 desktop/mobile — simulador/alerta/aplicação, conclusão opcional, custos reais, cidade, metas, analytics, drill-down, CSV e demonstração.');
 };

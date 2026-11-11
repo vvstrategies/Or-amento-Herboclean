@@ -29,6 +29,7 @@
     optionsPromise=Promise.all([api('/api/settings?lite=1').catch(()=>null),api('/api/tags').catch(()=>[])]).then(([settings,tags])=>{
       options={services:(settings?.services||[]).map(s=>s.name).filter(Boolean),tags:(tags||[]).map(t=>({id:t.id,label:t.label.charAt(0)+t.label.slice(1).toLowerCase()}))};
       if(!options.tags.length)options.tags=[{id:'residencial',label:'Residencial'},{id:'corporativo',label:'Corporativo'}];
+      root.EcoServices?.setCatalog(options.services);
       for(const bar of bars.values())render(bar);return options;
     });
     return optionsPromise;
@@ -76,6 +77,10 @@
   const dots='<span class="fb-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span>';
   const originIcon=id=>id==='all'?dots:`<span class="fb-oico fb-o-${esc(id)}">${root.EcoIcons?.optionIcon(id)||''}</span>`;
   const chevron='<svg class="fb-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  // Tipo de cliente: ícone e cor iguais aos selos dos cards (Corporativo verde-escuro, Residencial lima).
+  const TAG_ICONS={corporativo:'M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h3a1 1 0 0 1 1 1v11M3 21h18M8 7h4M8 11h4M8 15h4',residencial:'M3 11l9-7 9 7M5 9.5V20h14V9.5M10 20v-5h4v5',__none:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12h8'};
+  const tagIcon=id=>`<span class="fb-mico fb-t-${TAG_ICONS[id]?esc(id):'other'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${TAG_ICONS[id]||'M3 12V4h8l10 10-8 8L3 12zM7.5 8.5h.01'}"/></svg></span>`;
+  const serviceIcon=(name,color)=>`<span class="fb-mico fb-svc" style="--svc:${esc(color)}">${root.EcoServices?.icon(name)||''}</span>`;
   const calIcon='<svg class="fb-cal" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
 
   /* ---------- Render ---------- */
@@ -88,13 +93,23 @@
     if(f.from.slice(0,7)===f.to.slice(0,7))return `${m(f.from)} ${y(f.from)}`;
     return y(f.from)===y(f.to)?`${m(f.from)} – ${m(f.to)} ${y(f.to)}`:`${m(f.from)} ${y(f.from)} – ${m(f.to)} ${y(f.to)}`;
   }
+  // A barra é um cartão com a linha de filtros e, nas telas que precisam, linhas extras (extraRow).
+  // Só a linha de filtros é redesenhada; as extras guardam os controles da tela (busca, funil...) intactos.
+  // .fb-tail fica na mesma linha dos filtros, depois deles, e também não é redesenhado (ex.: Realizado/Projetado no Financeiro).
+  function scaffold(host){let bar=host.querySelector(':scope>.fbar');if(!bar){host.innerHTML='<div class="fbar" role="toolbar" aria-label="Filtros"><div class="fb-line"><div class="fb-row fb-main"></div><div class="fb-tail"></div></div></div>';bar=host.firstElementChild}return bar}
+  const tail=host=>scaffold(host).querySelector('.fb-tail');
+  function extraRow(host,key='extra'){
+    const bar=scaffold(host);let g=bar.querySelector(`:scope>.fb-grow[data-row="${key}"]`);
+    if(!g){g=document.createElement('div');g.className='fb-grow';g.dataset.row=key;g.innerHTML='<div class="fb-inner"><div class="fb-row fb-extra"></div></div>';bar.append(g)}
+    return g.querySelector('.fb-extra');
+  }
   function render(bar){
     const {host,scope,dims}=bar,f=get(scope),extraOrigin=ORIGINS.slice(INLINE_ORIGINS).find(([id])=>id===f.origin);
     const groups=[];
-    if(dims.includes('origin'))groups.push(`<div class="fb-group" role="group" aria-label="Origem">${ORIGINS.slice(0,INLINE_ORIGINS).map(([id,l])=>`<button type="button" class="fb-pill" data-fb-origin="${id}" aria-pressed="${f.origin===id}">${originIcon(id)}${l}</button>`).join('')}${menuButton('origin',extraOrigin?extraOrigin[1]:'Mais',extraOrigin?1:0)}</div>`);
+    if(dims.includes('origin'))groups.push(`<div class="fb-group" role="group" aria-label="Origem" data-seg-key="fb-${scope}-origin">${ORIGINS.slice(0,INLINE_ORIGINS).map(([id,l])=>`<button type="button" class="fb-pill" data-fb-origin="${id}" aria-pressed="${f.origin===id}">${originIcon(id)}${l}</button>`).join('')}${menuButton('origin',extraOrigin?extraOrigin[1]:'Mais',extraOrigin?1:0)}</div>`);
     if(dims.includes('period')){
       const presets=CUSTOM_PRESETS[scope]?CUSTOM_PRESETS[scope].map(x=>[x.id,x.label]):['7','30','90',...(bar.allowAll?['all']:[])].map(id=>[id,PERIOD_LABEL[id]]);
-      groups.push(`<div class="fb-group" role="group" aria-label="Período">${presets.map(([id,label])=>`<button type="button" class="fb-pill" data-fb-preset="${id}" aria-pressed="${f.preset===id}">${esc(label)}</button>`).join('')}<button type="button" class="fb-pill fb-range${f.preset==='custom'?' on':''}" data-fb-calendar aria-haspopup="dialog" aria-pressed="${f.preset==='custom'}">${calIcon}${f.from?rangeLabel(scope,f):'Escolher datas'}</button></div>`);
+      groups.push(`<div class="fb-group" role="group" aria-label="Período" data-seg-key="fb-${scope}-period">${presets.map(([id,label])=>`<button type="button" class="fb-pill" data-fb-preset="${id}" aria-pressed="${f.preset===id}">${esc(label)}</button>`).join('')}<button type="button" class="fb-pill fb-range${f.preset==='custom'?' on':''}" data-fb-calendar aria-haspopup="dialog" aria-pressed="${f.preset==='custom'}">${calIcon}${f.from?rangeLabel(scope,f):'Escolher datas'}</button></div>`);
     }
     const sel=[];
     if(dims.includes('service'))sel.push(menuButton('service',f.services.length===1?f.services[0]:'Serviço',f.services.length>1?f.services.length:f.services.length?1:0));
@@ -102,7 +117,7 @@
     if(dims.includes('status')){const one=STATUSES.find(([id])=>id===f.statuses[0]);sel.push(menuButton('status',f.statuses.length===1&&one?one[1]:'Status',f.statuses.length))}
     if(sel.length)groups.push(`<div class="fb-group" role="group" aria-label="Serviço, tipo de cliente e status">${sel.join('')}</div>`);
     const clear=active(scope)?'<button type="button" class="fb-clear" data-fb-clear title="Voltar aos filtros padrão">Limpar</button>':'';
-    host.innerHTML=`<div class="fbar" role="toolbar" aria-label="Filtros">${groups.join('<span class="fb-div" aria-hidden="true"></span>')}${clear}</div>`;
+    scaffold(host).querySelector('.fb-main').innerHTML=`${groups.join('<span class="fb-div" aria-hidden="true"></span>')}${clear}`;
   }
 
   /* ---------- Menus ---------- */
@@ -115,10 +130,10 @@
   function showMenu(bar,kind,button){
     closeMenu();const f=get(bar.scope);
     const list=kind==='origin'?ORIGINS.slice(INLINE_ORIGINS).map(([id,l])=>({id,label:l,on:f.origin===id,icon:originIcon(id),radio:true}))
-      :kind==='service'?options.services.map(s=>({id:s,label:s,on:f.services.includes(s)}))
-      :kind==='tag'?[...options.tags.map(t=>({id:t.id,label:t.label,on:f.tags.includes(t.id)})),{id:'__none',label:'Sem tipo',on:f.tags.includes('__none')}]
+      :kind==='service'?(()=>{const c=root.EcoServices?.colors(options.services)||{};return options.services.map(s=>({id:s,label:s,on:f.services.includes(s),icon:serviceIcon(s,c[s]||'')}))})()
+      :kind==='tag'?[...options.tags.map(t=>({id:t.id,label:t.label,on:f.tags.includes(t.id),icon:tagIcon(t.id)})),{id:'__none',label:'Sem tipo',on:f.tags.includes('__none'),icon:tagIcon('__none')}]
       :STATUSES.map(([id,l])=>({id,label:l,on:f.statuses.includes(id),dot:id}));
-    const el=document.createElement('div');el.className='fb-pop fb-menu';el.setAttribute('role','menu');
+    const el=document.createElement('div');el.className='fb-pop fb-menu fb-menu-'+kind+(list.length>8?' fb-menu-wide':'');el.setAttribute('role','menu');
     el.innerHTML=(list.length?list.map(o=>`<button type="button" role="${o.radio?'menuitemradio':'menuitemcheckbox'}" aria-checked="${o.on}" data-id="${esc(o.id)}">${o.radio?'':'<span class="fb-check" aria-hidden="true"></span>'}${o.icon||''}${o.dot?`<span class="fb-sdot s-${o.dot}"></span>`:''}<span>${esc(o.label)}</span></button>`).join(''):'<p class="fb-empty">Nada para filtrar ainda.</p>')+(kind!=='origin'&&list.some(o=>o.on)?'<button type="button" class="fb-menu-clear" data-clear>Mostrar todos</button>':'');
     document.body.append(el);place(el,button);button.setAttribute('aria-expanded','true');openMenu={el,button};
     el.addEventListener('click',e=>{
@@ -194,5 +209,5 @@
     if(f.statuses.length)parts.push(f.statuses.map(id=>STATUSES.find(([s])=>s===id)?.[1]||id).join(' + '));
     return parts.join(' · ');
   }
-  root.EcoFilters={mount,get,query,match,describe,active,originKey,STATUSES,setStatuses(scope,list){state.status[scope]=[...list];emit(scope,false)}};
+  root.EcoFilters={mount,extraRow,tail,get,query,match,describe,active,originKey,STATUSES,setStatuses(scope,list){state.status[scope]=[...list];emit(scope,false)}};
 })(globalThis);

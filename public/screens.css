@@ -200,8 +200,6 @@ i.tr-i-rev{background:#0e7a5a}i.tr-i-inv{background:#a07a00}
   .settings-view:not([hidden]):has([data-settings-tab=finance][aria-selected=true]){display:flex;flex-direction:column;height:calc(100vh - 32px);box-sizing:border-box}
   .settings-view:has([data-settings-tab=finance][aria-selected=true]) .settings-layout{flex:1;min-height:0;display:flex!important;flex-direction:column}
   .settings-view:has([data-settings-tab=finance][aria-selected=true]) #financial-settings-slot{flex:1;min-height:0;display:flex;flex-direction:column;align-self:stretch}
-  .settings-view:has([data-settings-tab=finance][aria-selected=true]) #profit-settings-slot{flex:none;max-height:42px;overflow:hidden;transition:max-height .3s}
-  .settings-view:has([data-settings-tab=finance][aria-selected=true]) #profit-settings-slot:focus-within,.settings-view:has([data-settings-tab=finance][aria-selected=true]) #profit-settings-slot:hover{max-height:60vh;overflow:auto}
   .settings-view:not([hidden]):has([data-settings-tab=integrations][aria-selected=true]){display:flex;flex-direction:column;height:calc(100vh - 32px);box-sizing:border-box}
   .settings-view:has([data-settings-tab=integrations][aria-selected=true]) .settings-layout{flex:1;min-height:0;grid-template-rows:minmax(0,1fr) auto;align-items:stretch!important}
   .settings-view:has([data-settings-tab=integrations][aria-selected=true]) #integrations-center{min-height:0;overflow:auto;scrollbar-width:thin}
@@ -214,3 +212,49 @@ i.tr-i-rev{background:#0e7a5a}i.tr-i-inv{background:#a07a00}
 
 .cs-card .finance-check{display:flex;align-items:center;gap:8px;font-weight:500}
 .cs-card .finance-check input{width:auto}
+/* ---------- Clientes: a lista fica num card arredondado como os demais (sem corte seco no topo e na base) ---------- */
+.clients-view .clients-table-wrap{background:#fff;border-radius:var(--r-lg);border:1px solid color-mix(in srgb,var(--r-primary) 6%,transparent);box-shadow:var(--r-shadow);padding:0 10px 22px;overflow:auto;scrollbar-width:thin;scrollbar-gutter:stable}
+.clients-view .clients-table thead th{position:sticky;top:0;z-index:2;background:#fff;padding-top:14px;padding-bottom:8px}
+.clients-view .clients-table td{background:var(--r-paper);border-color:transparent}
+.clients-view .clients-table tbody tr[data-id]:hover td{background:var(--r-mint)}
+.clients-view .clients-table tr.sel td{background:var(--r-soft-accent);border-color:color-mix(in srgb,var(--r-accent) 45%,#fff)}
+/* ---------- Financeiro: seções como abas de navegador em cima dos cards ----------
+   A aba ativa é o indicador deslizante (EcoSegment) desenhado como aba branca, com "pés" curvos na base. */
+.fin-tabs-row{align-items:flex-end!important;gap:16px;margin:0 0 14px!important;box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--r-primary) 14%,#fff)}
+.fin-tabs-row .dre-tabs.fin-browser-tabs{background:none!important;border:0!important;box-shadow:none!important;border-radius:0!important;padding:0 16px!important;gap:2px!important;flex-wrap:nowrap!important;align-items:flex-end}
+.fin-browser-tabs button{border-radius:14px 14px 0 0!important;padding:10px 18px 11px!important;font-size:13px;color:var(--r-muted)!important;position:relative;white-space:nowrap;transition:color .25s}
+.fin-browser-tabs button:hover{color:var(--r-ink)!important;background:color-mix(in srgb,var(--r-primary) 5%,transparent)!important}
+.fin-tabs-row .fin-browser-tabs button[aria-selected=true]{color:var(--r-ink)!important;font-weight:700;background:transparent!important}
+.fin-browser-tabs>.seg-ind{background:#fff;border-radius:14px 14px 0 0;box-shadow:0 -10px 22px -16px color-mix(in srgb,var(--r-primary) 80%,transparent),inset 0 1px 0 color-mix(in srgb,var(--r-primary) 8%,#fff)}
+.fin-browser-tabs>.seg-ind::before,.fin-browser-tabs>.seg-ind::after{content:'';position:absolute;bottom:0;width:14px;height:14px;pointer-events:none}
+.fin-browser-tabs>.seg-ind::before{left:-14px;background:radial-gradient(circle at 0 0,transparent 13.5px,#fff 14px)}
+.fin-browser-tabs>.seg-ind::after{right:-14px;background:radial-gradient(circle at 100% 0,transparent 13.5px,#fff 14px)}
+.fin-tabs-row .dre-note{padding-bottom:11px}
+.dre-top.fin-top .dre-actions{flex:none}
+/* Vendas › Clientes que compraram: atalhos, busca e Lista/Quadro numa linha, todos com a mesma altura */
+.sales-tools{flex-wrap:nowrap;align-items:center}
+.sales-tools>.seg{flex:none;height:40px;box-sizing:border-box;align-items:center;flex-wrap:nowrap;padding:3px}
+.sales-tools>.seg button{padding:6px 12px}
+.app-shell .sales-tools .search-control{height:40px;box-sizing:border-box;flex:1 1 200px;max-width:none;min-width:140px}
+.app-shell .sales-tools .search-control input{padding:0}
+.sales-main .ph{align-items:center!important}
+.sales-main .ph>.view-switch{align-self:center;margin:0}
+@media (max-width:1100px){.sales-tools{flex-wrap:wrap}}
+/* ---------- Configurações › Empresa: identidade cabe na tela sem rolar ----------
+   Campos mais baixos, Nome e Especialidade lado a lado, textos com 4 linhas e logo + botões numa linha só. */
+@media(min-width:1151px){
+  .settings-view .identity-card{padding:18px 22px!important}
+  .identity-card #settings>summary{margin-bottom:2px}
+  .identity-card #settings>.hint{margin:2px 0 8px;font-size:12px}
+  .identity-card #company-fields{gap:8px 14px!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .identity-card #company-fields>label{gap:4px;font-size:12px;margin:0}
+  .identity-card #company-fields>label.wide:has(input){grid-column:auto}
+  .identity-card #company-fields input,.identity-card #company-fields select{height:38px!important;min-height:0!important;padding-top:0!important;padding-bottom:0!important}
+  .identity-card #company-fields textarea{min-height:0!important;height:112px;resize:vertical}
+  .identity-card .logo-settings{grid-column:1/-1;display:grid!important;grid-template-columns:auto minmax(0,1fr) minmax(0,.8fr);gap:12px;align-items:end}
+  .identity-card .logo-settings #logo-preview{height:64px;width:auto;max-width:160px;border-radius:14px}
+  .identity-card .settings-actions{margin-top:10px;display:flex;gap:12px;align-items:center}
+  .identity-card .settings-actions .primary{padding:9px 18px}
+}
+/* Configurações › Inteligência e precificação: aba própria, card com largura de formulário */
+.settings-view .settings-layout>#profit-settings-slot{grid-column:1/-1;max-width:860px}

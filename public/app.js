@@ -20,12 +20,13 @@
   const database=EcoStore.ready,operation=EcoStore.operation;
   const put=async(store,value)=>{const result=await EcoStore.put(store,structuredClone(value));if(EcoAuth.online&&store==='quotes'){value.revision=result.revision;if(q.id===value.id)q.revision=result.revision}return result};
   const get=EcoStore.get;
-  async function refreshSaved(){saved=(await EcoStore.all('quotes')).sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));$('#saved-count').textContent=saved.length;renderLibrary()}
+  // Online, a lista vem sem fotos (summary): o editor só usa número, nome e data. O backup online pede tudo ao servidor.
+  async function refreshSaved({notify=true}={}){saved=(await (EcoAuth.online&&EcoStore.summaries?EcoStore.summaries():EcoStore.all('quotes'))).sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));$('#saved-count').textContent=saved.length;if(notify)renderLibrary()}
   async function saveDraft(){const current=version;try{await put('draft',{id:'current',quote:structuredClone(q)});if(current===version)$('#draft-status').textContent='Rascunho salvo automaticamente'}catch{$('#draft-status').textContent='Não foi possível salvar. Exporte um backup.'}}
   function changed(){q.updatedAt=new Date().toISOString();version++;$('#draft-status').textContent='Salvando rascunho...';clearTimeout(timer);timer=setTimeout(saveDraft,500);renderSoon()}
   function fill(){
     for(const input of $$('#form [name]'))input.value=input.name==='postalCode'?M.formatPostalCode(q.postalCode):input.name==='clientBirthday'?bdayText(q.clientBirthday):Object.hasOwn(q.terms,input.name)?q.terms[input.name]:q[input.name]??'';
-    renderChoices();clientMatch();$('#editor-number').textContent=q.number?`${q.number} · rascunho salvo automaticamente`:'';
+    renderChoices();clientMatch();const editorNumber=$('#editor-number');if(editorNumber)editorNumber.textContent=q.number?`${q.number} · rascunho salvo automaticamente`:'';
     for(const input of $$('[data-company]'))input.value=q.company[input.dataset.company]??'';
     $('#logo-preview').hidden=!q.company.logo;$('#logo-preview').src=q.company.logo||'';$('#logo-preview').style.background=q.company.logoBackground==='light'?'#fff':UniversalCompany.theme(q.company).deep;
     renderItems();render();
@@ -214,7 +215,7 @@
       if(!/agendamento terminar|operação deste orçamento está em andamento|operação em andamento/i.test(String(error.message||'')))throw error;
       await saveDraft().catch(()=>null);
     }
-    await refreshSaved().catch(()=>null);const used=new Set(saved.map(x=>x.number));q=M.quote(settings,n=>used.has(n));fill();changed();await refreshSaved();window.EcoWorkspace?.navigate('create');toast('Novo orçamento pronto. Os dados da empresa já estão preenchidos.')
+    await refreshSaved({notify:false}).catch(()=>null);const used=new Set(saved.map(x=>x.number));q=M.quote(settings,n=>used.has(n));fill();changed();window.EcoWorkspace?.navigate('create');toast('Novo orçamento pronto. Os dados da empresa já estão preenchidos.')
   }
   $('#new').onclick=()=>newQuote().catch(error=>toast(error.message));
   $('#save').onclick=async()=>{try{if(!$('#form').reportValidity())return;M.validate(q);if(pendingPhotos)return toast('Aguarde as fotos.');await put('quotes',q);await saveDraft();await refreshSaved();toast('Orçamento salvo.')}catch(error){toast(error.message||'Não foi possível salvar.')}};

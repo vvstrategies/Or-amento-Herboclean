@@ -119,7 +119,7 @@ fixture.stdout.on('data',async data=>{if(!data.toString().includes('Fixture read
   // Tráfego pago (antes Financeiro › Marketing): custo por tag ao lado, mesmo sem contas conectadas
   await evaluate("location.hash='#trafego'");await until("!!document.querySelector('.tr-tags table')");
   const tagText=await evaluate("document.querySelector('.tr-tags').textContent");assert.match(tagText,/Corporativo/);assert.match(tagText,/Total/);assert.ok(!tagText.match(/NaN|Infinity|undefined/));
-  await click('[data-tag-mode="link"]');await until("!!document.querySelector('.tr-links')");await screenshot('por-tag');
+  assert.equal(await evaluate("document.querySelectorAll('[data-tag-mode],[data-campaign-tag]').length"),0,'sem vincular campanhas no Tráfego');await screenshot('por-tag');
   // Integrações: Drive e Contatos com estado explícito
   await evaluate("location.hash='#configuracoes'");await until("!!document.querySelector('[data-integration=google-contacts]')");
   assert.match(await evaluate("document.querySelector('[data-integration=google-contacts]').textContent"),/Permissão não concedida/);
