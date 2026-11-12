@@ -230,6 +230,14 @@ i.tr-i-rev{background:#0e7a5a}i.tr-i-inv{background:#a07a00}
 .fin-browser-tabs>.seg-ind::before{left:-14px;background:radial-gradient(circle at 0 0,transparent 13.5px,#fff 14px)}
 .fin-browser-tabs>.seg-ind::after{right:-14px;background:radial-gradient(circle at 100% 0,transparent 13.5px,#fff 14px)}
 .fin-tabs-row .dre-note{padding-bottom:11px}
+/* A aba ativa encosta no card de baixo (sobrepõe 1px da borda); os avisos ficam acima da linha de abas */
+.fin-tabs-row{margin:0 0 -1px!important;position:relative;z-index:2}
+.fin-tabs-row .dre-tabs.fin-browser-tabs{padding:0 28px!important}
+#dre-content>:first-child{margin-top:0!important}
+.fin-alerts{display:grid;gap:8px;margin:0 0 12px}.fin-alerts:empty{display:none}
+.fin-alerts>.dre-alert{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px!important;margin:0!important;border-radius:14px!important;font-size:12.5px!important;line-height:1.4}
+.fin-alerts>.dre-alert .text-button{padding:0;min-height:0}
+.fin-alerts>.dre-note{margin:0 4px}
 .dre-top.fin-top .dre-actions{flex:none}
 /* Vendas › Clientes que compraram: atalhos, busca e Lista/Quadro numa linha, todos com a mesma altura */
 .sales-tools{flex-wrap:nowrap;align-items:center}

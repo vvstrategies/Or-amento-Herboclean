@@ -51,6 +51,8 @@
   .filter-button{min-height:44px}
   .fin-tabs-row{flex-wrap:nowrap!important;flex-direction:column;align-items:stretch!important;gap:8px!important}
   .fin-tabs-row .dre-tabs{display:flex!important}
+  .fin-tabs-row .dre-note{order:-1}
+  .fin-tabs-row .dre-tabs.fin-browser-tabs{padding:0 16px!important}
 
   /* ---------- Cartões ---------- */
   .hcard,.settings-card,.settings-view .settings-layout>section,.client-hero,.dre-alert,.period-fields{border-radius:var(--m-r)!important}
