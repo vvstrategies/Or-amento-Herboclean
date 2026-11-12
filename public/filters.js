@@ -110,7 +110,7 @@
     const groups=[];
     if(dims.includes('origin'))groups.push(`<div class="fb-group" role="group" aria-label="Origem" data-seg-key="fb-${scope}-origin">${ORIGINS.slice(0,INLINE_ORIGINS).map(([id,l])=>`<button type="button" class="fb-pill" data-fb-origin="${id}" aria-pressed="${f.origin===id}">${originIcon(id)}${l}</button>`).join('')}${menuButton('origin',extraOrigin?extraOrigin[1]:'Mais',extraOrigin?1:0)}</div>`);
     if(dims.includes('period')){
-      const presets=CUSTOM_PRESETS[scope]?CUSTOM_PRESETS[scope].map(x=>[x.id,x.label]):['7','30','month',...(bar.allowAll?['all']:[])].map(id=>[id,PERIOD_LABEL[id]]);
+      const presets=CUSTOM_PRESETS[scope]?CUSTOM_PRESETS[scope].map(x=>[x.id,x.label]):['month','7','30',...(bar.allowAll?['all']:[])].map(id=>[id,PERIOD_LABEL[id]]);
       groups.push(`<div class="fb-group" role="group" aria-label="Período" data-seg-key="fb-${scope}-period">${presets.map(([id,label])=>`<button type="button" class="fb-pill" data-fb-preset="${id}" aria-pressed="${f.preset===id}">${esc(label)}</button>`).join('')}<button type="button" class="fb-pill fb-range${f.preset==='custom'?' on':''}" data-fb-calendar aria-haspopup="dialog" aria-pressed="${f.preset==='custom'}">${calIcon}${f.from?rangeLabel(scope,f):CUSTOM_PRESETS[scope]?'Escolher datas':'<span class="fb-rl"><span>Escolher datas</span><span class="fb-ghost" aria-hidden="true">00/00/0000 – 00/00/0000</span></span>'}</button></div>`);
     }
     const sel=[];
