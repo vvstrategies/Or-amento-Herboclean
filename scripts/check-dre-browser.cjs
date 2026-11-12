@@ -21,7 +21,7 @@ module.exports=async function({evaluate,click,set,until,screenshot,send,download
  await click('[data-mode="projected"]');await until("document.querySelector('.dre-result')?.textContent.includes('650,00')");
  await click('#dre-csv');const csv=await downloadFile('DRE-gerencial-interna-'+await evaluate('EcoOperations.localDate().slice(0,7)')+'-'+await evaluate('EcoOperations.localDate().slice(0,7)')+'.csv');assert.ok(fs.readFileSync(csv,'utf8').includes('Aluguel de teste'));
  await click('#dre-pdf');const pdf=await downloadFile('DRE-gerencial-interna-'+await evaluate('EcoOperations.localDate().slice(0,7)')+'-'+await evaluate('EcoOperations.localDate().slice(0,7)')+'.pdf');assert.equal(fs.readFileSync(pdf).subarray(0,5).toString(),'%PDF-');
- await evaluate('UniversalDre.toggleDemo()');await until("document.querySelector('#dre-content').textContent.includes('Demonstração fictícia')");
+ await evaluate('UniversalDre.toggleDemo()');await until("document.querySelector('#dre-alerts').textContent.includes('Demonstração fictícia')");
  assert.equal(await evaluate("document.querySelector('#dre-new-expense').disabled"),true);
  await screenshot('dre-statement-desktop');
  await click('[data-dre-tab="overview"]');await until("!!document.querySelector('#dre-chart path')");

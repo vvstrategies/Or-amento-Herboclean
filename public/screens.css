@@ -230,45 +230,86 @@ i.tr-i-rev{background:#0e7a5a}i.tr-i-inv{background:#a07a00}
 .fin-browser-tabs>.seg-ind::before{left:-14px;background:radial-gradient(circle at 0 0,transparent 13.5px,#fff 14px)}
 .fin-browser-tabs>.seg-ind::after{right:-14px;background:radial-gradient(circle at 100% 0,transparent 13.5px,#fff 14px)}
 .fin-tabs-row .dre-note{padding-bottom:11px}
-/* A aba ativa encosta no card de baixo (sobrepõe 1px da borda); os avisos ficam acima da linha de abas */
-.fin-tabs-row{margin:0 0 -1px!important;position:relative;z-index:2}
+/* A aba ativa encosta no card de baixo (sobrepõe 1px da borda) */
+.fin-tabs-row{margin:0 0 -1px!important;position:relative;z-index:3}
 .fin-tabs-row .dre-tabs.fin-browser-tabs{padding:0 28px!important}
 #dre-content>:first-child{margin-top:0!important}
-.fin-alerts{display:grid;gap:8px;margin:0 0 12px}.fin-alerts:empty{display:none}
-.fin-alerts>.dre-alert{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px!important;margin:0!important;border-radius:14px!important;font-size:12.5px!important;line-height:1.4}
-.fin-alerts>.dre-alert .text-button{padding:0;min-height:0}
-.fin-alerts>.dre-note{margin:0 4px}
-.dre-top.fin-top .dre-actions{flex:none}
-/* Vendas › Clientes que compraram: atalhos, busca e Lista/Quadro numa linha, todos com a mesma altura */
-.sales-tools{flex-wrap:nowrap;align-items:center}
-.sales-tools>.seg{flex:none;height:40px;box-sizing:border-box;align-items:center;flex-wrap:nowrap;padding:3px}
-.sales-tools>.seg button{padding:6px 12px}
-.app-shell .sales-tools .search-control{height:40px;box-sizing:border-box;flex:1 1 200px;max-width:none;min-width:140px}
-.app-shell .sales-tools .search-control input{padding:0}
-.sales-main .ph{align-items:center!important}
-.sales-main .ph>.view-switch{align-self:center;margin:0}
-@media (max-width:1100px){.sales-tools{flex-wrap:wrap}}
-/* ---------- Configurações › Empresa: identidade cabe na tela sem rolar ----------
-   Campos mais baixos, Nome e Especialidade lado a lado, textos com 4 linhas e logo + botões numa linha só. */
-@media(min-width:1151px){
-  .settings-view .identity-card{padding:18px 22px!important}
-  .identity-card #settings>summary{margin-bottom:2px}
-  .identity-card #settings>.hint{margin:2px 0 8px;font-size:12px}
-  .identity-card #company-fields{gap:8px 14px!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
-  .identity-card #company-fields>label{gap:4px;font-size:12px;margin:0}
-  .identity-card #company-fields>label.wide:has(input){grid-column:auto}
-  .identity-card #company-fields input,.identity-card #company-fields select{height:38px!important;min-height:0!important;padding-top:0!important;padding-bottom:0!important}
-  .identity-card #company-fields textarea{min-height:0!important;height:112px;resize:vertical}
-  .identity-card .logo-settings{grid-column:1/-1;display:grid!important;grid-template-columns:auto minmax(0,1fr) minmax(0,.8fr);gap:12px;align-items:end}
-  .identity-card .logo-settings #logo-preview{height:64px;width:auto;max-width:160px;border-radius:14px}
-  .identity-card .settings-actions{margin-top:10px;display:flex;gap:12px;align-items:center}
-  .identity-card .settings-actions .primary{padding:9px 18px}
+/* Avisos: popup pequeno sobre a linha das abas (lado direito), não muda a altura das abas; × fecha, chip reabre */
+.fin-alerts{position:absolute;right:0;top:2px;z-index:6;display:flex;align-items:flex-start;gap:6px;max-width:min(560px,52%);padding:8px 8px 8px 14px;background:#fffaf0;border:1px solid #f3d6a0;border-radius:14px;box-shadow:0 14px 30px -18px rgba(70,45,0,.55);animation:fin-pop-in .22s var(--r-ease,ease-out)}
+.fin-alerts[hidden]{display:none}
+@keyframes fin-pop-in{from{opacity:0;transform:translateY(-4px)}}
+.fin-pop-body{display:grid;gap:5px;min-width:0;flex:1}
+.fin-pop-body>.dre-alert{display:block;background:none!important;border:0!important;padding:0!important;margin:0!important;border-radius:0!important;font-size:12.5px!important;line-height:1.45}
+.fin-pop-body>.dre-alert+.dre-alert{border-top:1px solid #f3e2bf!important;padding-top:5px!important}
+.fin-pop-body .text-button{padding:0;min-height:0;font-weight:700}
+.fin-pop-body>.dre-note{margin:0!important;font-size:11.5px;color:var(--r-muted)}
+.fin-pop-x{flex:none;width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:#8a6a2a;font-size:17px;line-height:1;cursor:pointer;padding:0}
+.fin-pop-x:hover{background:#f6e6c4}
+.fin-alert-chip{flex:none;align-self:center;margin:0 0 6px auto;display:inline-flex;align-items:center;gap:6px;border:1px solid #f3d6a0;background:#fffaf0;color:#6b4e12;border-radius:999px;padding:4px 10px 4px 5px;font-size:12px;font-weight:600;cursor:pointer}
+.fin-alert-chip[hidden]{display:none}
+.fin-alert-chip i{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#e8a93a;color:#fff;font-style:normal;font-size:11px;font-weight:800}
+@media (max-width:760px){
+  body:has(#finance-view[hidden])>.fin-alerts,body:not(:has(#finance-view))>.fin-alerts{display:none}
+  .fin-alerts{position:fixed;left:14px;right:14px;top:auto;bottom:calc(var(--m-bar,64px) + 30px + var(--m-safe,0px));max-width:none;z-index:79}
+  .fin-alert-chip{order:-1;align-self:flex-end;margin:0}
 }
-/* Configurações › Inteligência e precificação: aba própria, card com largura de formulário */
-.settings-view .settings-layout>#profit-settings-slot{grid-column:1/-1;max-width:860px}
 /* Dica flutuante ([data-hint], ui-kit.js) */
 .eco-hint{position:fixed;z-index:1000;max-width:280px;padding:8px 11px;border-radius:10px;background:var(--r-ink,#0f1d18);color:#fff;font-size:12px;line-height:1.4;font-weight:500;box-shadow:0 10px 24px -12px rgba(0,0,0,.45);pointer-events:none;animation:eco-hint-in .15s ease-out}
 .eco-hint[hidden]{display:none}
 @keyframes eco-hint-in{from{opacity:0;transform:translateY(-3px)}}
-.fin-alerts>.profit-coverage{font-size:12px;margin:0 4px!important}
 .fin-tabs-row .dre-note:empty{display:none}
+/* Financeiro › Atendimentos que compõem o período: cada atendimento abre com fotos, detalhes e correção de custos */
+.dre-dialog.dre-dialog-wide{width:min(880px,calc(100vw - 24px))}
+.dre-svc-intro{margin:0 0 12px}
+.dre-svc-list{display:grid;gap:8px}
+.dre-svc{border:1px solid var(--r-line,#e3e8e5);border-radius:14px;background:#fff;overflow:hidden}
+.dre-svc.is-missing{border-color:#f0c9c9}
+.dre-svc>summary{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;list-style:none}
+.dre-svc>summary::-webkit-details-marker{display:none}
+.dre-svc[open]>summary{background:color-mix(in srgb,var(--r-primary,#044c3a) 4%,#fff);border-bottom:1px solid var(--r-line,#e3e8e5)}
+.dre-svc-main{min-width:0;padding-left:20px;position:relative}
+.dre-svc-main::before{content:'›';position:absolute;left:2px;top:-2px;font-size:18px;color:var(--r-muted);transition:transform .2s}
+.dre-svc[open] .dre-svc-main::before{transform:rotate(90deg)}
+.dre-svc-main strong,.dre-svc-main small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dre-svc-main small{color:var(--r-muted);font-size:12px;margin-top:2px}
+.dre-svc-badge{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;background:#eef3f0;color:#3c5a4e;white-space:nowrap}
+.dre-svc-badge.cs-missing{background:#fdecec;color:#a33a3a}
+.dre-svc-badge.cs-actual{background:var(--r-soft-accent,#eef7d6);color:#46600a}
+.dre-svc-badge.cs-mixed{background:#eaf1fb;color:#2c5285}
+.dre-svc-nums{text-align:right;white-space:nowrap}
+.dre-svc-nums b,.dre-svc-nums small{display:block}
+.dre-svc-nums small{font-size:11.5px;color:var(--r-muted)}
+.dre-svc-body{padding:14px 16px 16px;display:grid;gap:12px}
+.dre-svc-body h3{font-size:13px;margin:4px 0 0;color:var(--r-ink,#0f1d18)}
+.dre-svc-why{background:#fdf3f3;border:1px solid #f0c9c9;border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.5;color:#6b2a2a}
+.dre-dialog .dre-svc-info{display:grid;grid-template-columns:repeat(2,max-content minmax(0,1fr));gap:7px 14px;font-size:12.5px;margin:0}
+.dre-dialog .dre-svc-info dt{color:var(--r-muted)}
+.dre-dialog .dre-svc-info dd{margin:0;text-align:left;overflow-wrap:anywhere;font-weight:600}
+.dre-svc-items{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.dre-svc-item{display:grid;gap:8px;padding:10px 12px;border-radius:12px;background:#f7f9f8}
+.dre-svc-item strong,.dre-svc-item small{display:block}
+.dre-svc-item small{font-size:12px;color:var(--r-muted);margin-top:2px}
+.dre-svc-photos{display:flex;gap:8px;flex-wrap:wrap}
+.dre-svc-photo{padding:0;border:0;border-radius:10px;overflow:hidden;width:96px;height:72px;cursor:zoom-in;background:#e9eeeb}
+.dre-svc-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.dre-svc-costs{width:100%;border-collapse:collapse;font-size:12.5px}
+.dre-svc-costs td{padding:7px 4px;border-bottom:1px solid #eef1ef}
+.dre-svc-costs .number{text-align:right;white-space:nowrap}
+.dre-svc-costs em{font-style:normal;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 7px;margin-left:6px;background:#eef3f0;color:#3c5a4e}
+.dre-svc-costs em.cs-actual{background:var(--r-soft-accent,#eef7d6);color:#46600a}
+.dre-svc-costs em.cs-missing{background:#fdecec;color:#a33a3a}
+.dre-svc-est{color:var(--r-muted);font-size:11.5px}
+.dre-svc-sub summary{cursor:pointer;font-size:12.5px;color:var(--r-muted)}
+.dre-svc-fix{border-top:1px dashed var(--r-line,#e3e8e5);padding-top:12px;grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.dre-svc-fix .dre-error:empty{display:none}
+.dre-svc-fix footer{justify-content:space-between!important}
+.dre-lightbox{position:fixed;inset:0;z-index:5;background:rgba(10,20,16,.82);display:grid;place-items:center;padding:24px;cursor:zoom-out}
+.dre-lightbox[hidden]{display:none}
+.dre-lightbox img{max-width:100%;max-height:100%;border-radius:12px}
+@media (max-width:640px){
+  .dre-svc>summary{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px}
+  .dre-svc-badge{grid-column:1;grid-row:2;justify-self:start;margin-left:20px}
+  .dre-svc-nums{grid-column:2;grid-row:1/3}
+  .dre-svc-fix{grid-template-columns:1fr!important}
+  .dre-dialog .dre-svc-info{grid-template-columns:max-content minmax(0,1fr)}
+}

@@ -66,7 +66,7 @@ async function dashboard(host,{from,to,demo=false,toolbar=null}){
  // No Financeiro, avisos ficam acima das abas (a aba encosta no card); só escreve lá se a Inteligência ainda é a aba aberta.
  const alertSlot=host.id==='dre-content'&&document.querySelector('[data-dre-tab=intelligence][aria-selected=true]')?document.getElementById('dre-alerts'):null;
  const demoNote=demo?'<div class="dre-alert">'+esc(r.demoNote)+'</div>':'',coverage='<p class="dre-note profit-coverage">'+r.coverage.count+' atendimento(s) · '+pct(r.coverage.actualPercent)+' com custo totalmente real · '+r.coverage.estimated+' estimados · '+r.coverage.mixed+' mistos · '+r.coverage.missing+' pendentes.</p>';
- if(alertSlot)alertSlot.innerHTML=demoNote+coverage;
+ if(alertSlot)window.UniversalDre.alerts(demoNote+coverage);
  host.innerHTML=(alertSlot?'':demoNote)+(toolbar?'':tools)+(alertSlot?'':coverage)+'<div id="profit-analysis"></div><p class="dre-note">'+esc(r.note)+'</p>'+(!demo?'<button class="text-button" id="profit-export">Exportar análise interna CSV</button>':'');
  const tb=toolbar||host;
  $('#profit-filters',tb).onsubmit=e=>{e.preventDefault();filters=Object.fromEntries(new FormData(e.target));again();};$('#profit-filters',tb).onchange=e=>{filters=Object.fromEntries(new FormData(e.currentTarget));again();};

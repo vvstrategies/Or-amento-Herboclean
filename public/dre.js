@@ -13,7 +13,7 @@ function options(rows,selected){return rows.map(([v,t])=>'<option value="'+esc(v
 function field(name,label,v='',type='text',extra=''){return '<label>'+esc(label)+'<input name="'+name+'" type="'+type+'" value="'+esc(v)+'" '+extra+'></label>';}
 function select(name,label,rows,selected){return '<label>'+esc(label)+'<select name="'+name+'">'+options(rows,selected)+'</select></label>';}
 function dialog(title,html){
- let d=$('#dre-dialog');if(!d){d=document.createElement('dialog');d.id='dre-dialog';d.className='dre-dialog';document.body.append(d);}
+ let d=$('#dre-dialog');if(!d){d=document.createElement('dialog');d.id='dre-dialog';document.body.append(d);}d.className='dre-dialog';
  d.innerHTML='<header><h2 id="dre-dialog-title">'+esc(title)+'</h2><button type="button" class="icon-button" aria-label="Fechar" data-close>×</button></header>'+html;
  d.setAttribute('aria-labelledby','dre-dialog-title');$('[data-close]',d).onclick=()=>d.close();if(!d.open)d.showModal();return d;
 }
@@ -26,7 +26,7 @@ function shell(){
  // Sem título grande: a barra de filtros única (em meses de competência) ocupa o topo.
  host.innerHTML='<div class="dre-top fin-top"><h1 class="sr-only">Financeiro</h1><div class="fbar-slot" id="fin-filters"></div><span class="sr-only" id="dre-range"></span><div class="dre-actions">'+
  '<button class="primary" id="dre-new-expense">＋ Nova despesa</button></div><div class="fin-mhero" id="fin-mhero" aria-live="polite"></div></div>'+
- '<div class="fin-alerts" id="dre-alerts"></div><div class="fin-tabs-row"><div class="dre-tabs fin-browser-tabs" role="tablist" aria-label="Seções do financeiro">'+tabs.map(([id,name])=>'<button role="tab" data-dre-tab="'+id+'" aria-selected="'+(tab===id)+'" aria-controls="dre-content">'+name+'</button>').join('')+'</div><p class="dre-note" id="dre-mode-note">'+(mode==='actual'?'Realizado: serviços concluídos e despesas reconhecidas.':'Projetado: concluídos + agendados e despesas previstas.')+'</p></div><p id="dre-error" class="dre-error" role="alert"></p><div id="dre-content" role="tabpanel"><div class="skeleton-grid" aria-label="Carregando"><i></i><i></i><i></i><i></i><i class="wide"></i></div></div>';
+ '<div class="fin-tabs-row"><div class="dre-tabs fin-browser-tabs" role="tablist" aria-label="Seções do financeiro">'+tabs.map(([id,name])=>'<button role="tab" data-dre-tab="'+id+'" aria-selected="'+(tab===id)+'" aria-controls="dre-content">'+name+'</button>').join('')+'</div><p class="dre-note" id="dre-mode-note">'+(mode==='actual'?'Realizado: serviços concluídos e despesas reconhecidas.':'Projetado: concluídos + agendados e despesas previstas.')+'</p><button type="button" class="fin-alert-chip" id="dre-alerts-chip" hidden></button><div class="fin-alerts" id="dre-alerts" role="status" hidden></div></div><p id="dre-error" class="dre-error" role="alert"></p><div id="dre-content" role="tabpanel"><div class="skeleton-grid" aria-label="Carregando"><i></i><i></i><i></i><i></i><i class="wide"></i></div></div>';
  // No celular a faixa de abas rola de lado: deixa a aba ativa à vista.
  requestAnimationFrame(()=>{const strip=$('.fin-browser-tabs',host),on=strip&&$('[aria-selected=true]',strip);if(on&&strip.scrollWidth>strip.clientWidth){const a=on.getBoundingClientRect(),b=strip.getBoundingClientRect();strip.scrollLeft+=a.left-b.left-(b.width-a.width)/2;}});
  // Na barra do topo: período (EcoFilters), Realizado/Projetado e ••• na mesma linha; na Inteligência, os filtros dela numa segunda linha.
@@ -64,11 +64,22 @@ async function load(){
  finally{if(n===serial)$('#dre-content').classList.remove('dre-updating');}
 }
 function resultClass(n){return n==null?'':n<0?'dre-negative':n>0?'dre-positive':'';}
-// Avisos ficam acima das abas: assim a aba ativa encosta direto no card de baixo.
-function setAlerts(html){const el=$('#dre-alerts');if(el)el.innerHTML=html||'';}
+// Avisos num popup pequeno sobre a linha das abas (não empurram nada: as abas ficam sempre na mesma altura).
+// Fechar esconde este conjunto de avisos; o chip "Avisos" na linha das abas reabre. Avisos novos aparecem de novo.
+let alertsHtml='',alertsClosed='';
+function setAlerts(html){
+ alertsHtml=html||'';const el=$('#dre-alerts'),chip=$('#dre-alerts-chip');if(!el)return;
+ // No celular o popup flutua acima da barra de abas do app: fica no body (position:fixed não sofre com transform dos pais).
+ document.querySelectorAll('body>.fin-alerts').forEach(x=>{if(x!==el)x.remove()});if(matchMedia('(max-width:760px)').matches){if(el.parentElement!==document.body)document.body.append(el);}else if(el.parentElement===document.body)$('.fin-tabs-row',host)?.append(el);
+ const key=alertsHtml.replace(/<[^>]+>/g,''),closed=!!alertsHtml&&key===alertsClosed,n=Math.max(1,(alertsHtml.match(/class="dre-alert"/g)||[]).length);
+ el.innerHTML=alertsHtml&&!closed?'<div class="fin-pop-body">'+alertsHtml+'</div><button type="button" class="fin-pop-x" aria-label="Fechar avisos">×</button>':'';el.hidden=!alertsHtml||closed;
+ if(chip){chip.hidden=!closed;chip.innerHTML='<i aria-hidden="true">!</i>'+n+' aviso'+(n>1?'s':'');chip.onclick=()=>{alertsClosed='';setAlerts(alertsHtml);};}
+ $('.fin-pop-x',el)?.addEventListener('click',()=>{alertsClosed=key;setAlerts(alertsHtml);});
+ el.querySelectorAll('[data-drill]').forEach(b=>b.onclick=()=>drill(b.dataset.drill));$('#dre-missing-dates',el)?.addEventListener('click',missingDates);
+}
 function reportWarnings(){return (demo?'<div class="dre-alert">Demonstração fictícia · estes dados não são gravados na empresa.</div>':'')+
  (report.marketingWarnings||[]).map(w=>'<div class="dre-alert">'+esc(w)+'</div>').join('')+
- (report.total.missingCosts?'<div class="dre-alert">'+report.total.missingCosts+' atendimento(s) sem custo completo: o resultado fica pendente. <button class="text-button" data-drill="services">Conferir atendimentos</button></div>':'')+
+ (report.total.missingCosts?'<div class="dre-alert">'+report.total.missingCosts+' atendimento(s) sem custo completo: o resultado fica pendente. <button class="text-button" data-drill="services">Corrigir custos</button></div>':'')+
  (report.missingDates.length?'<div class="dre-alert">Há '+report.missingDates.length+' atendimento(s) concluído(s) sem data de realização. Eles ainda não entram na DRE. <button class="text-button" id="dre-missing-dates">Informar datas</button></div>':'')+
  (report.dateInferredCount?'<p class="dre-note">'+report.dateInferredCount+' atendimento(s) anterior(es) usam a data de término da agenda como referência de realização.</p>':'');}
 function chart(){
@@ -152,15 +163,63 @@ function renderReport(){
  content+=statementSub==='evolution'?evolution():'<section class="dre-panel dre-statement"><div class="dre-panel-head"><h2>DRE Gerencial · '+(mode==='actual'?'Realizado':'Projetado')+'</h2>'+statementTabs()+'</div><div class="dre-table-wrap"><table class="dre-table"><thead><tr><th>Composição</th><th class="number">Valor</th><th class="number">% receita bruta</th></tr></thead><tbody>'+rows.map(([label,k,drill,cls])=>'<tr class="dre-'+cls+'"><td>'+(drill?'<button data-drill="'+drill+'">'+label+'</button>':label)+'</td><td class="number '+(k==='result'?resultClass(t[k]):'')+'">'+money(t[k])+'</td><td class="number">'+pct(t.gross&&t[k]!=null?t[k]/t.gross*100:null)+'</td></tr>').join('')+'</tbody></table></div><p class="dre-note">Margem de contribuição: '+pct(t.contributionPercent)+' · Margem operacional: '+pct(t.operatingMargin)+' — ambas sobre a receita líquida.</p><p class="dre-note">Investimentos: '+money(t.investment)+' <button class="text-button" data-drill="investments">Ver composição</button> · separados das despesas e do resultado operacional.</p></section>';
  }
  if(tab!=='overview')content+='<p class="dre-note fin-quality">'+quality+'. '+(t.result==null?'Resultado pendente de custos.':t.result<0?'Resultado negativo.':t.net>0&&Math.abs(t.result/t.net)<.01?'Resultado próximo do equilíbrio.':'Resultado positivo ou em equilíbrio.')+'</p>';
- $('#dre-content').innerHTML=content;const hero=$('#fin-mhero');if(hero)hero.innerHTML=tab==='overview'?'<small>Resultado operacional</small><div class="fmh-row"><strong class="'+resultClass(t.result)+'">'+money(t.result)+'</strong>'+(t.gross&&t.result!=null?'<span class="fmh-pill">'+pct(t.result/t.gross*100)+'</span>':'')+'</div><svg id="fin-mspark" viewBox="0 0 350 60" preserveAspectRatio="none" aria-hidden="true"></svg>':'';bindDrills();bindStatement();if(tab==='overview')trend();$('#dre-empty-expense')?.addEventListener('click',()=>expenseForm());$('#dre-missing-dates')?.addEventListener('click',missingDates);
+ $('#dre-content').innerHTML=content;const hero=$('#fin-mhero');if(hero)hero.innerHTML=tab==='overview'?'<small>Resultado operacional</small><div class="fmh-row"><strong class="'+resultClass(t.result)+'">'+money(t.result)+'</strong>'+(t.gross&&t.result!=null?'<span class="fmh-pill">'+pct(t.result/t.gross*100)+'</span>':'')+'</div><svg id="fin-mspark" viewBox="0 0 350 60" preserveAspectRatio="none" aria-hidden="true"></svg>':'';bindDrills();bindStatement();if(tab==='overview')trend();$('#dre-empty-expense')?.addEventListener('click',()=>expenseForm());
 }
 function bindDrills(){host.querySelectorAll('[data-drill]').forEach(b=>b.onclick=()=>drill(b.dataset.drill));host.querySelectorAll('[data-category-drill]').forEach(b=>b.onclick=()=>drill('expenses',b.dataset.categoryDrill));}
 function drill(kind,category){
  if(kind==='tax'){taxDialog();return;}
+ if(kind==='services'||kind==='costs'){serviceDrill();return;}
  const isService=['services','costs'].includes(kind),items=isService?report.services:report.expenses.filter(e=>e.nature===(kind==='investments'?'investment':kind==='deductions'?'deduction':'operating')&&(!category||e.categoryId===category));
  let offset=0;const d=dialog(isService?'Atendimentos que compõem o período':'Lançamentos que compõem o período','<div id="dre-drill-list"></div><div class="dre-pagination"><button class="secondary" id="dre-drill-prev">Anterior</button><span id="dre-drill-count"></span><button class="secondary" id="dre-drill-next">Próxima</button></div>');
  function paint(){$('#dre-drill-list',d).innerHTML=items.slice(offset,offset+20).map(e=>isService?'<div class="dre-detail-row"><strong>'+esc(e.client)+' · '+esc(e.number)+'</strong><small>'+e.serviceDate+' · '+(e.projected?'Agendado · projeção':'Concluído')+' · Custo '+({actual:'real',mixed:'misto',estimated:'estimado',missing:'pendente'}[e.costSource]||'estimado')+' · Estimativa v'+(e.estimateVersion??'—')+'</small><p>Receita base: '+money(e.revenue)+' · Custos: '+money(e.cost)+'</p>'+(e.costSnapshot?'<details><summary>Composição da estimativa preservada</summary><dl>'+[['Materiais','materialCost'],['Combustível','fuelCost'],['Custo por km','vehicleOperatingCost'],['Pedágio','tollCost'],['Estacionamento','parkingCost'],['Outros deslocamentos','otherTravelCost'],['Outros custos diretos','otherDirectCosts']].map(([l,k])=>'<dt>'+l+'</dt><dd>'+money(e.costSnapshot[k])+'</dd>').join('')+'</dl></details>':'<small>Custo ainda não informado.</small>')+'</div>':'<div class="dre-detail-row"><strong>'+esc(e.description)+' · '+money(e.amountCents)+'</strong><small>'+e.competence+' · '+esc(e.categoryName)+' · '+labels[e.status]+'</small><small>Vencimento: '+(e.dueDate||'—')+' · Pagamento: '+(e.paidAt||'—')+'</small>'+(e.automatic?'<small>Importação automática · '+esc(e.source)+'</small>':'')+(!demo&&!e.automatic?'<button class="text-button" data-edit-expense="'+esc(e.id)+'">Ver / editar lançamento</button>':'')+'</div>').join('')||'<p class="dre-note">Nenhum lançamento nesta composição.</p>';$('#dre-drill-prev',d).disabled=offset===0;$('#dre-drill-next',d).disabled=offset+20>=items.length;$('#dre-drill-count',d).textContent=items.length+' registro(s)';d.querySelectorAll('[data-edit-expense]').forEach(b=>b.onclick=()=>expenseForm(b.dataset.editExpense));}
  $('#dre-drill-prev',d).onclick=()=>{offset-=20;paint()};$('#dre-drill-next',d).onclick=()=>{offset+=20;paint()};paint();
+}
+// Atendimentos do período: cada um abre (details) com fotos, dados do orçamento e da agenda, custos e,
+// quando o custo está pendente, o formulário para corrigir ali mesmo (vira custo real na competência original).
+const costLabels={actual:'Custo real',mixed:'Custo misto',estimated:'Custo estimado',missing:'Custo pendente'};
+const brDate=v=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(v||'');return m?m[3]+'/'+m[2]+'/'+m[1]:'—'};
+const brTime=v=>{const t=Date.parse(v);return Number.isFinite(t)?new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(t)):'—'};
+let opsPromise=null;
+function serviceDrill(openIds){
+ const rank=s=>s.costSource==='missing'?0:1,items=[...report.services].sort((a,b)=>rank(a)-rank(b)||String(a.serviceDate).localeCompare(String(b.serviceDate))),pending=items.filter(s=>s.costSource==='missing');
+ if(!openIds)openIds=pending.length?[pending[0].proposalId]:[];opsPromise=null;
+ const row=s=>'<details class="dre-svc'+(s.costSource==='missing'?' is-missing':'')+'" data-svc="'+esc(s.proposalId)+'"'+(openIds.includes(s.proposalId)?' open':'')+'><summary><span class="dre-svc-main"><strong>'+esc(s.client)+'</strong><small>'+esc(s.number)+' · '+brDate(s.serviceDate)+' · '+(s.projected?'Agendado · projeção':'Concluído')+'</small></span><span class="dre-svc-badge cs-'+esc(s.costSource)+'">'+(costLabels[s.costSource]||'Custo estimado')+'</span><span class="dre-svc-nums"><b>'+money(s.revenue)+'</b><small>custos '+money(s.cost)+'</small></span></summary><div class="dre-svc-body"><p class="dre-note">Carregando detalhes…</p></div></details>';
+ const d=dialog('Atendimentos que compõem o período','<p class="dre-note dre-svc-intro">'+items.length+' atendimento(s)'+(pending.length?' · <b>'+pending.length+' com custo pendente</b>. Abra cada um, confira as fotos e os detalhes e informe os custos para fechar o resultado.':'. Abra um atendimento para ver fotos, detalhes e custos.')+'</p><div class="dre-svc-list">'+(items.map(row).join('')||'<p class="dre-note">Nenhum atendimento neste período.</p>')+'</div><div class="dre-lightbox" hidden><img alt=""></div>');
+ d.classList.add('dre-dialog-wide');
+ const box=$('.dre-lightbox',d);box.onclick=()=>{box.hidden=true};
+ d.querySelectorAll('details.dre-svc').forEach(x=>{const s=items.find(i=>i.proposalId===x.dataset.svc);x.ontoggle=()=>{if(x.open&&!x.dataset.loaded)serviceDetail(d,x,s);};if(x.open)serviceDetail(d,x,s);});
+}
+async function serviceDetail(d,x,s){
+ x.dataset.loaded='1';const body=$('.dre-svc-body',x),id=s.proposalId,enc=encodeURIComponent(id);
+ const snap=s.costSnapshot,travelEst=snap?['fuelCost','vehicleOperatingCost','tollCost','parkingCost','otherTravelCost'].reduce((n,k)=>n+(snap[k]||0),0):null;
+ const composition=snap?'<details class="dre-svc-sub"><summary>Composição da estimativa preservada (v'+(s.estimateVersion??'—')+')</summary><dl>'+[['Materiais','materialCost'],['Combustível','fuelCost'],['Custo por km','vehicleOperatingCost'],['Pedágio','tollCost'],['Estacionamento','parkingCost'],['Outros deslocamentos','otherTravelCost'],['Outros custos diretos','otherDirectCosts']].map(([l,k])=>'<dt>'+l+'</dt><dd>'+money(snap[k])+'</dd>').join('')+'</dl></details>':'';
+ if(demo){body.innerHTML='<p class="dre-note">Demonstração fictícia: sem fotos nem orçamento real para este atendimento.</p>'+composition;return;}
+ try{
+  opsPromise??=EcoAuth.api('/api/operations').catch(()=>[]);
+  const [q,v,ops]=await Promise.all([EcoAuth.api('/api/proposals/'+enc),EcoAuth.api('/api/profitability/proposals/'+enc).catch(()=>null),opsPromise]);
+  const op=(ops||[]).find(o=>o.id===id)||{},c=v?.comparison||{},comp=c.components||{},a=v?.actual?.input||null,missing=s.costSource==='missing';
+  const lacks=[['material','Materiais'],['travel','Deslocamento'],['other','Outros custos diretos']].filter(([k])=>comp[k]==null).map(([,l])=>l);
+  const why=missing?'<div class="dre-svc-why"><b>Por que está pendente:</b> '+(s.estimateVersion?'a estimativa v'+s.estimateVersion+' estava incompleta quando o atendimento foi concluído.':'o orçamento não tinha uma estimativa de custos válida quando o atendimento foi concluído.')+(lacks.length?' Falta: '+lacks.join(', ')+'.':'')+' Informe os valores abaixo para fechar o resultado.</div>':'';
+  const sch=op.schedule||{},info=[['Cliente',q.client],['Contato',q.clientContact],['Endereço',q.address],['Orçamento',q.number+(q.date?' · '+brDate(q.date):'')],['Realizado em',brDate(s.serviceDate)],['Agenda',sch.start?brTime(sch.start)+(sch.end?' até '+brTime(sch.end).slice(-5):''):''],['Receita base',money(s.revenue)],['Custos no período',money(s.cost)]].filter(([,v])=>v);
+  const items=(q.items||[]).map(i=>'<li class="dre-svc-item"><div><strong>'+esc(i.service)+'</strong><small>'+esc(i.quantity)+' '+esc(i.unit||'')+' · '+money(Math.round(Number(i.price)*100))+(i.description?' · '+esc(i.description):'')+'</small></div>'+((i.photos||[]).length?'<div class="dre-svc-photos">'+i.photos.map((src,n)=>'<button type="button" class="dre-svc-photo" aria-label="Ampliar foto '+(n+1)+' de '+esc(i.service)+'"><img src="'+esc(src)+'" alt="'+esc(i.service)+', foto '+(n+1)+'" loading="lazy"></button>').join('')+'</div>':'<small class="dre-svc-nophoto">Sem fotos neste item.</small>')+'</li>').join('');
+  const tag=k=>a&&(k==='other'?a.otherCosts!=null:a[k]!=null)?'<em class="cs-actual">real</em>':comp[k]!=null?'<em>estimado</em>':'<em class="cs-missing">falta</em>';
+  const costs='<table class="dre-svc-costs"><tbody>'+[['Materiais','material',snap?.materialCost],['Deslocamento','travel',travelEst],['Outros custos diretos','other',snap?.otherDirectCosts]].map(([l,k,est])=>'<tr><td>'+l+' '+tag(k)+'</td><td class="number">'+money(comp[k])+'</td><td class="number dre-svc-est">'+(est==null?'sem estimativa':'estimado '+money(est))+'</td></tr>').join('')+'</tbody></table>';
+  const lockedTravel=a?.travelMode==='components',lockedOther=(a?.otherCosts||[]).length>1;
+  const form=v?.canRecord?'<form class="dre-form dre-svc-fix"><strong class="wide">'+(missing?'Corrigir custos deste atendimento':'Ajustar custos deste atendimento')+'</strong>'+field('material','Materiais (R$)',value(comp.material),'text','inputmode="decimal" required')+field('travel','Deslocamento (R$)',value(comp.travel),'text','inputmode="decimal" required'+(lockedTravel?' disabled':''))+field('other','Outros custos diretos (R$)',value(comp.other),'text','inputmode="decimal" required'+(lockedOther?' disabled':''))+(v.actual?field('reason','Motivo da correção','','text','required maxlength="500"'):'')+'<p class="dre-note wide">Use 0 quando não houve custo. Os valores entram como custo real na competência original; versões anteriores ficam no histórico.'+(lockedTravel||lockedOther?' Campos travados já têm detalhamento: ajuste pelo orçamento › Rentabilidade.':'')+'</p><p class="dre-error wide" role="alert"></p><footer><button type="button" class="secondary" data-open-quote>Abrir orçamento</button><button class="primary" type="submit">Salvar custos</button></footer></form>'
+   :'<p class="dre-note">'+(s.projected?'Atendimento agendado: os custos reais são informados depois de concluído.':'Conclua o atendimento para registrar custos reais.')+'</p><button type="button" class="secondary" data-open-quote>Abrir orçamento</button>';
+  body.innerHTML=why+'<dl class="dre-svc-info">'+info.map(([k,v])=>'<dt>'+k+'</dt><dd>'+esc(v)+'</dd>').join('')+'</dl><h3>Serviços e fotos</h3><ul class="dre-svc-items">'+items+'</ul><h3>Custos</h3>'+costs+composition+form;
+  body.querySelectorAll('.dre-svc-photo').forEach(b=>b.onclick=()=>{const box=$('.dre-lightbox',d),img=$('img',box);img.src=$('img',b).src;img.alt=$('img',b).alt;box.hidden=false;});
+  $('[data-open-quote]',body).onclick=()=>{d.close();EcoWorkspace.openDetail(id);};
+  const f=$('form',body);if(f)f.onsubmit=async e=>{
+   e.preventDefault();const btn=$('[type=submit]',f),err=$('.dre-error',f);btn.disabled=true;err.textContent='';
+   try{
+    const other=lockedOther?a.otherCosts:(()=>{const n=parse(f.elements.other.value);return n?[{name:'Outros custos diretos',cents:n}]:[];})();
+    const payload={expectedVersion:v.actual?.version||0,revenue:a?.revenue??null,material:parse(f.elements.material.value),travelMode:lockedTravel?'components':'total',travel:lockedTravel?null:parse(f.elements.travel.value),travelComponents:lockedTravel?a.travelComponents:null,distanceMeters:a?.distanceMeters??null,minutes:a?.minutes??null,otherCosts:other,notes:a?.notes||'',reason:f.elements.reason?.value||''};
+    await EcoAuth.api('/api/profitability/proposals/'+enc+'/actual',{method:'PUT',body:JSON.stringify(payload)});
+    const open=[...d.querySelectorAll('details.dre-svc[open]')].map(y=>y.dataset.svc);await load();notice('Custos salvos. O resultado do período foi atualizado.');if(d.open)serviceDrill(open);
+   }catch(e2){err.textContent=e2.message;btn.disabled=false;}
+  };
+ }catch(e){body.innerHTML='<p class="dre-error">'+esc(e.message)+'</p>'+composition;}
 }
 async function expenseList(loadSerial=serial){
  let result;if(demo){const all=report.expenses;result={total:all.length,items:all.slice((page-1)*20,page*20)};}else result=await api('/expenses?'+new URLSearchParams({from,to,page,search:filters.search,category:filters.category,status:filters.status,mode:filters.scope}));
@@ -236,5 +295,5 @@ function complete(id,op,onDone){
  submit(d,async f=>{await EcoAuth.api('/api/proposals/'+id+'/status',{method:'POST',body:JSON.stringify({status:'completed',serviceDate:f.elements.serviceDate.value})});await onDone();notice('Atendimento concluído e competência registrada.');if(f.elements.actual.checked)return ()=>UniversalProfit.actualForm(id,onDone);});
 }
 // toggleDemo(): dados fictícios para testes e prévias (o botão "Ver demonstração" saiu da tela).
-window.UniversalDre={open:()=>{shell();load()},initSettings,complete,toggleDemo(){demo=!demo;if(demo){from=shift(current(),-2);to=current();}shell();return load();}};
+window.UniversalDre={open:()=>{shell();load()},initSettings,complete,alerts:html=>setAlerts(html),toggleDemo(){demo=!demo;if(demo){from=shift(current(),-2);to=current();}shell();return load();}};
 })();
