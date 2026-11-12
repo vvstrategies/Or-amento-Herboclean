@@ -41,10 +41,13 @@
 .fb-pill[aria-pressed=true],.fb-menu-btn.on{background:linear-gradient(135deg,var(--r-primary),var(--r-deep));color:#fff;box-shadow:0 6px 14px -8px var(--r-primary)}
 .fb-pill:focus-visible,.fb-menu-btn:focus-visible,.fb-clear:focus-visible{outline:2px solid var(--r-accent);outline-offset:2px}
 .fb-range{font-variant-numeric:tabular-nums}
-.fb-range.on{background:var(--r-mint);color:var(--r-ink);box-shadow:inset 0 0 0 1.5px var(--r-primary)}
+/* "Escolher datas" já reserva a largura de um intervalo de datas: a barra não cresce ao escolher período. */
+.fb-rl{display:inline-grid}.fb-rl>*{grid-area:1/1}.fb-ghost{visibility:hidden}
+.fb-range.on{color:#fff}
 .fb-cal,.fb-chev{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .fb-chev{width:13px;height:13px;opacity:.7}
 .fb-count{min-width:18px;height:18px;border-radius:999px;background:var(--r-accent);color:#17202e;font-size:10.5px;display:inline-grid;place-items:center;padding:0 5px}
+.fb-clear.is-off{visibility:hidden;pointer-events:none}
 .fb-clear{border:0;background:none;color:var(--r-primary);font-family:inherit;font-weight:600;font-size:12px;padding:7px 12px;border-radius:999px;cursor:pointer;flex:none;text-decoration:underline;text-underline-offset:3px}
 /* Ícones de origem nas cores das marcas */
 .fb-dots{display:inline-grid;grid-template-columns:repeat(2,5px);gap:2px}

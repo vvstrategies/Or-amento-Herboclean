@@ -11,7 +11,7 @@
   const ORIGINS=[['all','Todos'],['meta','Meta'],['google','Google'],['organico','Orgânico'],['indicacao','Indicação'],['cliente','Cliente antigo'],['none','Sem origem']];
   const INLINE_ORIGINS=4;
   const STATUSES=[['generated','Orçamento'],['scheduled','Agendado'],['completed','Concluído'],['cancelled','Cancelado']];
-  const PERIOD_LABEL={'7':'7 dias','30':'30 dias','90':'90 dias',all:'Tudo'};
+  const PERIOD_LABEL={'7':'7 dias','30':'30 dias',month:'Mês atual',all:'Tudo'};
   const DEFAULTS={home:'30',quotes:'all',clients:'all',finance:'30',sales:'30',traffic:'30'};
   const ORIGIN_ALIASES={google_ads:'google','google-ads':'google',googleads:'google',meta_ads:'meta','meta-ads':'meta',facebook:'meta',facebook_ads:'meta',instagram:'meta'};
   const originKey=v=>{const k=String(v||'').toLowerCase().replace(/\s+/g,'');return ORIGIN_ALIASES[k]||k};
@@ -52,6 +52,8 @@
     if(p.preset==='all')return {preset:'all',from:'',to:''};
     const custom=CUSTOM_PRESETS[scope]?.find(x=>x.id===p.preset)||CUSTOM_PRESETS[scope]?.[0];
     if(CUSTOM_PRESETS[scope]&&custom){const [from,to]=custom.range(t);return {preset:custom.id,from,to}}
+    // 'month' = mês corrente até hoje; o antigo '90' salvo no navegador vira 'month'.
+    if(p.preset==='month'||p.preset==='90')return {preset:'month',from:monthStart(t),to:t};
     const days=Number(p.preset)||30;return {preset:String(days),from:addDays(t,-(days-1)),to:t};
   }
   /** Estado efetivo de uma tela. */
@@ -108,15 +110,16 @@
     const groups=[];
     if(dims.includes('origin'))groups.push(`<div class="fb-group" role="group" aria-label="Origem" data-seg-key="fb-${scope}-origin">${ORIGINS.slice(0,INLINE_ORIGINS).map(([id,l])=>`<button type="button" class="fb-pill" data-fb-origin="${id}" aria-pressed="${f.origin===id}">${originIcon(id)}${l}</button>`).join('')}${menuButton('origin',extraOrigin?extraOrigin[1]:'Mais',extraOrigin?1:0)}</div>`);
     if(dims.includes('period')){
-      const presets=CUSTOM_PRESETS[scope]?CUSTOM_PRESETS[scope].map(x=>[x.id,x.label]):['7','30','90',...(bar.allowAll?['all']:[])].map(id=>[id,PERIOD_LABEL[id]]);
-      groups.push(`<div class="fb-group" role="group" aria-label="Período" data-seg-key="fb-${scope}-period">${presets.map(([id,label])=>`<button type="button" class="fb-pill" data-fb-preset="${id}" aria-pressed="${f.preset===id}">${esc(label)}</button>`).join('')}<button type="button" class="fb-pill fb-range${f.preset==='custom'?' on':''}" data-fb-calendar aria-haspopup="dialog" aria-pressed="${f.preset==='custom'}">${calIcon}${f.from?rangeLabel(scope,f):'Escolher datas'}</button></div>`);
+      const presets=CUSTOM_PRESETS[scope]?CUSTOM_PRESETS[scope].map(x=>[x.id,x.label]):['7','30','month',...(bar.allowAll?['all']:[])].map(id=>[id,PERIOD_LABEL[id]]);
+      groups.push(`<div class="fb-group" role="group" aria-label="Período" data-seg-key="fb-${scope}-period">${presets.map(([id,label])=>`<button type="button" class="fb-pill" data-fb-preset="${id}" aria-pressed="${f.preset===id}">${esc(label)}</button>`).join('')}<button type="button" class="fb-pill fb-range${f.preset==='custom'?' on':''}" data-fb-calendar aria-haspopup="dialog" aria-pressed="${f.preset==='custom'}">${calIcon}${f.from?rangeLabel(scope,f):CUSTOM_PRESETS[scope]?'Escolher datas':'<span class="fb-rl"><span>Escolher datas</span><span class="fb-ghost" aria-hidden="true">00/00/0000 – 00/00/0000</span></span>'}</button></div>`);
     }
     const sel=[];
     if(dims.includes('service'))sel.push(menuButton('service',f.services.length===1?f.services[0]:'Serviço',f.services.length>1?f.services.length:f.services.length?1:0));
     if(dims.includes('tag')){const one=options.tags.find(t=>t.id===f.tags[0]);sel.push(menuButton('tag',f.tags.length===1&&one?one.label:'Cliente',f.tags.length))}
     if(dims.includes('status')){const one=STATUSES.find(([id])=>id===f.statuses[0]);sel.push(menuButton('status',f.statuses.length===1&&one?one[1]:'Status',f.statuses.length))}
     if(sel.length)groups.push(`<div class="fb-group" role="group" aria-label="Serviço, tipo de cliente e status">${sel.join('')}</div>`);
-    const clear=active(scope)?'<button type="button" class="fb-clear" data-fb-clear title="Voltar aos filtros padrão">Limpar</button>':'';
+    // "Limpar" ocupa sempre o seu espaço (invisível sem filtro ativo): a barra não muda de largura ao filtrar.
+    const on=active(scope),clear='<button type="button" class="fb-clear'+(on?'':' is-off')+'" data-fb-clear title="Voltar aos filtros padrão"'+(on?'':' tabindex="-1" aria-hidden="true"')+'>Limpar</button>';
     scaffold(host).querySelector('.fb-main').innerHTML=`${groups.join('<span class="fb-div" aria-hidden="true"></span>')}${clear}`;
   }
 

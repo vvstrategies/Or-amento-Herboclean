@@ -64,7 +64,7 @@
     const hello=cut>0?title.slice(0,cut+1):'Olá,',name=(cut>0?title.slice(cut+1):title).trim()||($('.topbar-workspace')?.textContent||'').trim();
     const company=($('.topbar-workspace')?.textContent||name).trim();
     const f=globalThis.EcoFilters?.get('home'),br=d=>d?d.slice(8,10)+'/'+d.slice(5,7):'';
-    const period=!f?'':f.preset==='custom'?br(f.from)+' – '+br(f.to):'Últimos '+f.preset+' dias';
+    const period=!f?'':f.preset==='custom'?br(f.from)+' – '+br(f.to):f.preset==='month'?'Mês atual':f.preset==='all'?'Todo o período':'Últimos '+f.preset+' dias';
     const kpi=view.querySelector('#home-bento .kpi'),val=kpi?.querySelector('.val')?.textContent.trim()||'—',lbl=kpi?.querySelector('.lbl')?.textContent.trim()||'Receita concluída';
     const pill=kpi?.querySelector('.cmp .pill'),pillHTML=pill?pill.outerHTML:'';
     const sig=[hello,name,company,period,val,lbl,pillHTML].join('|');if(box.dataset.sig===sig)return;box.dataset.sig=sig;
