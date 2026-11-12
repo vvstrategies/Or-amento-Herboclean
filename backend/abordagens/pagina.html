@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#044c3a">
+<title>Abordagens · Black Friday</title>
+<link rel="icon" href="/assets/favicon-32.png">
+<style>
+@font-face{font-family:PJ;src:url(/assets/plus-jakarta-regular.ttf);font-weight:400;font-display:swap}
+@font-face{font-family:PJ;src:url(/assets/plus-jakarta-bold.ttf);font-weight:700;font-display:swap}
+:root{--g:#044c3a;--deep:#04241b;--g2:#0a5a45;--lime:#a7cf21;--lime-soft:#eef6d6;--bg:#eef4ea;--card:#fff;--ink:#10231c;--muted:#5f6b66;--line:#dde5db;--soft:#f5f8f3;--red:#b42318;--red-soft:#fdecea;--amber:#8a5a00;--amber-soft:#fff4dc}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 PJ,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+.top{background:linear-gradient(135deg,var(--g2),var(--g) 50%,var(--deep));color:#fff;padding:18px 16px 22px;border-radius:0 0 26px 26px}
+.top-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top img{height:30px}
+.top h1{font-size:19px;margin:0;font-weight:700;flex:1;min-width:180px}
+.top h1 span{display:block;font-size:13px;font-weight:400;color:#ffffffb3}
+.top a{color:#ffffffcc;font-size:13px;text-decoration:none;border:1px solid #ffffff40;border-radius:999px;padding:6px 12px}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:-6px}
+.kpi{background:var(--card);border-radius:18px;padding:14px 16px;box-shadow:0 1px 0 #04241b0a,0 6px 18px #04241b0d}
+.kpi small{display:block;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.kpi b{display:block;font-size:22px;margin-top:4px;letter-spacing:-.01em}
+.kpi em{font-style:normal;font-size:12px;color:var(--muted)}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:16px 0 12px}
+.seg{display:inline-flex;background:var(--card);border-radius:999px;padding:4px;gap:2px;border:1px solid var(--line)}
+.seg button{border:0;background:none;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--g);color:#fff}
+.bar select,.bar input[type=search]{height:38px;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:0 12px;font-size:14px}
+.bar input[type=search]{flex:1;min-width:160px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;height:38px;padding:0 14px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);white-space:nowrap}
+.btn:hover{border-color:var(--g)}
+.btn.primary{background:var(--g);border-color:var(--g);color:#fff}
+.btn.lime{background:var(--lime);border-color:var(--lime);color:var(--deep)}
+.btn.wa{background:#e7f8ec;border-color:#bfe8cc;color:#0b6b2e}
+.btn:disabled{opacity:.6;cursor:wait}
+.btn.done{background:var(--g);border-color:var(--g);color:#fff}
+.list{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+.row>*,.money-pair>*{min-width:0}
+.money .v{overflow-wrap:anywhere}
+.row{background:var(--card);border-radius:20px;padding:16px;display:grid;grid-template-columns:118px minmax(170px,1.3fr) minmax(150px,1fr) minmax(190px,1.3fr) 92px;gap:14px 18px;align-items:start;box-shadow:0 1px 0 #04241b0a,0 6px 18px #04241b0d;border:2px solid transparent}
+.row.sent{background:#f7faf6;border-color:#cfe3a6}
+.sentbox{display:flex;flex-direction:column;gap:4px;cursor:pointer;user-select:none}
+.sentbox span{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13px}
+.sentbox input{width:22px;height:22px;accent-color:var(--g);margin:0}
+.sentbox small{font-size:11px;color:var(--muted);min-height:15px}
+.who b{font-size:16px;display:block}
+.who .meta{font-size:12.5px;color:var(--muted)}
+.who .num{font-size:11.5px;color:var(--muted);font-family:ui-monospace,monospace}
+.pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;border-radius:999px;padding:3px 9px;margin:6px 6px 0 0}
+.p-colchao{background:var(--lime-soft);color:#3d5a00}.p-desconto{background:#e3f1ec;color:var(--g)}.p-cheio{background:#eef0ee;color:#45514b}.p-aviso{background:var(--amber-soft);color:var(--amber)}
+.p-live{background:var(--red-soft);color:var(--red)}.p-ok{background:#e3f1ec;color:var(--g)}
+.svc{font-size:13.5px;margin-top:6px}
+.money small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.money .opt+.opt{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+.money .v{font-size:18px;font-weight:700;letter-spacing:-.01em}
+.money .v s{font-size:13px;font-weight:400;color:var(--muted);margin-left:6px}
+.money .l{font-size:12.5px}
+.money .l.neg{color:var(--red);font-weight:700}
+.money .d{font-size:11.5px;color:var(--muted)}
+.money .tagop{display:inline-block;font-size:10.5px;font-weight:700;background:var(--deep);color:var(--lime);border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:2px}
+.chance{text-align:center}
+.chance button{border:0;background:var(--soft);border-radius:14px;width:100%;padding:8px 4px;cursor:pointer}
+.chance b{display:block;font-size:20px}
+.chance .hi{color:var(--g)}.chance .mid{color:#5f7a10}.chance .lo{color:#8b948f}
+.chance small{font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:.08em}
+.why{grid-column:2/-1;background:var(--soft);border-radius:12px;padding:10px 12px;font-size:13px;margin:-4px 0 0}
+.acts{grid-column:2/-1;display:flex;gap:8px;flex-wrap:wrap}
+details.msg{grid-column:2/-1;border-top:1px solid var(--line);padding-top:10px}
+details.msg summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--g);list-style:none}
+details.msg summary::-webkit-details-marker{display:none}
+details.msg summary:before{content:"▸ ";}
+details.msg[open] summary:before{content:"▾ "}
+.bubble{background:#dcf8c6;border-radius:14px 14px 14px 4px;padding:12px 14px;white-space:pre-wrap;font-size:14px;margin-top:10px;max-width:640px;color:#111b21}
+.quote{font-size:12.5px;color:var(--muted);margin-top:8px;font-style:italic}
+.empty{background:var(--card);border-radius:22px;padding:34px 22px;text-align:center}
+.empty h2{margin:0 0 6px;font-size:20px}
+.empty p{margin:0 auto 16px;color:var(--muted);max-width:520px}
+.foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12.5px;margin:18px 0 30px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--deep);color:#fff;border-radius:14px;padding:11px 16px;font-size:14px;box-shadow:0 10px 30px #0005;z-index:9;max-width:calc(100% - 32px)}
+.toast.err{background:var(--red)}
+.preview{position:fixed;inset:0;background:#000c;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;z-index:8}
+.preview img{max-width:100%;max-height:calc(100vh - 110px);border-radius:12px}
+.preview div{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+[hidden]{display:none!important}
+@media (max-width:900px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi b{font-size:19px}
+  .top a{margin-left:auto}
+  .row{grid-template-columns:minmax(0,1fr) 84px;gap:12px;padding:14px}
+  .row>.sentbox{grid-column:1/-1;flex-direction:row;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding-bottom:10px}
+  .row>.who{grid-column:1}
+  .row>.chance{grid-column:2;grid-row:2}
+  .row>.money{grid-column:1/-1}
+  .money-pair{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+  .bar select{flex:1 1 100%}
+  .why,.acts,details.msg{grid-column:1/-1}
+  .acts .btn{flex:1 1 calc(50% - 8px);justify-content:center}
+}
+@media (min-width:901px){.money-pair{display:contents}}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <img src="/assets/herboclean.png" alt="Herboclean">
+  <h1>Abordagens · Black Friday<span>Condições válidas até sexta, 27/11 · mensagens prontas e imagem do orçamento</span></h1>
+  <a href="/">Voltar ao app</a>
+</div></header>
+<main class="wrap">
+  <section class="kpis" id="kpis" hidden>
+    <div class="kpi"><small>Clientes</small><b id="k-total">0</b><em id="k-grupos"></em></div>
+    <div class="kpi"><small>Enviados</small><b id="k-sent">0</b><em id="k-pend"></em></div>
+    <div class="kpi"><small>Faturamento esperado</small><b id="k-fat">R$ 0</b><em>chance × preço da Black</em></div>
+    <div class="kpi"><small>Lucro esperado da V&amp;V</small><b id="k-vv">R$ 0</b><em id="k-split"></em></div>
+  </section>
+  <section class="bar" id="bar" hidden>
+    <div class="seg" id="seg-status">
+      <button type="button" data-v="pendentes" aria-pressed="true">Pendentes</button>
+      <button type="button" data-v="enviados" aria-pressed="false">Enviados</button>
+      <button type="button" data-v="todos" aria-pressed="false">Todos</button>
+    </div>
+    <select id="f-grupo" aria-label="Tipo de oferta">
+      <option value="">Todas as ofertas</option>
+      <option value="colchao">Colchão: 15% ou combo</option>
+      <option value="desconto">Só desconto</option>
+      <option value="preco-cheio">Preço cheio</option>
+      <option value="aviso">Aviso (já fechando)</option>
+    </select>
+    <input type="search" id="f-busca" placeholder="Buscar cliente, bairro ou número" aria-label="Buscar">
+  </section>
+  <section id="empty" class="empty" hidden>
+    <h2>Nenhuma abordagem importada</h2>
+    <p>Importe o arquivo <b>abordagens-bf-2026.json</b> gerado no computador. Ele fica guardado no banco do app, sem passar pelo código.</p>
+    <button class="btn primary" type="button" data-importar>Importar JSON</button>
+  </section>
+  <section class="list" id="list" aria-live="polite"></section>
+  <footer class="foot" id="foot" hidden>
+    <span id="f-info"></span>
+    <button class="btn" type="button" data-importar>Reimportar JSON</button>
+  </footer>
+  <input type="file" id="file" accept="application/json,.json" hidden>
+</main>
+<div class="preview" id="preview" hidden>
+  <img id="preview-img" alt="Prévia da imagem do orçamento">
+  <div>
+    <a class="btn lime" id="preview-save" download>Salvar imagem</a>
+    <button class="btn" type="button" id="preview-share" hidden>Compartilhar</button>
+    <button class="btn" type="button" id="preview-close">Fechar</button>
+  </div>
+</div>
+<script src="/abordagens/app.js"></script>
+</body>
+</html>

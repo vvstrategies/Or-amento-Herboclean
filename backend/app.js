@@ -29,6 +29,7 @@ import {modelo} from '../utils/proposta.js';
 import {gerarPDFEcoclean} from '../utils/ecocleanPdf.js';
 import {migrateServiceCatalog} from './service-catalog.js';
 import {registerPublicPages} from './public-pages.js';
+import {registerAbordagens} from './abordagens.js';
 import {initializeInstallation,completed,finishSetup,validateSettings} from './onboarding.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const publicPDF=({storageKey,...pdf})=>pdf;
@@ -131,6 +132,7 @@ export function createApp(options={}){
       for(const {q} of proposals)commercial.safeSync(repo.proposal(q.id));res.json({imported:proposals.length,proposals:proposals.map(({q})=>repo.proposal(q.id))});
     }catch(error){for(const p of staged){const file=path.join(repo.files,p.storage);if(fs.existsSync(file))fs.unlinkSync(file)}throw error}
   }));
+  registerAbordagens(app,{repo}); // Temporário: Black Friday 2026 (remover depois da campanha).
   app.use('/api',(req,res)=>res.status(404).json({error:'Recurso não encontrado.'}));
   const allowed=new Set(fs.readdirSync(path.join(root,'public')).filter(n=>/\.(html|css|js)$/.test(n)));
   // Na Hostinger, public/ é servido direto pelo CDN, sem Cache-Control e ignorando query string; a versão no caminho passa pelo app e muda a cada deploy.
