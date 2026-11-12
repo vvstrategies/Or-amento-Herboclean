@@ -114,4 +114,14 @@
     bump(){avatarRev++}
   };
   addEventListener('error',e=>{if(e.target?.classList?.contains('av-photo'))e.target.remove()},true);
+  // Dica ao passar o mouse em qualquer [data-hint]: um balão só, preso ao body (não é cortado por overflow).
+  let hint=null,hintFor=null;
+  const hideHint=()=>{if(hint)hint.hidden=true;hintFor=null};
+  addEventListener('pointerover',e=>{
+    if(e.pointerType==='touch')return;const t=e.target.closest?.('[data-hint]');if(!t){hideHint();return}if(t===hintFor)return;
+    if(!hint){hint=document.createElement('div');hint.className='eco-hint';hint.setAttribute('role','tooltip');document.body.append(hint)}
+    hintFor=t;hint.textContent=t.dataset.hint;hint.hidden=false;const r=t.getBoundingClientRect(),w=hint.offsetWidth;
+    hint.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left+r.width/2-w/2))+'px';hint.style.top=(r.bottom+10)+'px';
+  });
+  addEventListener('scroll',hideHint,true);addEventListener('pointerdown',hideHint,true);
 })(globalThis);

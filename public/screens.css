@@ -266,3 +266,9 @@ i.tr-i-rev{background:#0e7a5a}i.tr-i-inv{background:#a07a00}
 }
 /* Configurações › Inteligência e precificação: aba própria, card com largura de formulário */
 .settings-view .settings-layout>#profit-settings-slot{grid-column:1/-1;max-width:860px}
+/* Dica flutuante ([data-hint], ui-kit.js) */
+.eco-hint{position:fixed;z-index:1000;max-width:280px;padding:8px 11px;border-radius:10px;background:var(--r-ink,#0f1d18);color:#fff;font-size:12px;line-height:1.4;font-weight:500;box-shadow:0 10px 24px -12px rgba(0,0,0,.45);pointer-events:none;animation:eco-hint-in .15s ease-out}
+.eco-hint[hidden]{display:none}
+@keyframes eco-hint-in{from{opacity:0;transform:translateY(-3px)}}
+.fin-alerts>.profit-coverage{font-size:12px;margin:0 4px!important}
+.fin-tabs-row .dre-note:empty{display:none}

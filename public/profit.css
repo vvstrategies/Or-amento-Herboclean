@@ -31,7 +31,7 @@
  .po-insights,.po-trend,.po-goals{overflow:auto;min-height:0;scrollbar-width:thin}
  #dre-content.profit-private>.dre-note:last-of-type,#profit-export{margin:6px 4px 0}
 }
-@media(max-width:1150px){.profit-overview{grid-template-columns:1fr}.profit-toolbar{border-radius:20px}.profit-toolbar .profit-tabs{margin-left:0;overflow-x:auto;max-width:100%}}
+@media(max-width:1150px){.profit-overview{grid-template-columns:minmax(0,1fr)}.profit-overview>*{min-width:0}.profit-toolbar{border-radius:20px}.profit-toolbar .profit-tabs{margin-left:0;overflow-x:auto;max-width:100%}}
 /* ajuste: abas em cima, filtros compactos embaixo, sem caixa em pílula; grade com duas linhas proporcionais */
 .profit-toolbar{flex-direction:column;align-items:flex-start;gap:8px;background:none;border:0;box-shadow:none;padding:0;border-radius:0}
 .profit-toolbar .profit-tabs{order:-1;margin:0}
