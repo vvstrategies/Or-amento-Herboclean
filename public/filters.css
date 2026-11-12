@@ -21,9 +21,11 @@
 .fb-dd-lbl{font-weight:600;color:var(--r-muted)}
 .fb-n{min-width:20px;height:18px;border-radius:999px;background:color-mix(in srgb,var(--r-primary) 10%,#fff);color:var(--r-ink);font-size:10.5px;font-weight:700;display:inline-grid;place-items:center;padding:0 6px;font-variant-numeric:tabular-nums}
 .fb-dd .fb-n{background:var(--r-primary);color:#fff}
-.app-shell .fb-extra .fb-search{flex:1 1 240px;min-width:180px;max-width:none;height:32px;background:var(--r-paper);border:1px solid transparent;transition:border-color .18s,background .18s}
+.app-shell .fb-extra .fb-search{flex:1 1 240px;min-width:180px;max-width:none;height:32px;margin:0;box-sizing:border-box;background:var(--r-paper);border:1px solid transparent;transition:border-color .18s,background .18s}
 .app-shell .fb-extra .fb-search:focus-within{background:#fff;border-color:var(--r-primary)}
-.app-shell .fb-extra .fb-search input{padding:6px 0;font-size:12.5px}
+.app-shell .fb-extra .fb-search input{padding:0;margin:0;height:100%;font-size:12.5px}
+/* Segunda linha da barra: tudo com 32px de altura, centrado na mesma linha. */
+.fb-extra .fb-tog,.fb-extra .fb-dd{height:32px;box-sizing:border-box;display:inline-flex;align-items:center}
 .fb-tog{border:1px solid var(--r-line);background:#fff;border-radius:999px;padding:6px 13px;font:inherit;font-weight:600;font-size:12.5px;line-height:1.2;color:var(--r-muted);white-space:nowrap;cursor:pointer;transition:background .18s,color .18s,border-color .18s}
 .fb-tog:hover{color:var(--r-ink);background:var(--r-mint)}
 .fb-tog[aria-pressed=true]{background:var(--r-primary)!important;border-color:var(--r-primary)!important;color:#fff!important}
@@ -42,7 +44,7 @@
 .fb-pill:focus-visible,.fb-menu-btn:focus-visible,.fb-clear:focus-visible{outline:2px solid var(--r-accent);outline-offset:2px}
 .fb-range{font-variant-numeric:tabular-nums}
 /* "Escolher datas" já reserva a largura de um intervalo de datas: a barra não cresce ao escolher período. */
-.fb-rl{display:inline-grid}.fb-rl>*{grid-area:1/1}.fb-ghost{visibility:hidden}
+.fb-rl{display:inline-grid;justify-items:start;text-align:left}.fb-rl>*{grid-area:1/1}.fb-ghost{visibility:hidden}
 .fb-range.on{color:#fff}
 .fb-cal,.fb-chev{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .fb-chev{width:13px;height:13px;opacity:.7}
