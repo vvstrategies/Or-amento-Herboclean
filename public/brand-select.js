@@ -33,7 +33,8 @@
     const pick=i=>{const o=select.options[i];if(!o||o.disabled)return;const changed=select.selectedIndex!==i;protoIndex.set.call(select,i);sync();close(true);if(changed){select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}))}};
     btn.addEventListener('click',e=>{e.stopPropagation();list.hidden?show():close()});
     list.addEventListener('mousedown',e=>e.preventDefault());
-    list.addEventListener('click',e=>{const li=e.target.closest('li');if(li)pick(Number(li.dataset.i))});
+    // Cancel label activation: picking a custom option must not open the hidden native select.
+    list.addEventListener('click',e=>{e.preventDefault();const li=e.target.closest('li');if(li)pick(Number(li.dataset.i))});
     btn.addEventListener('keydown',e=>{
       const n=select.options.length;
       if(list.hidden){if(['ArrowDown','ArrowUp','Enter',' '].includes(e.key)){e.preventDefault();show()}return}

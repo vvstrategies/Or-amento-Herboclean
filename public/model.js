@@ -2,6 +2,10 @@
   'use strict';
   const U=root.UniversalCompany;
   const services=U.defaultServices();
+  const mattressTypes=Object.freeze(['Solteiro','Queen','King','Casal','Viúva','Solteiro King','Super King']);
+  const isMattress=service=>String(service||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()==='colchao';
+  const mattressType=item=>isMattress(item?.service)&&mattressTypes.includes(item?.mattressType)?item.mattressType:'';
+  const serviceLabel=item=>item.service+(mattressType(item)?' · '+mattressType(item):'');
   function configure(settings){services.splice(0,services.length,...U.catalog(settings.services))}
   const id = () => root.crypto.randomUUID();
   const origins={meta:'Meta Ads',google:'Google Ads',indicacao:'Indicação',organico:'Orgânico',cliente:'Cliente antigo'};
@@ -64,7 +68,7 @@
     q.terms = normalizeTerms(raw.terms || raw);
     q.items = raw.items.map(it => {
       if (!it || typeof it !== 'object') throw Error('Serviço inválido.');
-      return { id: text(it.id,100) || id(), service: text(it.service || it.name,240) || services[0].name, description: text(it.description,1500), unit: it.unit === 'm²' ? 'm²' : 'un.', quantity: numeric(it.quantity,.01,100000,1), price: it.price === '' ? '' : numeric(it.price,0,1000000,0), photos: (Array.isArray(it.photos) ? it.photos : it.photo ? [it.photo] : []).slice(0,6).map(image).filter(Boolean) };
+      return { id: text(it.id,100) || id(), service: text(it.service || it.name,240) || services[0].name, description: text(it.description,1500), ...(mattressType({...it,service:it.service||it.name})?{mattressType:mattressType({...it,service:it.service||it.name})}:{}), unit: it.unit === 'm²' ? 'm²' : 'un.', quantity: numeric(it.quantity,.01,100000,1), price: it.price === '' ? '' : numeric(it.price,0,1000000,0), photos: (Array.isArray(it.photos) ? it.photos : it.photo ? [it.photo] : []).slice(0,6).map(image).filter(Boolean) };
     });
     return q;
   }
@@ -114,5 +118,5 @@
     });
     return q;
   }
-  root.EcoModel = { origins,proposalNumber,toPublicProposal:normalize,services,company,terms,item,quote,normalize,normalizeCompany,normalizeTerms,configure,totals,validate,today,image,digits,formatPostalCode,formatCnpj,corporateDetails,addressFromFields,proposalFilename };
+  root.EcoModel = { mattressTypes,isMattress,mattressType,serviceLabel,origins,proposalNumber,toPublicProposal:normalize,services,company,terms,item,quote,normalize,normalizeCompany,normalizeTerms,configure,totals,validate,today,image,digits,formatPostalCode,formatCnpj,corporateDetails,addressFromFields,proposalFilename };
 })(globalThis);

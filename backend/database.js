@@ -13,7 +13,7 @@ export const proposalFilename=q=>{
 };
 export function documentHash(q){
   const {number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms}=q;
-  const items=q.items.map(({service,description,unit,quantity,price,photos})=>({service,description,unit,quantity,price,photos}));
+  const items=q.items.map(({service,description,unit,quantity,price,photos,mattressType})=>({service,description,unit,quantity,price,photos,...(modelo.mattressType({service,mattressType})?{mattressType}: {})}));
   return hash(JSON.stringify({number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms,items,...(modelo.corporateDetails(q).length?{corporate:modelo.corporateDetails(q)}:{})}));
 }
 export function cleanQuote(raw,strict=false){

@@ -250,10 +250,10 @@ root.EcoRenderPDF=function(doc,q){
   const closeTable=()=>K.strokeShape(()=>doc.roundedRect(TX,segTop,CW,y-segTop,16.5),P.line,.8);
   // Cada linha do escopo; descrições que não cabem continuam na página seguinte.
   const photoH=item=>{const n=item.photos.length,r=Math.ceil(n/2);return n>1?r*19+(r-1)*2:39};
-  push();ensure(52+Math.min(photoH(q.items[0])+22+K.measure(q.items[0].service,SW,S.em,true),140));sync();tableHead();
+  push();ensure(52+Math.min(photoH(q.items[0])+22+K.measure(root.EcoModel.serviceLabel(q.items[0]),SW,S.em,true),140));sync();tableHead();
   q.items.forEach((item,i)=>{
     const lh=K.measure('Ag',SW,S.body),lines=item.description?K.wrap(item.description,SW,S.body):[];
-    const nameH=K.measure(item.service,SW,S.em,true),ph=photoH(item);
+    const nameH=K.measure(root.EcoModel.serviceLabel(item),SW,S.em,true),ph=photoH(item);
     let n0=0,first=true;
     while(first||n0<lines.length){
       const head=first?nameH+(lines.length?3:0):0,rest=lines.length-n0,avail=BOTTOM-y,minH=first?ph:0;
@@ -268,7 +268,7 @@ root.EcoRenderPDF=function(doc,q){
         if(np===1)K.photo(item.photos[0],COL.photo,top,48,39,10.5);
         else if(np>1)item.photos.forEach((src,p)=>K.photo(src,COL.photo+(p%2)*25,top+Math.floor(p/2)*21,23,19,5));
         else{K.fillShape(()=>doc.roundedRect(COL.photo,top,48,39,10.5),P.gray);K.line('Sem foto',COL.photo+24,top+16,7,false,P.muted,{center:true})}
-        K.text(item.service,COL.service,top,SW,S.em,true,P.green);ty+=head;
+        K.text(root.EcoModel.serviceLabel(item),COL.service,top,SW,S.em,true,P.green);ty+=head;
         K.line(D.qty(item),COL.qty,top+1,S.body,false,P.ink,{max:56});
         K.line(D.unit(item),COL.unit,top+1,S.body,false,P.ink,{max:70});
         K.line(money(t.rows[i]),COL.totalR,top,S.em,true,P.ink,{right:true});
@@ -411,7 +411,7 @@ root.EcoRenderMobilePDF=function(doc,q){
   const naturalHero=item=>item.photos.length?Math.round(Math.min(280,Math.max(120,CW*K.ratio(item.photos[0])))):0;
   let firstHero=naturalHero(q.items[0]);const heroH=item=>item.photos.length?(item===q.items[0]?firstHero:naturalHero(item)):0,thumbH=item=>item.photos.length>1?62:0;
   {const it=q.items[0],iw=CW-32,lines=it.description?K.wrap(it.description,iw,S.body).length:0,lh=K.measure('Ag',iw,S.body),
-    rest=24+thumbH(it)+16+K.measure(it.service,iw,S.em,true)+(lines?4:0)+Math.min(lines,3)*lh+(14+12+18+16-4)+4;
+    rest=24+thumbH(it)+16+K.measure(root.EcoModel.serviceLabel(it),iw,S.em,true)+(lines?4:0)+Math.min(lines,3)*lh+(14+12+18+16-4)+4;
    if(it.photos.length){push();const room=Math.floor(pg.room()-rest);if(room>=70&&room<firstHero)firstHero=room}
    ensure(rest+heroH(it))}
   K.caps('ESCOPO DOS SERVIÇOS',X,y+2,S.cap,P.ink);K.line(D.count,W-X,y,S.body,false,P.muted,{right:true});y+=24;
@@ -419,7 +419,7 @@ root.EcoRenderMobilePDF=function(doc,q){
     // Cartão do serviço; descrições muito longas continuam em um novo cartão na página seguinte.
     const photos=item.photos,hero=heroH(item),thumbs=thumbH(item),pad=16,iw=CW-2*pad;
     const lh=K.measure('Ag',iw,S.body),lines=item.description?K.wrap(item.description,iw,S.body):[];
-    const headH=hero+thumbs+pad+K.measure(item.service,iw,S.em,true)+(lines.length?4:0),footH=14+12+18+pad-4;
+    const headH=hero+thumbs+pad+K.measure(root.EcoModel.serviceLabel(item),iw,S.em,true)+(lines.length?4:0),footH=14+12+18+pad-4;
     let n0=0,first=true;
     while(first||n0<lines.length){
       const head=first?headH:pad,rest=lines.length-n0,avail=BOTTOM-y;
@@ -433,7 +433,7 @@ root.EcoRenderMobilePDF=function(doc,q){
         if(hero){doc.save();K.shape(X,top,CW,hero,{tl:18,tr:18}).clip();doc.rect(X,top,CW,hero).fill(P.gray);K.fitImage(photos[0],X,top,CW,hero);doc.restore();doc.fillColor(P.ink,1)}
         iy+=hero;
         if(thumbs){iy+=12;photos.slice(1,6).forEach((src,p)=>K.photo(src,X+pad+p*60,iy,52,50,10));iy+=50}
-        iy+=pad;iy=K.text(item.service,X+pad,iy,iw,S.em,true,P.green)+(lines.length?4:0);
+        iy+=pad;iy=K.text(root.EcoModel.serviceLabel(item),X+pad,iy,iw,S.em,true,P.green)+(lines.length?4:0);
       }else iy+=pad;
       lines.slice(n0,n0+n).forEach(s=>{if(s)K.line(s,X+pad,iy,S.body,false,P.muted);iy+=lh});
       if(last){

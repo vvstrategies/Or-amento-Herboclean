@@ -27,7 +27,7 @@
   const pdfs=id=>operation('pdfs','readonly',s=>s.index('proposalId').getAll(id));
   async function fingerprint(q){
     const {number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms}=q;
-    const items=q.items.map(({service,description,unit,quantity,price,photos})=>({service,description,unit,quantity,price,photos}));
+    const items=q.items.map(({service,description,unit,quantity,price,photos,mattressType})=>({service,description,unit,quantity,price,photos,...(EcoModel.mattressType({service,mattressType})?{mattressType}: {})}));
     const data=new TextEncoder().encode(JSON.stringify({number,date,client,address,postalCode,addressStreet,addressNumber,addressComplement,addressNeighborhood,addressCity,addressState,addressIbgeCode,clientContact,company,terms,items,...(EcoModel.corporateDetails(q).length?{corporate:EcoModel.corporateDetails(q)}:{})}));
     return [...new Uint8Array(await crypto.subtle.digest('SHA-256',data))].map(x=>x.toString(16).padStart(2,'0')).join('');
   }
